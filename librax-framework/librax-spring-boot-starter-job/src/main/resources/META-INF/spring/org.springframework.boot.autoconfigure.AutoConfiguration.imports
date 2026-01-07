@@ -1,0 +1,2 @@
+com.librax.lab.framework.quartz.config.LibraxQuartzAutoConfiguration
+com.librax.lab.framework.quartz.config.LibraxAsyncAutoConfiguration

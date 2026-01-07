@@ -1,0 +1,3 @@
+com.librax.lab.framework.mq.redis.config.LibraxRedisMQProducerAutoConfiguration
+com.librax.lab.framework.mq.redis.config.LibraxRedisMQConsumerAutoConfiguration
+com.librax.lab.framework.mq.rabbitmq.config.LibraxRabbitMQAutoConfiguration

@@ -1,0 +1,4 @@
+com.librax.lab.framework.idempotent.config.LibraxIdempotentConfiguration
+com.librax.lab.framework.lock4j.config.LibraxLock4jConfiguration
+com.librax.lab.framework.ratelimiter.config.LibraxRateLimiterConfiguration
+com.librax.lab.framework.signature.config.LibraxApiSignatureAutoConfiguration

@@ -1,0 +1,3 @@
+com.librax.lab.framework.security.config.LibraxSecurityAutoConfiguration
+com.librax.lab.framework.security.config.LibraxWebSecurityConfigurerAdapter
+com.librax.lab.framework.operatelog.config.LibraxOperateLogConfiguration

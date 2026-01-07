@@ -1,0 +1,7 @@
+com.librax.lab.framework.apilog.config.LibraxApiLogAutoConfiguration
+com.librax.lab.framework.jackson.config.LibraxJacksonAutoConfiguration
+com.librax.lab.framework.swagger.config.LibraxSwaggerAutoConfiguration
+com.librax.lab.framework.web.config.LibraxWebAutoConfiguration
+com.librax.lab.framework.xss.config.LibraxXssAutoConfiguration
+com.librax.lab.framework.banner.config.LibraxBannerAutoConfiguration
+com.librax.lab.framework.encrypt.config.LibraxApiEncryptAutoConfiguration

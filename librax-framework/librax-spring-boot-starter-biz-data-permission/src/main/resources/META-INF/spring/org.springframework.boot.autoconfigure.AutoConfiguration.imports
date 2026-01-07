@@ -1,0 +1,2 @@
+com.librax.lab.framework.datapermission.config.LibraxDataPermissionAutoConfiguration
+com.librax.lab.framework.datapermission.config.LibraxDeptDataPermissionAutoConfiguration

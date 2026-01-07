@@ -1,0 +1,2 @@
+com.librax.lab.framework.redis.config.LibraxRedisAutoConfiguration
+com.librax.lab.framework.redis.config.LibraxCacheAutoConfiguration

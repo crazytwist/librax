@@ -1,0 +1,3 @@
+com.librax.lab.framework.datasource.config.LibraxDataSourceAutoConfiguration
+com.librax.lab.framework.mybatis.config.LibraxMybatisAutoConfiguration
+com.librax.lab.framework.translate.config.LibraxTranslateAutoConfiguration

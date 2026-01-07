@@ -1,0 +1,2 @@
+com.librax.lab.framework.tracer.config.LibraxTracerAutoConfiguration
+com.librax.lab.framework.tracer.config.LibraxMetricsAutoConfiguration
