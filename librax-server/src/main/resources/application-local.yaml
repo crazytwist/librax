@@ -56,7 +56,7 @@ spring:
           #          url: jdbc:kingbase8://127.0.0.1:54321/test  # 人大金仓 KingbaseES 连接的示例
           #          url: jdbc:postgresql://127.0.0.1:5432/postgres # OpenGauss 连接的示例
           username: root
-          password: root
+          password: root1234
           #          username: sa # SQL Server 连接的示例
           #          password: Librax@2024 # SQL Server 连接的示例
           #          username: SYSDBA # DM 连接的示例
@@ -67,7 +67,7 @@ spring:
           lazy: true # 开启懒加载，保证启动速度
           url: jdbc:mysql://localhost:3306/librax-sz?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true&nullCatalogMeansCurrent=true
           username: root
-          password: root
+          password: root1234
 #        tdengine: # IoT 数据库（需要 IoT 物联网再开启噢！）
 #          url: jdbc:TAOS-WS://127.0.0.1:6041/ruoyi_vue_pro
 #          driver-class-name: com.taosdata.jdbc.ws.WebSocketDriver
@@ -277,9 +277,9 @@ liteflow:
   rule-source-ext-data-map:
     applicationName: librax
     #是否开启SQL日志
-    sqlLogEnabled: true
+    sqlLogEnabled: false
     #是否开启SQL数据轮询自动刷新机制 默认不开启
-    pollingEnabled: true
+    pollingEnabled: false
     pollingIntervalSeconds: 60
     pollingStartSeconds: 60
     #以下是chain表的配置，这个一定得有
