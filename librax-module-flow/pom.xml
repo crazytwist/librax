@@ -123,6 +123,18 @@
             <groupId>com.yomahub</groupId>
             <artifactId>liteflow-rule-sql</artifactId>
         </dependency>
+
+        <!-- JGraphT：环检测、拓扑排序、关键路径计算 -->
+        <dependency>
+            <groupId>org.jgrapht</groupId>
+            <artifactId>jgrapht-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.googlecode.aviator</groupId>
+            <artifactId>aviator</artifactId>
+        </dependency>
+
     </dependencies>
 
 </project>

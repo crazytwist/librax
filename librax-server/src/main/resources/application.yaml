@@ -315,6 +315,14 @@ librax:
       - /admin-api/system/user/profile/**
       - /admin-api/system/auth/**
     ignore-tables:
+      - pd_pipeline_definition
+      - pd_pipeline_step
+      - pd_step_definition
+      - pd_pipeline_trigger
+      - pe_execution_context
+      - pe_execution_event_log
+      - pe_pipeline_execution
+      - pe_step_execution
     ignore-caches:
       - user_role_ids
       - permission_menu_ids

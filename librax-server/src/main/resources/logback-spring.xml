@@ -45,6 +45,9 @@
     </appender>
     -->
 
+    <logger name="org.springframework.context.annotation.ConfigurationClassPostProcessor" level="ERROR" additivity="false"/>
+    <logger name="org.springframework.context.support.PostProcessorRegistrationDelegate" level="ERROR" additivity="false"/>
+
     <root level="INFO">
         <appender-ref ref="STDOUT"/>
         <!-- 本地环境下，如果不想【FILE】打印日志，可以注释掉本行 -->

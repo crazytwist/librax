@@ -1,0 +1,24 @@
+package com.librax.lab.module.flow.enums;
+
+public enum EventTypeEnum {
+    // 流程级
+    PIPELINE_STARTED,
+    PIPELINE_PAUSED,
+    PIPELINE_RESUMED,
+    PIPELINE_SUCCESS,
+    PIPELINE_FAILED,
+    PIPELINE_CANCELLED,
+    // 步骤级
+    STEP_QUEUED,
+    STEP_STARTED,
+    STEP_SUCCESS,
+    STEP_FAILED,
+    STEP_SKIPPED,
+    STEP_DEAD,
+    STEP_RETRY_SCHEDULED,
+    STEP_COMPENSATE_TRIGGERED,
+    STEP_COMPENSATED,
+    // 单独运行
+    STANDALONE_STARTED,
+    STANDALONE_FINISHED
+}

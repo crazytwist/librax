@@ -78,6 +78,9 @@
 
         <!-- lite flow -->
         <liteflow.version>2.15.2</liteflow.version>
+        <!-- jgrapht -->
+        <jgrapht.version>1.5.2</jgrapht.version>
+        <aviator.version>5.3.3</aviator.version>
     </properties>
 
     <dependencyManagement>
@@ -657,6 +660,19 @@
                 <version>${liteflow.version}</version>
             </dependency>
 
+            <!-- ==================== DAG 图算法 ==================== -->
+            <!-- JGraphT：环检测、拓扑排序、关键路径计算 -->
+            <dependency>
+                <groupId>org.jgrapht</groupId>
+                <artifactId>jgrapht-core</artifactId>
+                <version>${jgrapht.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.googlecode.aviator</groupId>
+                <artifactId>aviator</artifactId>
+                <version>${aviator.version}</version>
+            </dependency>
 
         </dependencies>
     </dependencyManagement>
