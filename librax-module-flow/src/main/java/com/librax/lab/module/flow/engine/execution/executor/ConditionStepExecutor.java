@@ -15,26 +15,31 @@ import java.util.Map;
  * 条件步骤执行器
  *
  * <p>职责：对 {@code StepNode.conditionExpr} 里的表达式进行求值，
- * 返回布尔结果，调度器根据结果决定走 trueBranch 还是 falseBranch。
+ * 返回分支名称字符串，调度器根据名称匹配 branches 配置决定走哪条路。
  *
- * <p>表达式引擎：Aviator（轻量、高性能、支持数学运算和逻辑运算）
+ * <p>支持三种表达式返回值：
+ * <ul>
+ *   <li>String  → 直接作为分支名，如 "ordinary"、"presale"
+ *   <li>Boolean → 转为 "true"/"false"（向后兼容老的二叉分支）
+ *   <li>Number  → 转为字符串，如 1 → "1"
+ * </ul>
  *
- * <p>表达式变量来源：{@code inputParams}，由调度器在调用前从上下文解析。
- * 例如表达式 {@code score >= 80}，inputParams 里需要有 key="score" 的值。
+ * <p>表达式写法示例：
+ * <pre>
+ *   // 老的写法（仍然支持）：返回 boolean，匹配 branches 里的 "true"/"false"
+ *   score >= 80
+ *
+ *   // 新的写法：返回字符串，匹配 branches 里的对应 key
+ *   waterType                          → 直接取变量值
+ *   score >= 90 ? 'excellent' : score >= 60 ? 'pass' : 'fail'
+ * </pre>
  *
  * <p>输出约定：
  * <ul>
- *   <li>{@code conditionResult=true}  → 调度器走 trueBranch，falseBranch 标记 SKIPPED
- *   <li>{@code conditionResult=false} → 调度器走 falseBranch，trueBranch 标记 SKIPPED
+ *   <li>{@code branchName}       → 求值结果对应的分支名称
+ *   <li>{@code conditionResult}  → 原始求值结果（保留，便于日志和调试）
+ *   <li>{@code expr}             → 表达式原文
  * </ul>
- *
- * <p>表达式写法示例（在 pd_pipeline_step.condition_expr 里配置）：
- * <pre>
- *   score >= 80
- *   ph > 6.5 && ph < 8.5
- *   ntu <= 5.0
- * </pre>
- * 注意：表达式里的变量名要和 inputMapping 解析后的 key 一致。
  */
 @Slf4j
 @Component
@@ -45,15 +50,6 @@ public class ConditionStepExecutor implements StepExecutor {
         return StepTypeEnum.CONDITION;
     }
 
-    /**
-     * 执行条件判断
-     *
-     * @param node        CONDITION 节点定义（含 conditionExpr、trueBranch、falseBranch）
-     * @param executionId 执行实例ID
-     * @param inputParams 解析后的入参，包含表达式所需变量
-     * @return 成功时 outputs 里含 conditionResult(Boolean)
-     *         失败时返回 fail（表达式解析异常）
-     */
     @Override
     public StepResult execute(StepNode node,
                               String executionId,
@@ -63,29 +59,62 @@ public class ConditionStepExecutor implements StepExecutor {
                 executionId, node.getNodeId(), expr, inputParams);
 
         try {
-            // Aviator 求值：inputParams 作为变量上下文
+            // Aviator 求值
             Object evalResult = AviatorEvaluator.execute(expr, inputParams);
 
-            if (!(evalResult instanceof Boolean)) {
-                return StepResult.fail("CONDITION_NOT_BOOLEAN",
-                        "表达式结果不是布尔类型，expr=" + expr + " result=" + evalResult);
+            // ★ 核心变化：统一转为分支名称字符串
+            String branchName = resolveBranchName(evalResult);
+
+            log.info("[ConditionExecutor] 求值完成 executionId={} nodeId={} " +
+                            "rawResult={} branchName={}",
+                    executionId, node.getNodeId(), evalResult, branchName);
+
+            // 校验分支是否有对应的目标节点
+            String targetNodeId = node.resolveBranchTarget(branchName);
+            if (targetNodeId == null) {
+                return StepResult.fail("CONDITION_NO_MATCH",
+                        String.format("表达式返回 '%s' 但没有匹配的分支，" +
+                                        "也没有 default 分支。expr=%s, branches=%s",
+                                branchName, expr, node.getAllBranches()));
             }
 
-            boolean conditionResult = (Boolean) evalResult;
-            log.info("[ConditionExecutor] 求值完成 executionId={} nodeId={} result={}",
-                    executionId, node.getNodeId(), conditionResult);
-
-            // 输出 conditionResult，调度器用这个值决定走哪个分支
+            // 输出
             Map<String, Object> outputs = new HashMap<>();
-            outputs.put("conditionResult", conditionResult);
+            outputs.put("branchName", branchName);
+            outputs.put("conditionResult", evalResult);  // 保留原始值，兼容+调试
             outputs.put("expr", expr);
+            outputs.put("matchedTarget", targetNodeId);
             return StepResult.ok(outputs);
 
         } catch (Exception e) {
-            log.error("[ConditionExecutor] 表达式求值异常 executionId={} nodeId={} expr={} error={}",
+            log.error("[ConditionExecutor] 表达式求值异常 executionId={} nodeId={} " +
+                            "expr={} error={}",
                     executionId, node.getNodeId(), expr, e.getMessage());
             return StepResult.fail("CONDITION_EVAL_FAIL",
                     "表达式求值失败: " + expr + "，原因: " + e.getMessage());
         }
+    }
+
+    /**
+     * 将表达式结果统一转为分支名称
+     *
+     * Boolean true  → "true"   (向后兼容)
+     * Boolean false → "false"  (向后兼容)
+     * String "abc"  → "abc"    (新的多路分支)
+     * Number 1      → "1"
+     * null          → "default"
+     */
+    private String resolveBranchName(Object result) {
+        if (result == null) {
+            return "default";
+        }
+        if (result instanceof String) {
+            String s = ((String) result).trim();
+            return s.isEmpty() ? "default" : s;
+        }
+        if (result instanceof Boolean) {
+            return result.toString(); // "true" or "false"
+        }
+        return result.toString().trim();
     }
 }

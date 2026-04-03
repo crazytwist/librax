@@ -212,8 +212,11 @@ public class DagScheduler {
         }
     }
 
+
     /**
      * CONDITION 节点：表达式求值 + 标记未选中分支为 SKIPPED
+     *
+     * ★ 改动点：从 boolean 二叉分支 改为 string 多路分支
      */
     private void executeConditionNode(String executionId,
                                       PipelineGraph graph,
@@ -229,15 +232,24 @@ public class DagScheduler {
                     .execute(node, executionId, inputParams);
 
             if (result.isSuccess()) {
-                // 取求值结果，标记未选中分支为 SKIPPED
-                boolean conditionResult = Boolean.TRUE.equals(
-                        result.getOutputs().get("conditionResult"));
-                String skippedBranch = conditionResult
-                        ? node.getFalseBranch()
-                        : node.getTrueBranch();
+                // ★ 改动：从 outputs 里取 branchName（不再取 conditionResult boolean）
+                String branchName = (String) result.getOutputs().get("branchName");
+                String matchedTarget = (String) result.getOutputs().get("matchedTarget");
 
-                // 将未选中分支的步骤标记为 SKIPPED
-                markBranchSkipped(executionId, graph, skippedBranch, node.getNodeId());
+                log.info("[DagScheduler] 条件节点分支选择 executionId={} nodeId={} " +
+                                "branchName={} target={}",
+                        executionId, node.getNodeId(), branchName, matchedTarget);
+
+                // ★ 改动：标记所有未命中分支为 SKIPPED
+                Map<String, String> allBranches = node.getAllBranches();
+                for (Map.Entry<String, String> entry : allBranches.entrySet()) {
+                    if (!entry.getKey().equals(branchName)
+                            && !entry.getValue().equals(matchedTarget)) {
+                        // 这条分支未被选中，递归标记 SKIPPED
+                        markBranchSkipped(executionId, graph,
+                                entry.getValue(), node.getNodeId());
+                    }
+                }
             }
 
             onStepComplete(executionId,
@@ -253,7 +265,6 @@ public class DagScheduler {
                     StepResult.fail("CONDITION_EVAL_FAIL", e.getMessage()));
         }
     }
-
     /**
      * 递归标记未选中分支及其所有下游节点为 SKIPPED
      */
@@ -471,4 +482,6 @@ public class DagScheduler {
         }
         return merged;
     }
+
+
 }

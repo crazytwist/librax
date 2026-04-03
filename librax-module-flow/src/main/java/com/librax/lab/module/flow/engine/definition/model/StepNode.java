@@ -5,6 +5,7 @@ import com.librax.lab.module.flow.enums.StepTypeEnum;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +30,8 @@ public class StepNode {
     private String trueBranch;
     /** CONDITION：false 分支跳转的 nodeId */
     private String falseBranch;
+    /** 分支节点关系  key=分支名称, value=目标nodeId */
+    private Map<String, String> branches;
     /** CONDITION：判断表达式，如 ${s_calc.score} >= 80 */
     private String conditionExpr;
 
@@ -76,4 +79,43 @@ public class StepNode {
     // ---- INSTRUMENT 专用 ----
     private String deviceType;
     private String command;
+
+
+
+    /**
+     * 获取分支目标节点：优先用 branches，回退到 trueBranch/falseBranch
+     *
+     * @param branchName 分支名称
+     * @return 目标 nodeId，null 表示没匹配到
+     */
+    public String resolveBranchTarget(String branchName) {
+        // 优先使用新的 branches 配置
+        if (branches != null && !branches.isEmpty()) {
+            String target = branches.get(branchName);
+            if (target != null) return target;
+            // 没有精确匹配，尝试 default
+            return branches.get("default");
+        }
+        // 回退到老的 trueBranch/falseBranch
+        if ("true".equals(branchName)) return trueBranch;
+        if ("false".equals(branchName)) return falseBranch;
+        return null;
+    }
+
+    /**
+     * 获取所有分支配置（新老兼容）
+     *
+     * @return key=分支名称, value=目标nodeId
+     */
+    public Map<String, String> getAllBranches() {
+        if (branches != null && !branches.isEmpty()) {
+            return branches;
+        }
+        // 回退：从 trueBranch/falseBranch 构建
+        Map<String, String> fallback = new HashMap<>();
+        if (trueBranch != null) fallback.put("true", trueBranch);
+        if (falseBranch != null) fallback.put("false", falseBranch);
+        return fallback;
+    }
+
 }

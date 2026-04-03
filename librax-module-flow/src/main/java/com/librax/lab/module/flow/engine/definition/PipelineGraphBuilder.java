@@ -167,6 +167,7 @@ public class PipelineGraphBuilder {
                 .conditionExpr(ps.getConditionExpr())
                 .trueBranch(ps.getTrueBranch())
                 .falseBranch(ps.getFalseBranch())
+                .branches(parseStringMap(ps.getBranches()))
                 // ── 执行配置（优先级：pipeline_step > step_def > pipeline_def）──
                 .timeoutMs(coalesce(ps.getTimeoutMs(),
                         sd.getDefaultTimeoutMs(),

@@ -60,6 +60,13 @@ public class PipelineStepDO extends BaseDO {
      */
     private String trueBranch;
     /**
+     * CONDITION 节点多分支配置（N 叉模式），JSON 对象格式。
+     * key=匹配值（"*" 表示默认兜底），value=目标 node_id。
+     * 非空时优先使用多分支路由，忽略 true_branch/false_branch。
+     * 示例：{"GRADE_A":"s_archive_a","GRADE_B":"s_archive_b","*":"s_retest"}
+     */
+    private String branches;
+    /**
      * CONDITION 节点 expr=false 时跳转的 node_id
      */
     private String falseBranch;
