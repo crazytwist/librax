@@ -80,8 +80,6 @@ public class StepNode {
     private String deviceType;
     private String command;
 
-
-
     /**
      * 获取分支目标节点：优先用 branches，回退到 trueBranch/falseBranch
      *

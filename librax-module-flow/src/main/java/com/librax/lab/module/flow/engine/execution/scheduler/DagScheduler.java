@@ -21,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -215,7 +216,7 @@ public class DagScheduler {
 
     /**
      * CONDITION 节点：表达式求值 + 标记未选中分支为 SKIPPED
-     *
+     * <p>
      * ★ 改动点：从 boolean 二叉分支 改为 string 多路分支
      */
     private void executeConditionNode(String executionId,
@@ -265,6 +266,7 @@ public class DagScheduler {
                     StepResult.fail("CONDITION_EVAL_FAIL", e.getMessage()));
         }
     }
+
     /**
      * 递归标记未选中分支及其所有下游节点为 SKIPPED
      */
@@ -468,20 +470,20 @@ public class DagScheduler {
                                                    StepNode node,
                                                    PipelineGraph graph) {
         // 取流程初始参数（input_params）
-        // 这里简化处理，实际从 pe_pipeline_execution 取，调度器启动时可以缓存
-        Map<String, Object> inputParams = Map.of(); // TODO: 从执行实例取 input_params
+        Map<String, Object> inputParams = contextManager
+                .getNodeOutput(executionId, "input");
 
-        // inputMapping 解析（${s_ph.ph} 等表达式）
+        // inputMapping 解析（${s_ph.ph}、${input.sampleId} 等表达式）
         Map<String, Object> mappedParams = contextManager.resolveInputMapping(
                 executionId, node.getInputMapping(), inputParams);
 
+        log.info("根据参数:{}获取的参数值:{}", node.getInputMapping(), mappedParams);
+
         // 合并：node.params（静态参数）+ mappedParams（动态参数，优先级更高）
-        java.util.Map<String, Object> merged = new java.util.HashMap<>(node.getParams());
+        Map<String, Object> merged = new HashMap<>(node.getParams());
         if (mappedParams != null) {
             merged.putAll(mappedParams);
         }
         return merged;
     }
-
-
 }

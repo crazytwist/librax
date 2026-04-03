@@ -40,7 +40,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class StepStateMachine {
 
-    private final StepExecutionMapper     stepMapper;
+    private final StepExecutionMapper stepMapper;
     private final ExecutionEventPublisher eventPublisher;
 
     /**
@@ -60,12 +60,12 @@ public class StepStateMachine {
 
         LambdaUpdateWrapper<StepExecutionDO> wrapper = new LambdaUpdateWrapper<StepExecutionDO>()
                 .eq(StepExecutionDO::getExecutionId, executionId)
-                .eq(StepExecutionDO::getNodeId,      nodeId)
-                .eq(StepExecutionDO::getAttempt,     attempt)
-                .eq(StepExecutionDO::getStatus,      StepStatusEnum.PENDING.name())
-                .set(StepExecutionDO::getStatus,     StepStatusEnum.RUNNING.name())
-                .set(StepExecutionDO::getStartedAt,  now)
-                .set(StepExecutionDO::getUpdater,    "SYSTEM")
+                .eq(StepExecutionDO::getNodeId, nodeId)
+                .eq(StepExecutionDO::getAttempt, attempt)
+                .eq(StepExecutionDO::getStatus, StepStatusEnum.PENDING.name())
+                .set(StepExecutionDO::getStatus, StepStatusEnum.RUNNING.name())
+                .set(StepExecutionDO::getStartedAt, now)
+                .set(StepExecutionDO::getUpdater, "SYSTEM")
                 .set(StepExecutionDO::getUpdateTime, now);
 
         boolean acquired = stepMapper.update(null, wrapper) > 0;
@@ -92,21 +92,21 @@ public class StepStateMachine {
      */
     public void markSuccess(String executionId, String nodeId,
                             int attempt, StepResult result) {
-        LocalDateTime now      = LocalDateTime.now();
-        long          executeMs = calcExecuteMs(executionId, nodeId, attempt, now);
+        LocalDateTime now = LocalDateTime.now();
+        long executeMs = calcExecuteMs(executionId, nodeId, attempt, now);
 
         LambdaUpdateWrapper<StepExecutionDO> wrapper = new LambdaUpdateWrapper<StepExecutionDO>()
                 .eq(StepExecutionDO::getExecutionId, executionId)
-                .eq(StepExecutionDO::getNodeId,      nodeId)
-                .eq(StepExecutionDO::getAttempt,     attempt)
-                .eq(StepExecutionDO::getStatus,      StepStatusEnum.RUNNING.name())
-                .set(StepExecutionDO::getStatus,     StepStatusEnum.SUCCESS.name())
+                .eq(StepExecutionDO::getNodeId, nodeId)
+                .eq(StepExecutionDO::getAttempt, attempt)
+                .eq(StepExecutionDO::getStatus, StepStatusEnum.RUNNING.name())
+                .set(StepExecutionDO::getStatus, StepStatusEnum.SUCCESS.name())
                 .set(StepExecutionDO::getOutputData,
                         result.getOutputs() != null
                                 ? JSON.toJSONString(result.getOutputs()) : null)
                 .set(StepExecutionDO::getFinishedAt, now)
-                .set(StepExecutionDO::getExecuteMs,  executeMs)
-                .set(StepExecutionDO::getUpdater,    "SYSTEM")
+                .set(StepExecutionDO::getExecuteMs, executeMs)
+                .set(StepExecutionDO::getUpdater, "SYSTEM")
                 .set(StepExecutionDO::getUpdateTime, now);
 
         stepMapper.update(null, wrapper);
@@ -132,20 +132,20 @@ public class StepStateMachine {
      */
     public void markFailed(String executionId, String nodeId,
                            int attempt, StepResult result) {
-        LocalDateTime now       = LocalDateTime.now();
-        long          executeMs = calcExecuteMs(executionId, nodeId, attempt, now);
+        LocalDateTime now = LocalDateTime.now();
+        long executeMs = calcExecuteMs(executionId, nodeId, attempt, now);
 
         LambdaUpdateWrapper<StepExecutionDO> wrapper = new LambdaUpdateWrapper<StepExecutionDO>()
                 .eq(StepExecutionDO::getExecutionId, executionId)
-                .eq(StepExecutionDO::getNodeId,      nodeId)
-                .eq(StepExecutionDO::getAttempt,     attempt)
-                .eq(StepExecutionDO::getStatus,      StepStatusEnum.RUNNING.name())
-                .set(StepExecutionDO::getStatus,     StepStatusEnum.FAILED.name())
-                .set(StepExecutionDO::getErrorCode,  result.getErrorCode())
-                .set(StepExecutionDO::getErrorMsg,   result.getErrorMsg())
+                .eq(StepExecutionDO::getNodeId, nodeId)
+                .eq(StepExecutionDO::getAttempt, attempt)
+                .eq(StepExecutionDO::getStatus, StepStatusEnum.RUNNING.name())
+                .set(StepExecutionDO::getStatus, StepStatusEnum.FAILED.name())
+                .set(StepExecutionDO::getErrorCode, result.getErrorCode())
+                .set(StepExecutionDO::getErrorMsg, result.getErrorMsg())
                 .set(StepExecutionDO::getFinishedAt, now)
-                .set(StepExecutionDO::getExecuteMs,  executeMs)
-                .set(StepExecutionDO::getUpdater,    "SYSTEM")
+                .set(StepExecutionDO::getExecuteMs, executeMs)
+                .set(StepExecutionDO::getUpdater, "SYSTEM")
                 .set(StepExecutionDO::getUpdateTime, now);
 
         stepMapper.update(null, wrapper);
@@ -214,11 +214,11 @@ public class StepStateMachine {
     public void markDead(String executionId, String nodeId, int attempt) {
         LambdaUpdateWrapper<StepExecutionDO> wrapper = new LambdaUpdateWrapper<StepExecutionDO>()
                 .eq(StepExecutionDO::getExecutionId, executionId)
-                .eq(StepExecutionDO::getNodeId,      nodeId)
-                .eq(StepExecutionDO::getAttempt,     attempt)
-                .eq(StepExecutionDO::getStatus,      StepStatusEnum.FAILED.name())
-                .set(StepExecutionDO::getStatus,     StepStatusEnum.DEAD.name())
-                .set(StepExecutionDO::getUpdater,    "SYSTEM")
+                .eq(StepExecutionDO::getNodeId, nodeId)
+                .eq(StepExecutionDO::getAttempt, attempt)
+                .eq(StepExecutionDO::getStatus, StepStatusEnum.FAILED.name())
+                .set(StepExecutionDO::getStatus, StepStatusEnum.DEAD.name())
+                .set(StepExecutionDO::getUpdater, "SYSTEM")
                 .set(StepExecutionDO::getUpdateTime, LocalDateTime.now());
 
         stepMapper.update(null, wrapper);
@@ -246,12 +246,12 @@ public class StepStateMachine {
 
         LambdaUpdateWrapper<StepExecutionDO> wrapper = new LambdaUpdateWrapper<StepExecutionDO>()
                 .eq(StepExecutionDO::getExecutionId, executionId)
-                .eq(StepExecutionDO::getNodeId,      nodeId)
-                .eq(StepExecutionDO::getAttempt,     attempt)
-                .eq(StepExecutionDO::getStatus,      StepStatusEnum.PENDING.name())
-                .set(StepExecutionDO::getStatus,     StepStatusEnum.SKIPPED.name())
+                .eq(StepExecutionDO::getNodeId, nodeId)
+                .eq(StepExecutionDO::getAttempt, attempt)
+                .eq(StepExecutionDO::getStatus, StepStatusEnum.PENDING.name())
+                .set(StepExecutionDO::getStatus, StepStatusEnum.SKIPPED.name())
                 .set(StepExecutionDO::getFinishedAt, now)
-                .set(StepExecutionDO::getUpdater,    "SYSTEM")
+                .set(StepExecutionDO::getUpdater, "SYSTEM")
                 .set(StepExecutionDO::getUpdateTime, now);
 
         stepMapper.update(null, wrapper);

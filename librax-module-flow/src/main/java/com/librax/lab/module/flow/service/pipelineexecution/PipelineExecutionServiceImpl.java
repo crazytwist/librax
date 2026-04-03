@@ -8,6 +8,7 @@ import com.librax.lab.module.flow.dal.mysql.stepexecution.StepExecutionMapper;
 import com.librax.lab.module.flow.engine.definition.PipelineGraphCache;
 import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
+import com.librax.lab.module.flow.engine.execution.context.ExecutionContextManager;
 import com.librax.lab.module.flow.engine.execution.scheduler.DagScheduler;
 import com.librax.lab.module.flow.engine.execution.statemachine.ExecutionStateMachine;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
@@ -46,6 +47,7 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
     private final ExecutionContextMapper contextMapper;
     private final ExecutionStateMachine executionStateMachine;
     private final DagScheduler dagScheduler;
+    private final ExecutionContextManager contextManager;
 
 
     @Override
@@ -135,8 +137,12 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         // 4. 初始化所有节点的步骤执行记录（PENDING）
         initStepExecutions(executionId, graph);
 
-        // 5. 初始化执行上下文（空 JSON 对象）
-        initExecutionContext(executionId);
+        // 5. 把流程初始参数写入上下文，供后续节点 ${input.xxx} 引用
+        if (inputParams != null && !inputParams.isEmpty()) {
+            contextManager.putNodeOutput(executionId, "input", inputParams);
+        }
+        // 初始化执行上下文（空 JSON 对象）
+//        initExecutionContext(executionId);
 
         // 6. 流程状态 PENDING → RUNNING（乐观锁）
         executionStateMachine.transition(
