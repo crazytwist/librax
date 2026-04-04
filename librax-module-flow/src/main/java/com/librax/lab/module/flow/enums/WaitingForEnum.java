@@ -1,0 +1,9 @@
+package com.librax.lab.module.flow.enums;
+
+public enum WaitingForEnum {
+    DEVICE_CALLBACK,   // 等设备回调
+    MANUAL_APPROVE,    // 等人工审批
+    EXTERNAL_EVENT,    // 等外部事件
+    TIMER              // 等定时触发
+}
+

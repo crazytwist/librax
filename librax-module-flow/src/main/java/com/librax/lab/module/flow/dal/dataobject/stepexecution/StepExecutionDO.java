@@ -55,6 +55,14 @@ public class StepExecutionDO extends BaseDO {
      */
     private String status;
     /**
+     * 等待类型：DEVICE_CALLBACK | MANUAL_APPROVE | EXTERNAL_EVENT | TIMER
+     */
+    private String waitingFor;
+    /**
+     * 回调令牌，外部回调时必须携带，防止误触发或重放
+     */
+    private String callbackToken;
+    /**
      * NORMAL | STANDALONE | COMPENSATE | MOCK
      */
     private String runMode;

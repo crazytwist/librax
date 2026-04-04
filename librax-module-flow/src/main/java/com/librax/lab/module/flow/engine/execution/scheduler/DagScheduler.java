@@ -24,6 +24,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -198,6 +199,12 @@ public class DagScheduler {
         try {
             StepResult result = executor.execute(node, executionId, inputParams);
 
+            // ★ 新增：异步等待，步骤挂起，等外部回调推进
+            if (result.isWaiting()) {
+                handleWaiting(executionId, graph, node, attempt, result);
+                return;
+            }
+
             // 4. 回调 onStepComplete
             onStepComplete(executionId,
                     graph.getPipelineKey(), graph.getVersion(),
@@ -211,6 +218,46 @@ public class DagScheduler {
                     node.getNodeId(), attempt,
                     StepResult.fail("EXECUTE_EXCEPTION", e.getMessage()));
         }
+    }
+
+
+    /**
+     * ★ 新增方法：处理 WAITING 状态
+     */
+    private void handleWaiting(String executionId,
+                               PipelineGraph graph,
+                               StepNode node,
+                               int attempt,
+                               StepResult result) {
+
+        // 1. 从执行器返回的 outputs 里取 token
+        String callbackToken = result.getOutputs() != null
+                ? (String) result.getOutputs().get("_callbackToken")
+                : null;
+        // 兜底：WAIT（人工审批）等不需要主动发 token 的场景
+        if (callbackToken == null) {
+            callbackToken = UUID.randomUUID().toString().replace("-", "");
+        }
+
+        // 2. 步骤状态 RUNNING → WAITING
+        stepStateMachine.markWaiting(
+                executionId, node.getNodeId(), attempt,
+                result.getWaitingFor(), callbackToken);
+
+        // 3. 把中间数据和令牌写入上下文（供回调时校验）
+        Map<String, Object> waitingInfo = new HashMap<>();
+        if (result.getOutputs() != null) {
+            waitingInfo.putAll(result.getOutputs());
+        }
+        waitingInfo.put("_callbackToken", callbackToken);
+        waitingInfo.put("_waitingFor", result.getWaitingFor().name());
+        waitingInfo.put("_waitingSince", LocalDateTime.now().toString());
+        contextManager.putNodeOutput(executionId,
+                node.getNodeId() + ":waiting", waitingInfo);
+
+        log.info("[DagScheduler] 步骤进入等待 executionId={} nodeId={} waitingFor={} token={}",
+                executionId, node.getNodeId(), result.getWaitingFor(), callbackToken);
+
     }
 
 

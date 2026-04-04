@@ -2,12 +2,15 @@ package com.librax.lab.module.flow.engine.execution.statemachine;
 
 import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.librax.lab.module.flow.dal.dataobject.executioneventlog.ExecutionEventLogDO;
 import com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO;
+import com.librax.lab.module.flow.dal.mysql.executioneventlog.ExecutionEventLogMapper;
 import com.librax.lab.module.flow.dal.mysql.stepexecution.StepExecutionMapper;
 import com.librax.lab.module.flow.engine.execution.event.ExecutionEventPublisher;
 import com.librax.lab.module.flow.engine.execution.model.StepResult;
 import com.librax.lab.module.flow.enums.EventTypeEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;
+import com.librax.lab.module.flow.enums.WaitingForEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -15,6 +18,10 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
+
+import static com.librax.lab.module.flow.enums.EventTypeEnum.STEP_WAITING;
+import static com.librax.lab.module.flow.enums.StepStatusEnum.RUNNING;
+import static com.librax.lab.module.flow.enums.StepStatusEnum.WAITING;
 
 /**
  * 步骤执行状态机
@@ -42,6 +49,7 @@ public class StepStateMachine {
 
     private final StepExecutionMapper stepMapper;
     private final ExecutionEventPublisher eventPublisher;
+    private final ExecutionEventLogMapper eventLogMapper;
 
     /**
      * PENDING → RUNNING：步骤开始执行（乐观锁抢占）
@@ -63,7 +71,7 @@ public class StepStateMachine {
                 .eq(StepExecutionDO::getNodeId, nodeId)
                 .eq(StepExecutionDO::getAttempt, attempt)
                 .eq(StepExecutionDO::getStatus, StepStatusEnum.PENDING.name())
-                .set(StepExecutionDO::getStatus, StepStatusEnum.RUNNING.name())
+                .set(StepExecutionDO::getStatus, RUNNING.name())
                 .set(StepExecutionDO::getStartedAt, now)
                 .set(StepExecutionDO::getUpdater, "SYSTEM")
                 .set(StepExecutionDO::getUpdateTime, now);
@@ -74,7 +82,7 @@ public class StepStateMachine {
                     executionId, nodeId, attempt);
             eventPublisher.publishStepEvent(executionId, nodeId, attempt,
                     EventTypeEnum.STEP_STARTED,
-                    StepStatusEnum.PENDING.name(), StepStatusEnum.RUNNING.name(), null);
+                    StepStatusEnum.PENDING.name(), RUNNING.name(), null);
         }
         return acquired;
     }
@@ -99,7 +107,7 @@ public class StepStateMachine {
                 .eq(StepExecutionDO::getExecutionId, executionId)
                 .eq(StepExecutionDO::getNodeId, nodeId)
                 .eq(StepExecutionDO::getAttempt, attempt)
-                .eq(StepExecutionDO::getStatus, StepStatusEnum.RUNNING.name())
+                .in(StepExecutionDO::getStatus, RUNNING.name(), WAITING.name())
                 .set(StepExecutionDO::getStatus, StepStatusEnum.SUCCESS.name())
                 .set(StepExecutionDO::getOutputData,
                         result.getOutputs() != null
@@ -115,7 +123,7 @@ public class StepStateMachine {
 
         eventPublisher.publishStepEvent(executionId, nodeId, attempt,
                 EventTypeEnum.STEP_SUCCESS,
-                StepStatusEnum.RUNNING.name(), StepStatusEnum.SUCCESS.name(), null);
+                RUNNING.name(), StepStatusEnum.SUCCESS.name(), null);
     }
 
     /**
@@ -139,7 +147,7 @@ public class StepStateMachine {
                 .eq(StepExecutionDO::getExecutionId, executionId)
                 .eq(StepExecutionDO::getNodeId, nodeId)
                 .eq(StepExecutionDO::getAttempt, attempt)
-                .eq(StepExecutionDO::getStatus, StepStatusEnum.RUNNING.name())
+                .in(StepExecutionDO::getStatus, RUNNING.name(), WAITING.name())
                 .set(StepExecutionDO::getStatus, StepStatusEnum.FAILED.name())
                 .set(StepExecutionDO::getErrorCode, result.getErrorCode())
                 .set(StepExecutionDO::getErrorMsg, result.getErrorMsg())
@@ -154,7 +162,7 @@ public class StepStateMachine {
 
         eventPublisher.publishStepEvent(executionId, nodeId, attempt,
                 EventTypeEnum.STEP_FAILED,
-                StepStatusEnum.RUNNING.name(), StepStatusEnum.FAILED.name(),
+                RUNNING.name(), StepStatusEnum.FAILED.name(),
                 Map.of("errorCode", String.valueOf(result.getErrorCode()),
                         "errorMsg", String.valueOf(result.getErrorMsg())));
     }
@@ -273,5 +281,58 @@ public class StepStateMachine {
                 .selectByExecutionNodeAttempt(executionId, nodeId, attempt);
         if (current == null || current.getStartedAt() == null) return 0L;
         return Duration.between(current.getStartedAt(), now).toMillis();
+    }
+
+
+    /**
+     * RUNNING → WAITING（执行器返回等待外部信号）
+     */
+    public void markWaiting(String executionId,
+                            String nodeId,
+                            int attempt,
+                            WaitingForEnum waitingFor,
+                            String callbackToken) {
+        LocalDateTime now = LocalDateTime.now();
+
+        LambdaUpdateWrapper<StepExecutionDO> wrapper = new LambdaUpdateWrapper<StepExecutionDO>()
+                .eq(StepExecutionDO::getExecutionId, executionId)
+                .eq(StepExecutionDO::getNodeId, nodeId)
+                .eq(StepExecutionDO::getAttempt, attempt)
+                .eq(StepExecutionDO::getStatus, RUNNING.name())
+                .set(StepExecutionDO::getStatus, WAITING.name())
+                .set(StepExecutionDO::getWaitingFor, waitingFor.name())
+                .set(StepExecutionDO::getCallbackToken, callbackToken)
+                .set(StepExecutionDO::getUpdater, "SYSTEM")
+                .set(StepExecutionDO::getUpdateTime, now);
+
+        int rows = stepMapper.update(null, wrapper);
+
+        if (rows > 0) {
+            log.info("[StepStateMachine] RUNNING->WAITING executionId={} nodeId={} " +
+                            "attempt={} waitingFor={}",
+                    executionId, nodeId, attempt, waitingFor);
+            logEvent(executionId, nodeId, attempt,
+                    STEP_WAITING.name(), RUNNING.name(), WAITING.name(),
+                    Map.of("waitingFor", waitingFor.name()));
+        }
+    }
+
+    /**
+     * 记录日志等待
+     */
+    private void logEvent(String executionId, String nodeId, int attempt,
+                          String eventType, String fromStatus, String toStatus,
+                          Map<String, Object> payload) {
+        ExecutionEventLogDO log = new ExecutionEventLogDO();
+        log.setExecutionId(executionId);
+        log.setNodeId(nodeId);
+        log.setAttempt(attempt);
+        log.setEventType(eventType);
+        log.setFromStatus(fromStatus);
+        log.setToStatus(toStatus);
+        log.setPayload(payload != null ? JSON.toJSONString(payload) : null);
+        log.setOperator("SYSTEM");
+        log.setOccurredAt(LocalDateTime.now());
+        eventLogMapper.insert(log);
     }
 }
