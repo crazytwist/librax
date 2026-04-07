@@ -78,11 +78,17 @@ public class StepStateMachine {
 
         boolean acquired = stepMapper.update(null, wrapper) > 0;
         if (acquired) {
+            // 查 stepType
+            StepExecutionDO current = stepMapper.selectByExecutionNodeAttempt(
+                    executionId, nodeId, attempt);
+            String stepType = current != null ? current.getStepType() : null;
+
             log.info("[StepStateMachine] PENDING->RUNNING executionId={} nodeId={} attempt={}",
                     executionId, nodeId, attempt);
             eventPublisher.publishStepEvent(executionId, nodeId, attempt,
                     EventTypeEnum.STEP_STARTED,
-                    StepStatusEnum.PENDING.name(), RUNNING.name(), null);
+                    StepStatusEnum.PENDING.name(), RUNNING.name(),
+                    stepType != null ? Map.of("stepType", stepType) : null);
         }
         return acquired;
     }
@@ -100,8 +106,14 @@ public class StepStateMachine {
      */
     public void markSuccess(String executionId, String nodeId,
                             int attempt, StepResult result) {
+
         LocalDateTime now = LocalDateTime.now();
-        long executeMs = calcExecuteMs(executionId, nodeId, attempt, now);
+        // ★ 这里已经查了 current，复用它取 stepType
+        StepExecutionDO current = stepMapper.selectByExecutionNodeAttempt(
+                executionId, nodeId, attempt);
+        long executeMs = (current != null && current.getStartedAt() != null)
+                ? Duration.between(current.getStartedAt(), now).toMillis() : 0L;
+        String stepType = current != null ? current.getStepType() : null;
 
         LambdaUpdateWrapper<StepExecutionDO> wrapper = new LambdaUpdateWrapper<StepExecutionDO>()
                 .eq(StepExecutionDO::getExecutionId, executionId)
@@ -123,7 +135,8 @@ public class StepStateMachine {
 
         eventPublisher.publishStepEvent(executionId, nodeId, attempt,
                 EventTypeEnum.STEP_SUCCESS,
-                RUNNING.name(), StepStatusEnum.SUCCESS.name(), null);
+                RUNNING.name(), StepStatusEnum.SUCCESS.name(),
+                stepType != null ? Map.of("stepType", stepType) : null);
     }
 
     /**

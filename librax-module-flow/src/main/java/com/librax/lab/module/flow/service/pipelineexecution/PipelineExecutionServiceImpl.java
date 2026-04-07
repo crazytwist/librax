@@ -9,8 +9,10 @@ import com.librax.lab.module.flow.engine.definition.PipelineGraphCache;
 import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.engine.execution.context.ExecutionContextManager;
+import com.librax.lab.module.flow.engine.execution.event.ExecutionEventPublisher;
 import com.librax.lab.module.flow.engine.execution.scheduler.DagScheduler;
 import com.librax.lab.module.flow.engine.execution.statemachine.ExecutionStateMachine;
+import com.librax.lab.module.flow.enums.EventTypeEnum;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;
 import lombok.RequiredArgsConstructor;
@@ -48,6 +50,8 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
     private final ExecutionStateMachine executionStateMachine;
     private final DagScheduler dagScheduler;
     private final ExecutionContextManager contextManager;
+    private final ExecutionEventPublisher eventPublisher;
+
 
 
     @Override
@@ -152,11 +156,22 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
 
         // 7. 触发调度器（事务提交后执行，避免调度器读不到刚插入的数据）
         //    使用 TransactionSynchronizationManager 保证事务提交后再调度
+
         org.springframework.transaction.support.TransactionSynchronizationManager
                 .registerSynchronization(
                         new org.springframework.transaction.support.TransactionSynchronization() {
                             @Override
                             public void afterCommit() {
+                                // ★ 新增：发布流程启动事件
+                                eventPublisher.publishPipelineEvent(
+                                        executionId, null,
+                                        EventTypeEnum.PIPELINE_STARTED,
+                                        ExecutionStatusEnum.PENDING.name(),
+                                        ExecutionStatusEnum.RUNNING.name(),
+                                        Map.of("pipelineKey", pipelineKey,
+                                                "pipelineVersion", graph.getVersion()));
+
+                                // 触发调度（原有）
                                 dagScheduler.schedule(executionId, pipelineKey, graph.getVersion());
                             }
                         });

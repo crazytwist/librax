@@ -18,7 +18,6 @@ import org.apache.ibatis.annotations.Param;
 @Mapper
 public interface PipelineExecutionMapper extends BaseMapperX<PipelineExecutionDO> {
 
-
     PipelineExecutionDO selectByExecutionId(@Param("executionId") String executionId);
 
     int compareAndSetStatus(@Param("executionId") String executionId,
@@ -27,6 +26,11 @@ public interface PipelineExecutionMapper extends BaseMapperX<PipelineExecutionDO
 
     List<PipelineExecutionDO> selectAllRunning();
 
+    default List<PipelineExecutionDO> selectByStatus(String status) {
+        return selectList(new LambdaQueryWrapperX<PipelineExecutionDO>()
+                .eq(PipelineExecutionDO::getStatus, status)
+                .eq(PipelineExecutionDO::getDeleted, false));
+    }
 
     default PageResult<PipelineExecutionDO> selectPage(PipelineExecutionPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<PipelineExecutionDO>()

@@ -19,7 +19,8 @@
         <module>librax-module-flow</module>
         <!--        <module>librax-module-member</module>-->
         <module>librax-module-bpm</module>
-<!--        <module>librax-module-report</module>-->
+        <module>librax-module-lab</module>
+        <!--        <module>librax-module-report</module>-->
 <!--        <module>librax-module-mp</module>-->
 <!--        <module>librax-module-pay</module>-->
 <!--        <module>librax-module-mall</module>-->

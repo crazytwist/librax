@@ -81,6 +81,8 @@
         <!-- jgrapht -->
         <jgrapht.version>1.5.2</jgrapht.version>
         <aviator.version>5.3.3</aviator.version>
+
+        <jsonpath.version>2.9.0</jsonpath.version>
     </properties>
 
     <dependencyManagement>
@@ -674,6 +676,11 @@
                 <version>${aviator.version}</version>
             </dependency>
 
+            <dependency>
+                <groupId>com.jayway.jsonpath</groupId>
+                <artifactId>json-path</artifactId>
+                <version>${jsonpath.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

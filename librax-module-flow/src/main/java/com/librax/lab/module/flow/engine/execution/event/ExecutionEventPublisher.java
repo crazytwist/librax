@@ -6,6 +6,7 @@ import com.librax.lab.module.flow.dal.mysql.executioneventlog.ExecutionEventLogM
 import com.librax.lab.module.flow.enums.EventTypeEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
@@ -18,16 +19,10 @@ import java.util.Map;
 public class ExecutionEventPublisher {
 
     private final ExecutionEventLogMapper eventLogMapper;
+    private final ApplicationEventPublisher springEventPublisher; // ★ 新增
 
     /**
-     * 发布流程级事件（PIPELINE_STARTED / PAUSED / SUCCESS 等）
-     *
-     * @param executionId 执行实例ID
-     * @param nodeId      流程级事件传 null
-     * @param eventType   事件类型
-     * @param fromStatus  变更前状态
-     * @param toStatus    变更后状态
-     * @param payload     附加数据，可为 null
+     * 发布流程级事件
      */
     @Async
     public void publishPipelineEvent(String executionId,
@@ -36,20 +31,16 @@ public class ExecutionEventPublisher {
                                      String fromStatus,
                                      String toStatus,
                                      Map<String, Object> payload) {
+        // 写 DB 日志（原有逻辑不变）
         doPublish(executionId, nodeId, null, null,
                 eventType, fromStatus, toStatus, payload);
+
+        // ★ 新增：发布 Spring Event
+        publishSpringPipelineEvent(executionId, eventType, payload);
     }
 
     /**
-     * 发布步骤级事件（STEP_STARTED / SUCCESS / FAILED 等）
-     *
-     * @param executionId 执行实例ID
-     * @param nodeId      节点ID
-     * @param attempt     第几次尝试
-     * @param eventType   事件类型
-     * @param fromStatus  变更前状态
-     * @param toStatus    变更后状态
-     * @param payload     附加数据，可为 null
+     * 发布步骤级事件
      */
     @Async
     public void publishStepEvent(String executionId,
@@ -59,13 +50,108 @@ public class ExecutionEventPublisher {
                                  String fromStatus,
                                  String toStatus,
                                  Map<String, Object> payload) {
+        // 写 DB 日志（原有逻辑不变）
         doPublish(executionId, nodeId, attempt, null,
                 eventType, fromStatus, toStatus, payload);
+
+        // ★ 新增：发布 Spring Event
+        publishSpringStepEvent(executionId, nodeId, attempt, eventType, payload);
     }
 
-    // ----------------------------------------------------------------
-    // 内部实现：构建 DO 并写库，捕获所有异常防止影响主流程
-    // ----------------------------------------------------------------
+    // ================================================================
+    // Spring Event 发布（新增）
+    // ================================================================
+
+    private void publishSpringPipelineEvent(String executionId,
+                                            EventTypeEnum eventType,
+                                            Map<String, Object> payload) {
+        try {
+            switch (eventType) {
+                case PIPELINE_STARTED:
+                    String pipelineKey = payload != null ?
+                            (String) payload.get("pipelineKey") : null;
+                    Integer version = payload != null ?
+                            (Integer) payload.get("pipelineVersion") : null;
+                    springEventPublisher.publishEvent(
+                            new ExecutionStartedEvent(this, executionId,
+                                    pipelineKey, version != null ? version : 0));
+                    break;
+
+                case PIPELINE_SUCCESS:
+                    springEventPublisher.publishEvent(
+                            new ExecutionCompletedEvent(this, executionId, true));
+                    break;
+
+                case PIPELINE_FAILED:
+                    springEventPublisher.publishEvent(
+                            new ExecutionCompletedEvent(this, executionId, false));
+                    break;
+
+                default:
+                    // 其他流程级事件暂不发布 Spring Event
+                    break;
+            }
+        } catch (Exception e) {
+            log.error("[EventPublisher] Spring Event 发布失败 executionId={} type={}",
+                    executionId, eventType, e);
+        }
+    }
+
+    private void publishSpringStepEvent(String executionId,
+                                        String nodeId,
+                                        Integer attempt,
+                                        EventTypeEnum eventType,
+                                        Map<String, Object> payload) {
+        try {
+            int att = attempt != null ? attempt : 1;
+            String stepType = payload != null ?
+                    (String) payload.get("stepType") : null;
+
+            switch (eventType) {
+                case STEP_STARTED:
+                    springEventPublisher.publishEvent(
+                            new StepStartedEvent(this, executionId,
+                                    nodeId, att, stepType));
+                    break;
+
+                case STEP_SUCCESS:
+                    springEventPublisher.publishEvent(
+                            new StepSuccessEvent(this, executionId,
+                                    nodeId, att, stepType));
+                    break;
+
+                case STEP_FAILED:
+                    String errorCode = payload != null ?
+                            (String) payload.get("errorCode") : null;
+                    String errorMsg = payload != null ?
+                            (String) payload.get("errorMsg") : null;
+                    springEventPublisher.publishEvent(
+                            new StepFailedEvent(this, executionId,
+                                    nodeId, att, stepType,
+                                    errorCode, errorMsg));
+                    break;
+
+                case STEP_WAITING:
+                    String waitingFor = payload != null ?
+                            (String) payload.get("waitingFor") : null;
+                    springEventPublisher.publishEvent(
+                            new StepWaitingEvent(this, executionId,
+                                    nodeId, att, waitingFor));
+                    break;
+
+                default:
+                    break;
+            }
+        } catch (Exception e) {
+            log.error("[EventPublisher] Spring Event 发布失败 executionId={} type={}",
+                    executionId, eventType, e);
+        }
+    }
+
+    // ================================================================
+    // 原有的 DB 写入逻辑（完全不变）
+    // ================================================================
+
     private void doPublish(String executionId,
                            String nodeId,
                            Integer attempt,
@@ -94,12 +180,10 @@ public class ExecutionEventPublisher {
             record.setUpdateTime(now);
             record.setDeleted(false);
 
-
             eventLogMapper.insert(record);
 
         } catch (Exception e) {
-            // 事件日志写入失败不能影响主流程，降级为日志记录
-            log.error("[ExecutionEventPublisher] 写入失败 executionId={} eventType={} error={}",
+            log.error("[ExecutionEventPublisher] DB写入失败 executionId={} eventType={}",
                     executionId, eventType, e.getMessage());
         }
     }

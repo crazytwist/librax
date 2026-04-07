@@ -6,16 +6,16 @@ import com.librax.lab.module.flow.engine.definition.PipelineGraphCache;
 import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.engine.execution.context.ExecutionContextManager;
+import com.librax.lab.module.flow.engine.execution.context.OutputMappingResolver;
+import com.librax.lab.module.flow.engine.execution.event.ExecutionEventPublisher;
+import com.librax.lab.module.flow.engine.execution.exception.ExceptionEngine;
 import com.librax.lab.module.flow.engine.execution.executor.MockStepExecutor;
 import com.librax.lab.module.flow.engine.execution.executor.StepExecutor;
 import com.librax.lab.module.flow.engine.execution.executor.StepExecutorFactory;
 import com.librax.lab.module.flow.engine.execution.model.StepResult;
 import com.librax.lab.module.flow.engine.execution.statemachine.ExecutionStateMachine;
 import com.librax.lab.module.flow.engine.execution.statemachine.StepStateMachine;
-import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
-import com.librax.lab.module.flow.enums.FailStrategyEnum;
-import com.librax.lab.module.flow.enums.StepStatusEnum;
-import com.librax.lab.module.flow.enums.StepTypeEnum;
+import com.librax.lab.module.flow.enums.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -60,6 +60,10 @@ public class DagScheduler {
     private final ExecutionContextManager contextManager;
     private final StepExecutorFactory executorFactory;
     private final MockStepExecutor mockStepExecutor;  // 无真实执行器时的兜底
+    private final ExecutionEventPublisher eventPublisher; // ★ 新增
+    private final OutputMappingResolver outputMappingResolver;
+    private final ExceptionEngine exceptionEngine;
+
 
     // 步骤并行执行线程池（ThreadPoolConfig 里定义的 Bean）
     private final Executor stepExecutorPool;
@@ -123,7 +127,8 @@ public class DagScheduler {
         Map<String, StepStatusEnum> statusMap = stepList.stream()
                 .collect(Collectors.toMap(
                         StepExecutionDO::getNodeId,
-                        s -> StepStatusEnum.valueOf(s.getStatus())));
+                        s -> StepStatusEnum.valueOf(s.getStatus()),
+                        (existing, replacement) -> replacement));  // ★ 重复 key 取后者
 
         // 2. 检查流程是否已全部完成
         if (isAllDone(graph, statusMap)) {
@@ -253,7 +258,7 @@ public class DagScheduler {
         waitingInfo.put("_waitingFor", result.getWaitingFor().name());
         waitingInfo.put("_waitingSince", LocalDateTime.now().toString());
         contextManager.putNodeOutput(executionId,
-                node.getNodeId() + ":waiting", waitingInfo);
+                node.getNodeId() + "_waiting", waitingInfo);
 
         log.info("[DagScheduler] 步骤进入等待 executionId={} nodeId={} waitingFor={} token={}",
                 executionId, node.getNodeId(), result.getWaitingFor(), callbackToken);
@@ -364,9 +369,24 @@ public class DagScheduler {
         // 1. 更新步骤状态为 SUCCESS
         stepStateMachine.markSuccess(executionId, node.getNodeId(), attempt, result);
 
-        // 2. 写入上下文（供后续节点引用）
-        if (result.getOutputs() != null && !result.getOutputs().isEmpty()) {
-            contextManager.putNodeOutput(executionId, node.getNodeId(), result.getOutputs());
+        // 2. 应用 output_mapping，提取并重命名字段
+        Map<String, Object> outputs = result.getOutputs();
+        if (outputs != null && !outputs.isEmpty()) {
+            // ★ 新增：如果配置了 output_mapping，做字段映射
+            Map<String, String> outputMapping = node.getOutputMapping();
+            Map<String, Object> contextOutputs;
+
+            if (outputMapping != null && !outputMapping.isEmpty()) {
+                contextOutputs = outputMappingResolver.resolve(outputs, outputMapping);
+                log.info("[DagScheduler] output_mapping 应用完成 nodeId={} raw={} mapped={}",
+                        node.getNodeId(), outputs.keySet(), contextOutputs.keySet());
+            } else {
+                // 没有配置 output_mapping，原样写入
+                contextOutputs = outputs;
+            }
+
+            // 写入上下文（供后续节点 inputMapping 引用）
+            contextManager.putNodeOutput(executionId, node.getNodeId(), contextOutputs);
         }
 
         // 3. 触发下一轮调度
@@ -382,67 +402,18 @@ public class DagScheduler {
                                StepNode node,
                                int attempt,
                                StepResult result) {
-        // 1. 更新步骤状态为 FAILED
+        // 1. 标记步骤 FAILED（这一步不变）
         stepStateMachine.markFailed(executionId, node.getNodeId(), attempt, result);
 
-        // 2. 判断是否还有重试次数
-        if (attempt < node.getMaxAttempts()) {
-            scheduleRetry(executionId, graph, node, attempt, result);
-        } else {
-            // 耗尽重试次数，标记 DEAD
-            stepStateMachine.markDead(executionId, node.getNodeId(), attempt);
-            handleDead(executionId, graph, node);
-        }
-    }
-
-    /**
-     * 延迟重试：插入新行后等待 backoffMs 再触发调度
-     */
-    private void scheduleRetry(String executionId,
-                               PipelineGraph graph,
-                               StepNode node,
-                               int attempt,
-                               StepResult result) {
-        int nextAttempt = attempt + 1;
-        log.info("[DagScheduler] 安排重试 executionId={} nodeId={} nextAttempt={} backoffMs={}",
-                executionId, node.getNodeId(), nextAttempt, node.getBackoffMs());
-
-        // 插入重试行（status=PENDING，attempt+1）
-        stepStateMachine.insertRetryRow(
-                executionId, node.getNodeId(),
-                nextAttempt, node.getStepKey(), node.getStepType().name());
-
-        // 延迟后重新触发调度
-        watchdogPool.schedule(
-                () -> doSchedule(executionId, graph),
-                node.getBackoffMs(),
-                TimeUnit.MILLISECONDS);
-    }
-
-    /**
-     * 节点彻底失败（DEAD）后的处理：
-     * FAIL_FAST → 终止整条流程
-     * CONTINUE_ON_FAIL → 继续调度其他无依赖的节点
-     */
-    private void handleDead(String executionId,
-                            PipelineGraph graph,
-                            StepNode node) {
-        FailStrategyEnum strategy = node.getOnFailure();
-
-        if (strategy == FailStrategyEnum.FAIL_FAST) {
-            log.warn("[DagScheduler] 节点DEAD，FAIL_FAST 终止流程 executionId={} nodeId={}",
-                    executionId, node.getNodeId());
-            // 查当前流程状态，触发流程失败流转
-            executionStateMachine.transition(
-                    executionId,
-                    ExecutionStatusEnum.RUNNING,
-                    ExecutionStatusEnum.FAILED);
-        } else {
-            // CONTINUE_ON_FAIL：继续调度其他节点
-            log.warn("[DagScheduler] 节点DEAD，CONTINUE_ON_FAIL 继续调度 executionId={} nodeId={}",
-                    executionId, node.getNodeId());
-            doSchedule(executionId, graph);
-        }
+        // 2. ★ 委托给异常引擎处理（替代原来的重试/DEAD判断）
+        exceptionEngine.handleStepFailure(
+                executionId,
+                graph.getPipelineKey(),
+                graph.getVersion(),
+                node.getNodeId(),
+                attempt,
+                result.getErrorCode(),
+                result.getErrorMsg());
     }
 
     // ================================================================
@@ -480,7 +451,14 @@ public class DagScheduler {
                 ExecutionStatusEnum.RUNNING,
                 finalStatus);
 
-        // 清理 Redis 上下文（DB 保留用于审计）
+        // ★ 新增：发布流程完成事件
+        eventPublisher.publishPipelineEvent(
+                executionId, null,
+                hasDead ? EventTypeEnum.PIPELINE_FAILED : EventTypeEnum.PIPELINE_SUCCESS,
+                ExecutionStatusEnum.RUNNING.name(),
+                finalStatus.name(),
+                null);
+
         if (finalStatus == ExecutionStatusEnum.SUCCESS) {
             contextManager.cleanup(executionId);
         }
@@ -524,13 +502,28 @@ public class DagScheduler {
         Map<String, Object> mappedParams = contextManager.resolveInputMapping(
                 executionId, node.getInputMapping(), inputParams);
 
-        log.info("根据参数:{}获取的参数值:{}", node.getInputMapping(), mappedParams);
-
         // 合并：node.params（静态参数）+ mappedParams（动态参数，优先级更高）
         Map<String, Object> merged = new HashMap<>(node.getParams());
         if (mappedParams != null) {
             merged.putAll(mappedParams);
         }
         return merged;
+    }
+
+    /**
+     * 延迟调度（供 ExceptionEngine 重试时调用）
+     */
+    public void scheduleDelayed(String executionId, PipelineGraph graph, long delayMs) {
+        watchdogPool.schedule(
+                () -> doSchedule(executionId, graph),
+                delayMs,
+                TimeUnit.MILLISECONDS);
+    }
+
+    /**
+     * 立即调度（供 ExceptionEngine CONTINUE_ON_FAIL 时调用）
+     */
+    public void scheduleImmediate(String executionId, PipelineGraph graph) {
+        doSchedule(executionId, graph);
     }
 }

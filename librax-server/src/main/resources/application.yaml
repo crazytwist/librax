@@ -323,6 +323,11 @@ librax:
       - pe_execution_event_log
       - pe_pipeline_execution
       - pe_step_execution
+      - lab_sample_info
+      - lab_sample_relation
+      - lab_sample_event
+      - lab_sample_step
+      - lab_sample_result
     ignore-caches:
       - user_role_ids
       - permission_menu_ids

@@ -19,6 +19,8 @@ public class PipelineGraph {
     private int version;
     private String name;
     private FailStrategyEnum failStrategy;
+    private Long defaultTimeoutMs;
+
 
     // ---- 节点列表 ----
     private List<StepNode> steps;

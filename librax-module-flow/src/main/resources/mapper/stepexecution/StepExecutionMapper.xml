@@ -34,11 +34,18 @@
         LIMIT 1
 
     </select>
+
     <select id="selectLatestByExecutionId"
             resultType="com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO">
-
-        select * from pe_step_execution where execution_id = #{executionId} and deleted = 0
-
+        SELECT a.*
+        FROM pe_step_execution a
+        INNER JOIN (
+        SELECT node_id, MAX(attempt) AS max_attempt
+        FROM pe_step_execution
+        WHERE execution_id = #{executionId} AND deleted = 0
+        GROUP BY node_id
+        ) b ON a.node_id = b.node_id AND a.attempt = b.max_attempt
+        WHERE a.execution_id = #{executionId} AND a.deleted = 0
     </select>
 
 </mapper>

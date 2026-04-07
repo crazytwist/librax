@@ -49,27 +49,27 @@ public class ExecutionStateMachine {
      * value = 允许流转到的目标状态集合
      */
     private static final Map<ExecutionStatusEnum, Set<ExecutionStatusEnum>> TRANSITIONS = Map.of(
-            ExecutionStatusEnum.PENDING,      Set.of(
+            ExecutionStatusEnum.PENDING, Set.of(
                     ExecutionStatusEnum.RUNNING,
                     ExecutionStatusEnum.CANCELLED),
-            ExecutionStatusEnum.RUNNING,      Set.of(
+            ExecutionStatusEnum.RUNNING, Set.of(
                     ExecutionStatusEnum.PAUSED,
                     ExecutionStatusEnum.SUCCESS,
                     ExecutionStatusEnum.FAILED,
                     ExecutionStatusEnum.CANCELLED,
                     ExecutionStatusEnum.COMPENSATING),
-            ExecutionStatusEnum.PAUSED,       Set.of(
+            ExecutionStatusEnum.PAUSED, Set.of(
                     ExecutionStatusEnum.RUNNING,
                     ExecutionStatusEnum.CANCELLED),
-            ExecutionStatusEnum.FAILED,       Set.of(
+            ExecutionStatusEnum.FAILED, Set.of(
                     ExecutionStatusEnum.COMPENSATING,
                     ExecutionStatusEnum.RUNNING),
             ExecutionStatusEnum.COMPENSATING, Set.of(
                     ExecutionStatusEnum.COMPENSATED,
                     ExecutionStatusEnum.FAILED),
-            ExecutionStatusEnum.SUCCESS,      Set.of(),
-            ExecutionStatusEnum.CANCELLED,    Set.of(),
-            ExecutionStatusEnum.COMPENSATED,  Set.of()
+            ExecutionStatusEnum.SUCCESS, Set.of(),
+            ExecutionStatusEnum.CANCELLED, Set.of(),
+            ExecutionStatusEnum.COMPENSATED, Set.of()
     );
 
     /**
@@ -83,8 +83,7 @@ public class ExecutionStateMachine {
      * @param executionId 流程执行实例ID
      * @param from        期望的当前状态（乐观锁条件）
      * @param to          目标状态
-     * @throws com.librax.lab.framework.common.exception.ServiceException
-     *         非法流转（from→to 不在合法表中）或并发冲突时抛出
+     * @throws com.librax.lab.framework.common.exception.ServiceException 非法流转（from→to 不在合法表中）或并发冲突时抛出
      */
     public void transition(String executionId,
                            ExecutionStatusEnum from,
@@ -112,6 +111,17 @@ public class ExecutionStateMachine {
         log.info("[ExecutionStateMachine] 状态流转成功 executionId={} {} -> {}",
                 executionId, from, to);
 
+        // transition 方法最后，加一个判断：不重复发 PIPELINE_STARTED
+        // 因为 PENDING→RUNNING 的事件由 PipelineExecutionServiceImpl.afterCommit 发布（带完整 payload）
+        if (from == ExecutionStatusEnum.PENDING && to == ExecutionStatusEnum.RUNNING) {
+            // 跳过，由 start() 的 afterCommit 发布（带 pipelineKey 和 version）
+            return;
+        }
+        if (from == ExecutionStatusEnum.RUNNING
+                && (to == ExecutionStatusEnum.SUCCESS || to == ExecutionStatusEnum.FAILED)) {
+            return; // 由 DagScheduler.finishPipeline 发布
+        }
+
         // 4. 异步写事件日志（不阻塞主链路）
         eventPublisher.publishPipelineEvent(
                 executionId, null,
@@ -137,13 +147,13 @@ public class ExecutionStateMachine {
      */
     private EventTypeEnum resolveEventType(ExecutionStatusEnum to) {
         return switch (to) {
-            case RUNNING      -> EventTypeEnum.PIPELINE_STARTED;
-            case PAUSED       -> EventTypeEnum.PIPELINE_PAUSED;
-            case SUCCESS      -> EventTypeEnum.PIPELINE_SUCCESS;
-            case FAILED       -> EventTypeEnum.PIPELINE_FAILED;
-            case CANCELLED    -> EventTypeEnum.PIPELINE_CANCELLED;
+            case RUNNING -> EventTypeEnum.PIPELINE_STARTED;
+            case PAUSED -> EventTypeEnum.PIPELINE_PAUSED;
+            case SUCCESS -> EventTypeEnum.PIPELINE_SUCCESS;
+            case FAILED -> EventTypeEnum.PIPELINE_FAILED;
+            case CANCELLED -> EventTypeEnum.PIPELINE_CANCELLED;
             case COMPENSATING -> EventTypeEnum.STEP_COMPENSATE_TRIGGERED;
-            default           -> EventTypeEnum.PIPELINE_STARTED;
+            default -> EventTypeEnum.PIPELINE_STARTED;
         };
     }
 }

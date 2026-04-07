@@ -38,11 +38,11 @@ public class StepNode {
     // ---- 执行配置（三层合并后的最终值）----
     // 优先级：pd_pipeline_step > pd_step_definition > pd_pipeline_definition
     /** 超时时间(ms) */
-    private long timeoutMs;
+    private Long timeoutMs;
     /** 最大重试次数 */
     private int maxAttempts;
     /** 重试退避时间(ms) */
-    private long backoffMs;
+    private Long backoffMs;
     /** 节点失败策略 */
     private FailStrategyEnum onFailure;
 
