@@ -9,6 +9,7 @@ import com.librax.lab.module.flow.engine.execution.context.ExecutionContextManag
 import com.librax.lab.module.flow.engine.execution.context.OutputMappingResolver;
 import com.librax.lab.module.flow.engine.execution.event.ExecutionEventPublisher;
 import com.librax.lab.module.flow.engine.execution.exception.ExceptionEngine;
+import com.librax.lab.module.flow.engine.execution.exception.FailureDecision;
 import com.librax.lab.module.flow.engine.execution.executor.MockStepExecutor;
 import com.librax.lab.module.flow.engine.execution.executor.StepExecutor;
 import com.librax.lab.module.flow.engine.execution.executor.StepExecutorFactory;
@@ -29,6 +30,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import static com.librax.lab.module.flow.engine.execution.exception.FailureDecision.Action.*;
 
 /**
  * DAG 调度器 — 核心大脑
@@ -59,15 +62,13 @@ public class DagScheduler {
     private final StepStateMachine stepStateMachine;
     private final ExecutionContextManager contextManager;
     private final StepExecutorFactory executorFactory;
-    private final MockStepExecutor mockStepExecutor;  // 无真实执行器时的兜底
-    private final ExecutionEventPublisher eventPublisher; // ★ 新增
+    private final MockStepExecutor mockStepExecutor;
+    private final ExecutionEventPublisher eventPublisher;
     private final OutputMappingResolver outputMappingResolver;
-    private final ExceptionEngine exceptionEngine;
+    private final ExceptionEngine exceptionEngine;  // ★ 保留，但现在只调 decide()
+    // ★ 删除：不再需要 ExceptionEngine 反调自己
 
-
-    // 步骤并行执行线程池（ThreadPoolConfig 里定义的 Bean）
     private final Executor stepExecutorPool;
-    // 重试延迟调度线程池
     private final ScheduledExecutorService watchdogPool;
 
     // ================================================================
@@ -140,7 +141,7 @@ public class DagScheduler {
         List<StepNode> readyNodes = graph.getSteps().stream()
                 .filter(node -> isPending(node, statusMap))
                 .filter(node -> isDependencySatisfied(node, statusMap))
-                .collect(Collectors.toList());
+                .toList();
 
         if (readyNodes.isEmpty()) {
             log.debug("[DagScheduler] 无就绪节点 executionId={}", executionId);
@@ -397,23 +398,85 @@ public class DagScheduler {
     // 失败处理
     // ================================================================
 
+    /**
+     * 失败处理（改造后）
+     *
+     * 原来：一行 exceptionEngine.handleStepFailure(...) 甩手
+     * 现在：调 decide() 拿决策 → 自己执行
+     */
     private void handleFailure(String executionId,
                                PipelineGraph graph,
                                StepNode node,
                                int attempt,
                                StepResult result) {
-        // 1. 标记步骤 FAILED（这一步不变）
+        // 1. 标记步骤 FAILED（跟原来一样）
         stepStateMachine.markFailed(executionId, node.getNodeId(), attempt, result);
 
-        // 2. ★ 委托给异常引擎处理（替代原来的重试/DEAD判断）
-        exceptionEngine.handleStepFailure(
-                executionId,
+        // 2. ★ 改动：问异常引擎"下一步怎么办"（纯决策，无副作用）
+        FailureDecision decision = exceptionEngine.decide(
                 graph.getPipelineKey(),
                 graph.getVersion(),
                 node.getNodeId(),
                 attempt,
-                result.getErrorCode(),
-                result.getErrorMsg());
+                result.getErrorCode());
+
+        // 3. 告警
+        if (decision.isAlertOnFail()) {
+            log.warn("[ALERT][{}] executionId={} nodeId={} attempt={} " +
+                            "errorCode={} errorMsg={} reason={}",
+                    decision.getAlertLevel(), executionId,
+                    node.getNodeId(), attempt,
+                    result.getErrorCode(), result.getErrorMsg(),
+                    decision.getDescription());
+        }
+
+        // 4. ★ 改动：根据决策自己执行（不再委托给 ExceptionEngine）
+        switch (decision.getAction()) {
+            case RETRY:
+                log.info("[DagScheduler] 安排重试 executionId={} nodeId={} " +
+                                "nextAttempt={} backoffMs={}",
+                        executionId, node.getNodeId(),
+                        decision.getNextAttempt(), decision.getBackoffMs());
+
+                stepStateMachine.insertRetryRow(
+                        executionId, node.getNodeId(),
+                        decision.getNextAttempt(),
+                        decision.getStepKey(),
+                        decision.getStepType());
+                scheduleDelayed(executionId, graph, decision.getBackoffMs());
+                break;
+
+            case DEAD_FAIL_FAST:
+                log.warn("[DagScheduler] DEAD+FAIL_FAST executionId={} nodeId={}",
+                        executionId, node.getNodeId());
+
+                stepStateMachine.markDead(
+                        executionId, node.getNodeId(), attempt);
+                executionStateMachine.transition(
+                        executionId,
+                        ExecutionStatusEnum.RUNNING,
+                        ExecutionStatusEnum.FAILED);
+                break;
+
+            case DEAD_CONTINUE:
+                log.warn("[DagScheduler] DEAD+CONTINUE executionId={} nodeId={}",
+                        executionId, node.getNodeId());
+
+                stepStateMachine.markDead(
+                        executionId, node.getNodeId(), attempt);
+                doSchedule(executionId, graph);
+                break;
+
+            default:
+                log.warn("[DagScheduler] 未知决策 action={}, 默认 FAIL_FAST",
+                        decision.getAction());
+                stepStateMachine.markDead(
+                        executionId, node.getNodeId(), attempt);
+                executionStateMachine.transition(
+                        executionId,
+                        ExecutionStatusEnum.RUNNING,
+                        ExecutionStatusEnum.FAILED);
+        }
     }
 
     // ================================================================

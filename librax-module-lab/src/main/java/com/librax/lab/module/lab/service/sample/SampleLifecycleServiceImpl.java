@@ -1,5 +1,6 @@
 package com.librax.lab.module.lab.service.sample;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -11,6 +12,8 @@ import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.enums.StepTypeEnum;
 import com.librax.lab.module.lab.dal.dataobject.sample.*;
 import com.librax.lab.module.lab.dal.mysql.sample.*;
+import com.librax.lab.module.lab.dal.vo.SampleSplitReqVO;
+import com.librax.lab.module.lab.dal.vo.SampleSplitResultVO;
 import com.librax.lab.module.lab.enums.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +32,7 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
     private final SampleInfoMapper sampleInfoMapper;
     private final SampleStepMapper sampleStepMapper;
     private final SampleEventMapper sampleEventMapper;
+    private final SampleRelationMapper sampleRelationMapper;
     private final PipelineGraphCache graphCache;
 
     // ================================================================
@@ -337,6 +341,140 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
 
         log.info("[SampleLifecycle] 样本转移 sampleId={} from={} to={}",
                 sampleId, fromLocation, toLocation);
+    }
+
+    /**
+     * 拆分样本
+     * <p>
+     * 事务内完成：
+     * 1. 校验父样本存在 + 体积充足
+     * 2. 创建子样本记录（继承父样本的类型、批次等属性）
+     * 3. 记录谱系关系（lab_sample_relation）
+     * 4. 扣减父样本体积
+     * 5. 更新父样本状态为 SPLIT
+     * 6. 记录事件日志
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public SampleSplitResultVO splitSample(SampleSplitReqVO req) {
+        String parentId = req.getParentSampleId();
+
+        // 1. 校验父样本
+        SampleInfoDO parent = getSample(parentId);
+        if (parent == null) {
+            throw new RuntimeException("父样本不存在: " + parentId);
+        }
+
+        // 校验体积
+        BigDecimal totalSplitVolume = req.getSplits().stream()
+                .map(SampleSplitReqVO.SplitItem::getVolumeUl)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        if (parent.getVolumeUl() != null
+                && parent.getVolumeUl().compareTo(totalSplitVolume) < 0) {
+            throw new RuntimeException(String.format(
+                    "父样本体积不足: 当前 %s μL, 需要 %s μL",
+                    parent.getVolumeUl(), totalSplitVolume));
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        List<SampleSplitResultVO.ChildSample> childResults = new ArrayList<>();
+
+        // 2. 逐个创建子样本
+        for (SampleSplitReqVO.SplitItem split : req.getSplits()) {
+            String childId = parentId + "-" + split.getLabel();
+
+            // 创建子样本记录
+            SampleInfoDO child = new SampleInfoDO();
+            child.setSampleId(childId);
+            child.setParentSampleId(parentId);
+            child.setRootSampleId(
+                    parent.getRootSampleId() != null
+                            ? parent.getRootSampleId() : parentId);
+            child.setDeriveType("SPLIT");
+            child.setGeneration(
+                    parent.getGeneration() != null
+                            ? parent.getGeneration() + 1 : 1);
+            child.setSampleType(parent.getSampleType());
+            child.setSampleName(parent.getSampleName() + "-" + split.getLabel());
+            child.setContainerType(
+                    req.getContainerType() != null
+                            ? req.getContainerType() : parent.getContainerType());
+            child.setVolumeUl(split.getVolumeUl());
+            child.setInitialVolumeUl(split.getVolumeUl());
+            child.setStatus(SampleStatusEnum.REGISTERED.name());
+            child.setBatchNo(parent.getBatchNo());
+            child.setOrderNo(parent.getOrderNo());
+            child.setPriority(parent.getPriority());
+            child.setSource("SPLIT");
+            child.setLocationCode(parent.getLocationCode());
+            child.setLocationDetail(parent.getLocationDetail());
+            child.setCurrentExecutionId(req.getExecutionId());
+            child.setReceivedAt(now);
+
+            sampleInfoMapper.insert(child);
+
+            // 3. 记录谱系关系
+            SampleRelationDO relation = new SampleRelationDO();
+            relation.setSampleId(childId);
+            relation.setRelatedSampleId(parentId);
+            relation.setRelationType("SPLIT_FROM");
+            relation.setQuantityUl(split.getVolumeUl());
+            relation.setExecutionId(req.getExecutionId());
+            relation.setNodeId(req.getNodeId());
+            sampleRelationMapper.insert(relation);
+
+            // 记录子样本事件
+            recordEvent(childId, req.getExecutionId(), req.getNodeId(),
+                    SampleEventTypeEnum.REGISTERED,
+                    null, SampleStatusEnum.REGISTERED.name(),
+                    null, null,
+                    null, split.getVolumeUl(),
+                    null,
+                    String.format("{\"splitFrom\":\"%s\",\"label\":\"%s\"}",
+                            parentId, split.getLabel()));
+
+            // 收集结果
+            SampleSplitResultVO.ChildSample childResult = new SampleSplitResultVO.ChildSample();
+            childResult.setSampleId(childId);
+            childResult.setLabel(split.getLabel());
+            childResult.setVolumeUl(split.getVolumeUl());
+            childResults.add(childResult);
+        }
+
+        // 4. 扣减父样本体积
+        BigDecimal remainingVolume = parent.getVolumeUl() != null
+                ? parent.getVolumeUl().subtract(totalSplitVolume)
+                : null;
+
+        SampleInfoDO parentUpdate = new SampleInfoDO();
+        parentUpdate.setId(parent.getId());
+        parentUpdate.setVolumeUl(remainingVolume);
+        parentUpdate.setStatus(SampleStatusEnum.SPLIT.name());
+        sampleInfoMapper.updateById(parentUpdate);
+
+        // 5. 记录父样本拆分事件
+        recordEvent(parentId, req.getExecutionId(), req.getNodeId(),
+                SampleEventTypeEnum.SPLIT,
+                parent.getStatus(), SampleStatusEnum.SPLIT.name(),
+                null, null,
+                parent.getVolumeUl(), remainingVolume,
+                null,
+                String.format("{\"childCount\":%d,\"totalSplitUl\":%s}",
+                        childResults.size(), totalSplitVolume));
+
+        log.info("[SampleLifecycle] 样本拆分完成 parent={} children={} " +
+                        "totalSplit={}μL remaining={}μL",
+                parentId,
+                childResults.stream().map(SampleSplitResultVO.ChildSample::getSampleId)
+                        .collect(java.util.stream.Collectors.toList()),
+                totalSplitVolume, remainingVolume);
+
+        // 6. 构建返回
+        SampleSplitResultVO result = new SampleSplitResultVO();
+        result.setChildSamples(childResults);
+        result.setTotalSplitVolumeUl(totalSplitVolume);
+        return result;
     }
 
     // ================================================================

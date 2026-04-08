@@ -10,6 +10,8 @@ import com.librax.lab.module.flow.engine.definition.PipelineGraphCache;
 import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.engine.execution.exception.ExceptionEngine;
+import com.librax.lab.module.flow.engine.execution.exception.FailureActionHelper;
+import com.librax.lab.module.flow.engine.execution.exception.FailureDecision;
 import com.librax.lab.module.flow.engine.execution.model.StepResult;
 import com.librax.lab.module.flow.engine.execution.scheduler.DagScheduler;
 import com.librax.lab.module.flow.engine.execution.statemachine.StepStateMachine;
@@ -52,6 +54,7 @@ public class TimeoutWatchdog {
     private final StepExecutionMapper stepMapper;
     private final PipelineGraphCache graphCache;
     private final ExceptionEngine exceptionEngine;
+    private final FailureActionHelper failureActionHelper;
 
     /**
      * 全局兜底超时（步骤和流程都没配 timeout 时使用）
@@ -142,7 +145,10 @@ public class TimeoutWatchdog {
     }
 
     /**
-     * 处理超时步骤
+     * 处理超时步骤（改造后）
+     *
+     * 原来：CAS标FAILED → exceptionEngine.handleStepFailure(...)
+     * 现在：CAS标FAILED → exceptionEngine.decide() → failureActionHelper.execute()
      */
     private void handleStepTimeout(PipelineExecutionDO execution,
                                    StepExecutionDO step,
@@ -157,7 +163,7 @@ public class TimeoutWatchdog {
                         "status={} elapsed={}ms timeout={}ms",
                 executionId, nodeId, attempt, currentStatus, elapsedMs, timeoutMs);
 
-        // CAS: RUNNING/WAITING → FAILED（防止和正常完成并发）
+        // CAS: RUNNING/WAITING → FAILED（跟原来完全一样）
         LocalDateTime now = LocalDateTime.now();
         int rows = stepMapper.update(null, new LambdaUpdateWrapper<StepExecutionDO>()
                 .eq(StepExecutionDO::getExecutionId, executionId)
@@ -175,20 +181,31 @@ public class TimeoutWatchdog {
                 .set(StepExecutionDO::getUpdateTime, now));
 
         if (rows == 0) {
-            // 状态已被其他线程修改（正常回调先到了），不处理
             log.info("[TimeoutWatchdog] 步骤状态已变更，跳过 executionId={} nodeId={}",
                     executionId, nodeId);
             return;
         }
 
-        exceptionEngine.handleStepFailure(
-                executionId,
+        // ★ 改动：分两步——先决策，再执行
+        String errorCode = "STEP_TIMEOUT";
+        String errorMsg = String.format("步骤超时: 已执行%dms, 超时阈值%dms", elapsedMs, timeoutMs);
+
+        // 1. 问 ExceptionEngine：下一步怎么办？
+        FailureDecision decision = exceptionEngine.decide(
                 execution.getPipelineKey(),
                 execution.getPipelineVersion(),
                 nodeId,
                 attempt,
-                "STEP_TIMEOUT",
-                String.format("步骤超时: 已执行%dms, 超时阈值%dms", elapsedMs, timeoutMs));
+                errorCode);
+
+        // 2. 交给 FailureActionHelper 执行
+        PipelineGraph graph = graphCache.get(
+                execution.getPipelineKey(),
+                execution.getPipelineVersion());
+
+        failureActionHelper.execute(
+                executionId, graph, nodeId, attempt,
+                errorCode, errorMsg, decision);
     }
 
     // ================================================================

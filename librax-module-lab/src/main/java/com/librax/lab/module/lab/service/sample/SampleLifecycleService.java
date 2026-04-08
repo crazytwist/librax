@@ -1,5 +1,8 @@
 package com.librax.lab.module.lab.service.sample;
 
+import com.librax.lab.module.lab.dal.vo.SampleSplitReqVO;
+import com.librax.lab.module.lab.dal.vo.SampleSplitResultVO;
+
 import java.util.List;
 import java.util.Map;
 
@@ -36,4 +39,6 @@ public interface SampleLifecycleService {
     void transferSample(String sampleId, String toLocation,
                         String toLocationDetail, String operator);
 
+    /** 样本拆分 */
+    SampleSplitResultVO splitSample(SampleSplitReqVO req);
 }
