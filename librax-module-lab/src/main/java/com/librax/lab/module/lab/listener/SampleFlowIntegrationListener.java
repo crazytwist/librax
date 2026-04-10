@@ -3,6 +3,7 @@ package com.librax.lab.module.lab.listener;
 
 import com.librax.lab.module.flow.engine.execution.context.ExecutionContextManager;
 import com.librax.lab.module.flow.engine.execution.event.*;
+import com.librax.lab.module.flow.engine.execution.scheduler.SchedulerConstants;
 import com.librax.lab.module.lab.service.sample.SampleLifecycleService;
 import com.librax.lab.module.lab.service.sample.SampleResultHandleService;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.librax.lab.module.flow.enums.StepTypeEnum.INSTRUMENT;
+import static com.librax.lab.module.flow.engine.execution.scheduler.SchedulerConstants.CONTEXT_KEY_INPUT;
 
 /**
  * 样本-流程集成监听器
@@ -38,7 +40,7 @@ public class SampleFlowIntegrationListener {
     /**
      * 流程启动 → 样本进入流程
      */
-    @Async
+    @Async("labEventListenerExecutor")
     @EventListener
     public void onExecutionStarted(ExecutionStartedEvent event) {
         try {
@@ -59,7 +61,7 @@ public class SampleFlowIntegrationListener {
      * <p>
      * 只处理 INSTRUMENT 类型的步骤，其他步骤不涉及样本
      */
-    @Async
+    @Async("labEventListenerExecutor")
     @EventListener
     public void onStepStarted(StepStartedEvent event) {
         try {
@@ -85,7 +87,7 @@ public class SampleFlowIntegrationListener {
     /**
      * 步骤成功 → 记录检测结果
      */
-    @Async
+    @Async("labEventListenerExecutor")
     @EventListener
     public void onStepSuccess(StepSuccessEvent event) {
         try {
@@ -122,7 +124,7 @@ public class SampleFlowIntegrationListener {
     /**
      * 步骤失败 → 标记样本该步骤失败
      */
-    @Async
+    @Async("labEventListenerExecutor")
     @EventListener
     public void onStepFailed(StepFailedEvent event) {
         try {
@@ -147,7 +149,7 @@ public class SampleFlowIntegrationListener {
     /**
      * 流程结束 → 样本结算
      */
-    @Async
+    @Async("labEventListenerExecutor")
     @EventListener
     public void onExecutionCompleted(ExecutionCompletedEvent event) {
         try {
@@ -182,7 +184,7 @@ public class SampleFlowIntegrationListener {
      */
     private List<String> resolveSampleIds(String executionId) {
         Map<String, Object> input = contextManager
-                .getNodeOutput(executionId, "input");
+                .getNodeOutput(executionId, CONTEXT_KEY_INPUT);
         if (input == null) return List.of();
 
         // 优先取批量

@@ -1,4 +1,4 @@
-package com.librax.lab.framework.common.util.idgenerator;
+package com.librax.lab.module.lab.framework.util;
 
 
 import org.springframework.stereotype.Component;

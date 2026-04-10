@@ -7,24 +7,23 @@
         <artifactId>librax</artifactId>
         <version>${revision}</version>
     </parent>
+
     <modelVersion>4.0.0</modelVersion>
-    <artifactId>librax-module-flow</artifactId>
+    <artifactId>librax-module-device</artifactId>
     <packaging>jar</packaging>
 
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+
     <name>${project.artifactId}</name>
-    <description>
-        flow 流程管理 主要包含节点 流程  任务。等核心内容分发
-    </description>
 
     <dependencies>
         <dependency>
             <groupId>com.librax.boot</groupId>
             <artifactId>librax-module-infra</artifactId>
-            <version>${revision}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.librax.boot</groupId>
-            <artifactId>librax-module-flow-api</artifactId>
             <version>${revision}</version>
         </dependency>
         <!-- 业务组件 -->
@@ -40,6 +39,7 @@
             <groupId>com.librax.boot</groupId>
             <artifactId>librax-spring-boot-starter-biz-ip</artifactId>
         </dependency>
+
         <!-- Web 相关 -->
         <dependency>
             <groupId>com.librax.boot</groupId>
@@ -117,38 +117,6 @@
         <dependency>
             <groupId>org.dromara.hutool</groupId>
             <artifactId>hutool-extra</artifactId> <!-- 邮件 -->
-        </dependency>
-
-        <dependency>
-            <groupId>com.yomahub</groupId>
-            <artifactId>liteflow-spring-boot-starter</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.yomahub</groupId>
-            <artifactId>liteflow-rule-sql</artifactId>
-        </dependency>
-
-        <!-- JGraphT：环检测、拓扑排序、关键路径计算 -->
-        <dependency>
-            <groupId>org.jgrapht</groupId>
-            <artifactId>jgrapht-core</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.googlecode.aviator</groupId>
-            <artifactId>aviator</artifactId>
-        </dependency>
-
-        <dependency>
-            <groupId>com.jayway.jsonpath</groupId>
-            <artifactId>json-path</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.librax.boot</groupId>
-            <artifactId>librax-module-device</artifactId>
-            <version>2025.11-SNAPSHOT</version>
-            <scope>compile</scope>
         </dependency>
 
 

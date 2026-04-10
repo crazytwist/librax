@@ -24,6 +24,8 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.librax.lab.module.flow.engine.execution.scheduler.SchedulerConstants.CONTEXT_KEY_INPUT;
+
 import com.librax.lab.module.flow.controller.admin.pipelineexecution.vo.*;
 import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecutionDO;
 import com.librax.lab.framework.common.pojo.PageResult;
@@ -147,7 +149,7 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
 
         // 5. 把流程初始参数写入上下文，供后续节点 ${input.xxx} 引用
         if (inputParams != null && !inputParams.isEmpty()) {
-            contextManager.putNodeOutput(executionId, "input", inputParams);
+            contextManager.putNodeOutput(executionId, CONTEXT_KEY_INPUT, inputParams);
         }
 
         // ★ 调用所有注册的前置钩子（lab 模块的 SampleBindHook 在这里执行）
