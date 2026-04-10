@@ -26,10 +26,12 @@ import java.util.concurrent.ConcurrentHashMap;
 @RequiredArgsConstructor
 public class PipelineGraphCache {
 
-    private final PipelineGraphBuilder   builder;
+    private final PipelineGraphBuilder builder;
     private final PipelineGraphValidator validator;
 
-    /** key = "pipelineKey:version" */
+    /**
+     * key = "pipelineKey:version"
+     */
     private final ConcurrentHashMap<String, PipelineGraph> cache = new ConcurrentHashMap<>();
 
     // ----------------------------------------------------------------
@@ -42,8 +44,7 @@ public class PipelineGraphCache {
      * @param pipelineKey 流程标识
      * @param version     版本号
      * @return 校验通过的 PipelineGraph
-     * @throws com.librax.lab.framework.common.exception.ServiceException
-     *         流程不存在、未发布、校验失败时抛出
+     * @throws com.librax.lab.framework.common.exception.ServiceException 流程不存在、未发布、校验失败时抛出
      */
     public PipelineGraph get(String pipelineKey, Integer version) {
         String key = cacheKey(pipelineKey, version);

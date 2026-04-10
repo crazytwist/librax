@@ -70,7 +70,7 @@ public class TimeoutWatchdog {
     // 步骤级超时扫描 — 每 10 秒
     // ================================================================
 
-    @Scheduled(fixedDelay = 10_000, initialDelay = 30_000)
+    @Scheduled(fixedDelay = 10_0000, initialDelay = 30_0000)
     public void scanStepTimeout() {
         // 查所有 RUNNING 状态的流程
         List<PipelineExecutionDO> runningExecutions = executionMapper

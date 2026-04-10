@@ -20,6 +20,7 @@
         <!--        <module>librax-module-member</module>-->
         <module>librax-module-bpm</module>
         <module>librax-module-lab</module>
+        <module>librax-module-flow-api</module>
         <!--        <module>librax-module-report</module>-->
 <!--        <module>librax-module-mp</module>-->
 <!--        <module>librax-module-pay</module>-->

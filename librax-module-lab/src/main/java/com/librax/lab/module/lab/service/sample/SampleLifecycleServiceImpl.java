@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 
 import com.alibaba.fastjson.JSON;
+import com.librax.lab.framework.common.util.idgenerator.LabIdGenerator;
 import com.librax.lab.framework.mybatis.core.query.LambdaQueryWrapperX;
 import com.librax.lab.module.flow.engine.definition.PipelineGraphCache;
 import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
@@ -20,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.IdGenerator;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -34,6 +36,7 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
     private final SampleEventMapper sampleEventMapper;
     private final SampleRelationMapper sampleRelationMapper;
     private final PipelineGraphCache graphCache;
+    private final LabIdGenerator idGenerator;
 
     // ================================================================
     // 流程集成
@@ -84,7 +87,7 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
         // 找出所有需要样本的步骤（INSTRUMENT 类型）
         List<StepNode> instrumentSteps = graph.getSteps().stream()
                 .filter(n -> n.getStepType() == StepTypeEnum.INSTRUMENT)
-                .collect(java.util.stream.Collectors.toList());
+                .toList();
 
         if (instrumentSteps.isEmpty()) {
             log.debug("[SampleLifecycle] 流程无INSTRUMENT步骤，跳过预绑定 executionId={}",
@@ -272,7 +275,7 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
         // 生成样本ID（如果没有传入）
         String sampleId = req.getSampleId() != null
                 ? req.getSampleId()
-                : generateSampleId();
+                : idGenerator.nextSampleId();
 
         SampleInfoDO sample = new SampleInfoDO();
         sample.setSampleId(sampleId);

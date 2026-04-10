@@ -2,6 +2,7 @@
 package com.librax.lab.module.lab.service.sample;
 
 import com.alibaba.fastjson.JSON;
+import com.librax.lab.framework.common.util.idgenerator.LabIdGenerator;
 import com.librax.lab.module.lab.dal.dataobject.sample.SampleInfoDO;
 import com.librax.lab.module.lab.dal.dataobject.sample.SampleResultDO;
 import com.librax.lab.module.lab.dal.mysql.sample.SampleInfoMapper;
@@ -25,6 +26,7 @@ public class SampleResultHandleServiceImpl implements SampleResultHandleService 
 
     private final SampleResultMapper resultMapper;
     private final SampleInfoMapper sampleInfoMapper;
+    private final LabIdGenerator idGenerator;
 
     // 框架级 key 前缀，这些不是检测结果
     private static final Set<String> IGNORED_KEYS = Set.of(
@@ -142,7 +144,7 @@ public class SampleResultHandleServiceImpl implements SampleResultHandleService 
 
         // 构建结果记录
         SampleResultDO result = new SampleResultDO();
-        result.setResultId(generateResultId());
+        result.setResultId(idGenerator.nextResultId());
         result.setSampleId(sampleId);
         result.setRootSampleId(sample != null ? sample.getRootSampleId() : null);
         result.setBatchNo(sample != null ? sample.getBatchNo() : null);

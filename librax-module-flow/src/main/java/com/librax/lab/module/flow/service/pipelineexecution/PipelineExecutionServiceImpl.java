@@ -1,6 +1,7 @@
 package com.librax.lab.module.flow.service.pipelineexecution;
 
 import com.alibaba.fastjson.JSON;
+import com.librax.lab.module.flow.api.PipelineStartHook;
 import com.librax.lab.module.flow.dal.dataobject.executioncontext.ExecutionContextDO;
 import com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO;
 import com.librax.lab.module.flow.dal.mysql.executioncontext.ExecutionContextMapper;
@@ -21,6 +22,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.librax.lab.module.flow.controller.admin.pipelineexecution.vo.*;
 import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecutionDO;
@@ -51,6 +53,8 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
     private final DagScheduler dagScheduler;
     private final ExecutionContextManager contextManager;
     private final ExecutionEventPublisher eventPublisher;
+    // Spring 自动注入所有实现了 PipelineStartHook 的 Bean（来自其他模块）
+    private final List<PipelineStartHook> startHooks;
 
 
 
@@ -145,8 +149,12 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         if (inputParams != null && !inputParams.isEmpty()) {
             contextManager.putNodeOutput(executionId, "input", inputParams);
         }
-        // 初始化执行上下文（空 JSON 对象）
-//        initExecutionContext(executionId);
+
+        // ★ 调用所有注册的前置钩子（lab 模块的 SampleBindHook 在这里执行）
+        for (PipelineStartHook hook : startHooks) {
+            hook.beforeSchedule(executionId, pipelineKey,
+                    graph.getVersion(), inputParams);
+        }
 
         // 6. 流程状态 PENDING → RUNNING（乐观锁）
         executionStateMachine.transition(
@@ -268,15 +276,6 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
                 executionId, graph.getSteps().size());
     }
 
-    /**
-     * 初始化执行上下文（空 JSON 对象，后续由 ExecutionContextManager 追加写入）
-     */
-    private void initExecutionContext(String executionId) {
-        ExecutionContextDO context = new ExecutionContextDO();
-        context.setExecutionId(executionId);
-        context.setContextData("{}");
-        contextMapper.insert(context);
-    }
 
     /**
      * 查询执行实例，不存在则抛出业务异常

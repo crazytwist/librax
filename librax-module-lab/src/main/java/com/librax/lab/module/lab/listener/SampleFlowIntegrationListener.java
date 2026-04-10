@@ -36,7 +36,7 @@ public class SampleFlowIntegrationListener {
     private final SampleResultHandleService resultHandleService;
 
     /**
-     * 流程启动 → 样本进入流程 + 预绑定
+     * 流程启动 → 样本进入流程
      */
     @Async
     @EventListener
@@ -47,18 +47,6 @@ public class SampleFlowIntegrationListener {
 
             log.info("[SampleIntegration] 流程启动，处理样本 executionId={} samples={}",
                     event.getExecutionId(), sampleIds);
-
-            // 样本进入流程
-            for (String sampleId : sampleIds) {
-                sampleService.onSampleLoaded(sampleId, event.getExecutionId());
-            }
-
-            // 预绑定到所有 INSTRUMENT 步骤
-            sampleService.preBindSteps(
-                    sampleIds,
-                    event.getExecutionId(),
-                    event.getPipelineKey(),
-                    event.getPipelineVersion());
 
         } catch (Exception e) {
             log.error("[SampleIntegration] 流程启动样本处理异常 executionId={}",
