@@ -3,7 +3,7 @@ package com.librax.lab.framework.quartz.core.handler;
 /**
  * 任务处理器
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface JobHandler {
 

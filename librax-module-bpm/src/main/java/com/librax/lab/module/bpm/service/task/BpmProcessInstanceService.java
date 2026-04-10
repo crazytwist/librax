@@ -17,7 +17,7 @@ import static com.librax.lab.framework.common.util.collection.CollectionUtils.co
 /**
  * 流程实例 Service 接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface BpmProcessInstanceService {
 

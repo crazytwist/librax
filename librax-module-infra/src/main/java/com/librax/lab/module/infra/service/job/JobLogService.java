@@ -8,7 +8,7 @@ import com.librax.lab.module.infra.dal.dataobject.job.JobLogDO;
 /**
  * Job 日志 Service 接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface JobLogService extends JobLogFrameworkService {
 

@@ -31,7 +31,7 @@ import static com.librax.lab.module.bpm.enums.ErrorCodeConstants.PROCESS_INSTANC
 /**
  * 工作流发起 HTTP 请求工具类
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Slf4j
 public class BpmHttpRequestUtils {

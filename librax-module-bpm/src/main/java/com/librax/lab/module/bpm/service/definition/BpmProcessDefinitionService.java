@@ -22,7 +22,7 @@ import static com.librax.lab.framework.common.util.collection.CollectionUtils.co
  *
  * @author yunlong.li
  * @author ZJQ
- * @author 芋道源码
+ * @author 一南
  */
 public interface BpmProcessDefinitionService {
 

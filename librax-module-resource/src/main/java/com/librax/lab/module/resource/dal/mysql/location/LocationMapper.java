@@ -10,7 +10,7 @@ import org.apache.ibatis.annotations.Mapper;
 /**
  * 区位信息 Mapper
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Mapper
 public interface LocationMapper extends BaseMapperX<LocationDO> {

@@ -7,7 +7,6 @@ import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
 
 import java.util.*;
-import com.librax.lab.module.lab.controller.admin.devicecodec.vo.*;
 import com.librax.lab.module.device.dal.dataobject.devicecodec.DeviceCodecDO;
 import com.librax.lab.framework.common.pojo.PageResult;
 import com.librax.lab.framework.common.util.object.BeanUtils;
@@ -15,7 +14,6 @@ import com.librax.lab.framework.common.util.object.BeanUtils;
 import com.librax.lab.module.device.dal.mysql.devicecodec.DeviceCodecMapper;
 
 import static com.librax.lab.framework.common.exception.util.ServiceExceptionUtil.exception;
-import static com.librax.lab.framework.common.util.collection.CollectionUtils.convertList;
 import static com.librax.lab.module.device.enums.ErrorCodeConstants.*;
 
 /**

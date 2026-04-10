@@ -10,7 +10,7 @@ import com.librax.lab.framework.common.pojo.PageParam;
 /**
  * 流程定义表，存元信息和全局配置，步骤编排见 pd_pipeline_step [pd_] Service 接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface PipelineDefinitionService {
 

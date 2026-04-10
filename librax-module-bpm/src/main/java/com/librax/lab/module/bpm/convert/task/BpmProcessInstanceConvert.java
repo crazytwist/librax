@@ -49,7 +49,7 @@ import static com.librax.lab.framework.common.util.collection.CollectionUtils.co
 /**
  * 流程实例 Convert
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Mapper
 public interface BpmProcessInstanceConvert {

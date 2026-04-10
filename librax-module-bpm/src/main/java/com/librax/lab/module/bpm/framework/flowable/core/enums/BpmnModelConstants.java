@@ -5,7 +5,7 @@ import com.librax.lab.module.bpm.enums.definition.BpmModelTypeEnum;
 /**
  * BPMN XML 常量信息
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface BpmnModelConstants {
 

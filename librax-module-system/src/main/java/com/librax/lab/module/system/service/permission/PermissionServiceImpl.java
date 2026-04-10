@@ -39,7 +39,7 @@ import static com.librax.lab.framework.common.util.json.JsonUtils.toJsonString;
 /**
  * 权限 Service 实现类
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Service
 @Slf4j

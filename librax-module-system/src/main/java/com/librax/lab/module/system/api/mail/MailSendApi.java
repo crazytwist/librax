@@ -7,7 +7,7 @@ import jakarta.validation.Valid;
 /**
  * 邮箱发送 API 接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface MailSendApi {
 

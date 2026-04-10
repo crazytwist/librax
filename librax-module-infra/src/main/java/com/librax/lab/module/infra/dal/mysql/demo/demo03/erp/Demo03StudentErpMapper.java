@@ -10,7 +10,7 @@ import org.apache.ibatis.annotations.Mapper;
 /**
  * 学生 Mapper
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Mapper
 public interface Demo03StudentErpMapper extends BaseMapperX<Demo03StudentDO> {

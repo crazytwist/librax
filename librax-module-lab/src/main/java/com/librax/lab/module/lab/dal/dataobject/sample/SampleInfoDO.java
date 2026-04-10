@@ -11,7 +11,7 @@ import com.librax.lab.framework.mybatis.core.dataobject.BaseDO;
 /**
  * 样本主表，记录样本全生命周期信息：属性、状态、位置、流程关联 DO
  *
- * @author 芋道源码
+ * @author 一南
  */
 @TableName("lab_sample_info")
 @KeySequence("lab_sample_info_seq") // 用于 Oracle、PostgreSQL、Kingbase、DB2、H2 数据库的主键自增。如果是 MySQL 等数据库，可不写。

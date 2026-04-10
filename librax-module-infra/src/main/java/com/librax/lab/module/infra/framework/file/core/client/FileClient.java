@@ -3,7 +3,7 @@ package com.librax.lab.module.infra.framework.file.core.client;
 /**
  * 文件客户端
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface FileClient {
 

@@ -12,7 +12,7 @@ import org.apache.ibatis.annotations.Mapper;
 /**
  * 物料基础信息 Mapper
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Mapper
 public interface MaterialMapper extends BaseMapperX<MaterialDO> {

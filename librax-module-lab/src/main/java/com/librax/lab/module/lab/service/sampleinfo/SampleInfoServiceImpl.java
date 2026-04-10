@@ -19,7 +19,7 @@ import static com.librax.lab.module.lab.enums.ErrorCodeConstants.*;
 /**
  * 样本主表，记录样本全生命周期信息：属性、状态、位置、流程关联 Service 实现类
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Service
 @Validated

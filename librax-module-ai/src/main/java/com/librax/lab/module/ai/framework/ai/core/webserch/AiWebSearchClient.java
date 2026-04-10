@@ -3,7 +3,7 @@ package com.librax.lab.module.ai.framework.ai.core.webserch;
 /**
  * 网络搜索客户端接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface AiWebSearchClient {
 

@@ -14,7 +14,7 @@ import java.util.*;
 /**
  * 物料配置 Mapper
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Mapper
 public interface MaterialConfigMapper extends BaseMapperX<MaterialConfigDO> {

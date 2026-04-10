@@ -5,7 +5,7 @@ import com.librax.lab.framework.common.util.json.JsonUtils;
 /**
  * WebSocket 消息的发送器接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface WebSocketMessageSender {
 

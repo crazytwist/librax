@@ -23,7 +23,7 @@ import java.util.List;
  * {@link com.librax.lab.module.bpm.dal.dataobject.definition.BpmProcessDefinitionInfoDO}
  * 是一致的
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Data
 public class BpmModelMetaInfoVO {

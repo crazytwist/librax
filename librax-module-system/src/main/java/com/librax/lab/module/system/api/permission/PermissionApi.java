@@ -8,7 +8,7 @@ import java.util.Set;
 /**
  * 权限 API 接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface PermissionApi extends PermissionCommonApi {
 

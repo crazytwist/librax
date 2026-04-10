@@ -18,7 +18,7 @@ import static com.librax.lab.module.system.enums.ErrorCodeConstants.NOTICE_NOT_F
 /**
  * 通知公告 Service 实现类
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Service
 public class NoticeServiceImpl implements NoticeService {

@@ -20,7 +20,7 @@ import static com.librax.lab.module.resource.enums.ErrorCodeConstants.MATERIAL_C
 /**
  * 物料配置 Service 实现类
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Service
 @Validated

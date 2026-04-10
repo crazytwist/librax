@@ -13,7 +13,7 @@ import org.apache.ibatis.annotations.Param;
 /**
  * 流程定义表，存元信息和全局配置，步骤编排见 pd_pipeline_step [pd_] Mapper
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Mapper
 public interface PipelineDefinitionMapper extends BaseMapperX<PipelineDefinitionDO> {

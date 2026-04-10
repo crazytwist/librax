@@ -16,7 +16,7 @@ import java.util.function.Consumer;
 /**
  * Map 工具类
  *
- * @author 芋道源码
+ * @author 一南
  */
 public class MapUtils {
 

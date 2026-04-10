@@ -26,7 +26,7 @@ import static com.librax.lab.framework.common.util.collection.CollectionUtils.co
  *
  * @see <a href="https://open.bochaai.com/overview">博查 AI 开放平台</a>
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Slf4j
 public class AiBoChaWebSearchClient implements AiWebSearchClient {

@@ -19,7 +19,7 @@ import static com.librax.lab.framework.common.exception.util.ServiceExceptionUti
 /**
  * OAuth2 授予 Service 实现类
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Service
 public class OAuth2GrantServiceImpl implements OAuth2GrantService {

@@ -5,7 +5,7 @@ import com.librax.lab.framework.common.biz.system.permission.dto.DeptDataPermiss
 /**
  * 权限 API 接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface PermissionCommonApi {
 

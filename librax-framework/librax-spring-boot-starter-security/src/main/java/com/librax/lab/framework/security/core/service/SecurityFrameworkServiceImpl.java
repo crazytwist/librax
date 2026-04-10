@@ -14,7 +14,7 @@ import static com.librax.lab.framework.security.core.util.SecurityFrameworkUtils
 /**
  * 默认的 {@link SecurityFrameworkService} 实现类
  *
- * @author 芋道源码
+ * @author 一南
  */
 @AllArgsConstructor
 public class SecurityFrameworkServiceImpl implements SecurityFrameworkService {

@@ -11,7 +11,7 @@ import com.librax.lab.framework.mybatis.core.dataobject.BaseDO;
 /**
  * 流程定义表，存元信息和全局配置，步骤编排见 pd_pipeline_step [pd_] DO
  *
- * @author 芋道源码
+ * @author 一南
  */
 @TableName("pd_pipeline_definition")
 @KeySequence("pd_pipeline_definition_seq") // 用于 Oracle、PostgreSQL、Kingbase、DB2、H2 数据库的主键自增。如果是 MySQL 等数据库，可不写。

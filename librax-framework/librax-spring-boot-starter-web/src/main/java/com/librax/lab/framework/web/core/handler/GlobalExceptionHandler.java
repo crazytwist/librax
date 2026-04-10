@@ -50,7 +50,7 @@ import static com.librax.lab.framework.common.exception.enums.GlobalErrorCodeCon
 /**
  * 全局异常处理器，将 Exception 翻译成 CommonResult + 对应的异常编号
  *
- * @author 芋道源码
+ * @author 一南
  */
 @RestControllerAdvice
 @AllArgsConstructor

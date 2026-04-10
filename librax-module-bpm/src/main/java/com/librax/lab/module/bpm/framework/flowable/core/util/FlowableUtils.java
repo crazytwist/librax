@@ -37,7 +37,7 @@ import static com.librax.lab.framework.common.util.collection.CollectionUtils.co
 /**
  * Flowable 相关的工具方法
  *
- * @author 芋道源码
+ * @author 一南
  */
 public class FlowableUtils {
 

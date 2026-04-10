@@ -3,7 +3,7 @@ package com.librax.lab.module.system.service.member;
 /**
  * Member Service 接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface MemberService {
 

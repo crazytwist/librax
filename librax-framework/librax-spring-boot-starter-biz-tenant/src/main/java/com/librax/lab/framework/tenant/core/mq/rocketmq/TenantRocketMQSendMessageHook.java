@@ -11,7 +11,7 @@ import static com.librax.lab.framework.web.core.util.WebFrameworkUtils.HEADER_TE
  *
  * Producer 发送消息时，将 {@link TenantContextHolder} 租户编号，添加到消息的 Header 中
  *
- * @author 芋道源码
+ * @author 一南
  */
 public class TenantRocketMQSendMessageHook implements SendMessageHook {
 

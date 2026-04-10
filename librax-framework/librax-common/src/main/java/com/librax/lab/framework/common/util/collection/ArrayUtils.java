@@ -13,7 +13,7 @@ import static com.librax.lab.framework.common.util.collection.CollectionUtils.co
 /**
  * Array 工具类
  *
- * @author 芋道源码
+ * @author 一南
  */
 public class ArrayUtils {
 

@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
 /**
  * {@link DeptDataPermissionRule} 的单元测试
  *
- * @author 芋道源码
+ * @author 一南
  */
 class DeptDataPermissionRuleTest extends BaseMockitoUnitTest {
 

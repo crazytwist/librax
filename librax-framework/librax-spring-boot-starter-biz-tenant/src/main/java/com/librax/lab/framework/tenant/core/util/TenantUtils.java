@@ -10,7 +10,7 @@ import static com.librax.lab.framework.web.core.util.WebFrameworkUtils.HEADER_TE
 /**
  * 多租户 Util
  *
- * @author 芋道源码
+ * @author 一南
  */
 public class TenantUtils {
 

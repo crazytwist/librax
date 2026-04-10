@@ -24,7 +24,7 @@ import static com.librax.lab.module.flow.enums.ErrorCodeConstants.*;
 /**
  * 流程定义表，存元信息和全局配置，步骤编排见 pd_pipeline_step [pd_] Service 实现类
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Service
 @Validated

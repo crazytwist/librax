@@ -15,7 +15,7 @@ import static com.librax.lab.framework.common.util.collection.CollectionUtils.co
 /**
  * BPM 流程分类 Service 接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface BpmCategoryService {
 

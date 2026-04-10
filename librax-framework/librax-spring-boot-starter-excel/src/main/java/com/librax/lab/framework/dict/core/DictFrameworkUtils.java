@@ -18,7 +18,7 @@ import static com.librax.lab.framework.common.util.collection.CollectionUtils.co
 /**
  * 字典工具类
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Slf4j
 public class DictFrameworkUtils {

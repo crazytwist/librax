@@ -3,7 +3,7 @@ package com.librax.lab.module.infra.api.config;
 /**
  * 参数配置 API 接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface ConfigApi {
 
