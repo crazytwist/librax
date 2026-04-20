@@ -1,6 +1,11 @@
 package com.librax.lab.module.flow.engine.standalone.service;
 
 import com.alibaba.fastjson.JSON;
+import com.librax.lab.module.flow.api.dispatch.DispatchCallback;
+import com.librax.lab.module.flow.api.dispatch.StepDispatchContext;
+import com.librax.lab.module.flow.api.enums.StepTypeEnum;
+import com.librax.lab.module.flow.api.executor.StepExecutor;
+import com.librax.lab.module.flow.api.model.StepResult;
 import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecutionDO;
 import com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO;
 import com.librax.lab.module.flow.dal.mysql.pipelineexecution.PipelineExecutionMapper;
@@ -10,16 +15,14 @@ import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.engine.execution.context.ExecutionContextManager;
 import com.librax.lab.module.flow.engine.execution.executor.MockStepExecutor;
-import com.librax.lab.module.flow.engine.execution.executor.StepExecutor;
 import com.librax.lab.module.flow.engine.execution.executor.StepExecutorFactory;
-import com.librax.lab.module.flow.engine.execution.model.StepResult;
+import com.librax.lab.module.flow.engine.execution.scheduler.DispatchSpiFactory;
 import com.librax.lab.module.flow.engine.execution.statemachine.ExecutionStateMachine;
 import com.librax.lab.module.flow.engine.execution.statemachine.StepStateMachine;
 import com.librax.lab.module.flow.engine.standalone.vo.StandaloneRunReqVO;
 import com.librax.lab.module.flow.engine.standalone.vo.StandaloneRunResultVO;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;
-import com.librax.lab.module.flow.enums.StepTypeEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -49,7 +52,7 @@ import java.util.UUID;
  * <ul>
  *   <li>复用 StepExecutor / StepStateMachine / ExecutionContextManager 等现有基础设施
  *   <li>不走 DagScheduler.doSchedule()（因为只有一个节点，不需要 DAG 遍历和依赖检查）
- *   <li>直接调用执行器，但状态流转走正规的 StateMachine（保持事件日志完整）
+ *   <li>zoneCode 从 inputParams.zoneCode 取，调用方传入，不需要额外查表
  * </ul>
  */
 @Slf4j
@@ -65,6 +68,7 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
     private final ExecutionContextManager contextManager;
     private final StepExecutorFactory executorFactory;
     private final MockStepExecutor mockStepExecutor;
+    private final DispatchSpiFactory dispatchSpiFactory;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -74,24 +78,32 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
         PipelineGraph graph = graphCache.get(req.getPipelineKey(), req.getPipelineVersion());
         StepNode node = graph.getStep(req.getNodeId());
 
+        if (node == null) {
+            throw new RuntimeException("节点不存在: " + req.getNodeId());
+        }
         if (!node.isRunnableStandalone()) {
-            throw new RuntimeException(
-                    "节点不支持单独运行: " + req.getNodeId());
+            throw new RuntimeException("节点不支持单独运行: " + req.getNodeId());
         }
 
-        log.info("[Standalone] 开始单独运行 pipelineKey={} version={} nodeId={} triggeredBy={}",
+        // ★ zoneCode 从 inputParams 取，取不到则为 null
+        String zoneCode = req.getInputParams() != null
+                ? (String) req.getInputParams().get("zoneCode")
+                : null;
+
+        log.info("[Standalone] 开始单独运行 pipelineKey={} version={} nodeId={} " +
+                        "zoneCode={} triggeredBy={}",
                 req.getPipelineKey(), req.getPipelineVersion(),
-                req.getNodeId(), req.getTriggeredBy());
+                req.getNodeId(), zoneCode, req.getTriggeredBy());
 
         // 2. 创建 execution 记录
         String executionId = UUID.randomUUID().toString().replace("-", "");
-        createExecutionRecord(executionId, graph, node, req);
+        createExecutionRecord(executionId, graph, node, req, zoneCode);
 
         // 3. 只初始化目标节点的 step_execution
         initTargetStepExecution(executionId, node);
 
         // 4. 注入上下文
-        injectContext(executionId, req, graph, node);
+        injectContext(executionId, req);
 
         // 5. PENDING → RUNNING
         executionStateMachine.transition(
@@ -99,8 +111,8 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
                 ExecutionStatusEnum.PENDING,
                 ExecutionStatusEnum.RUNNING);
 
-        // 6. 执行节点（事务提交后同步执行）
-        return executeTargetNode(executionId, graph, node);
+        // 6. 执行节点
+        return executeTargetNode(executionId, graph, node, zoneCode);
     }
 
     // ================================================================
@@ -110,7 +122,8 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
     private void createExecutionRecord(String executionId,
                                        PipelineGraph graph,
                                        StepNode node,
-                                       StandaloneRunReqVO req) {
+                                       StandaloneRunReqVO req,
+                                       String zoneCode) {
         PipelineExecutionDO record = new PipelineExecutionDO();
         record.setExecutionId(executionId);
         record.setPipelineKey(graph.getPipelineKey());
@@ -120,6 +133,7 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
         record.setTriggeredBy(req.getTriggeredBy());
         record.setStandaloneNodeId(node.getNodeId());
         record.setParentExecutionId(req.getParentExecutionId());
+        record.setZoneCode(zoneCode);
         record.setInputParams(
                 req.getInputParams() != null
                         ? JSON.toJSONString(req.getInputParams()) : null);
@@ -128,7 +142,7 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
     }
 
     // ================================================================
-    // 初始化目标节点（只这一个，不初始化其他节点）
+    // 初始化目标节点
     // ================================================================
 
     private void initTargetStepExecution(String executionId, StepNode node) {
@@ -148,12 +162,8 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
     // 注入上下文
     // ================================================================
 
-    private void injectContext(String executionId,
-                               StandaloneRunReqVO req,
-                               PipelineGraph graph,
-                               StepNode node) {
-
-        // 优先级1：如果有 parentExecutionId，从父执行拉取上下文
+    private void injectContext(String executionId, StandaloneRunReqVO req) {
+        // 优先级1：从父执行继承上下文
         if (req.getParentExecutionId() != null) {
             Map<String, Map<String, Object>> parentContext =
                     contextManager.getAllOutputs(req.getParentExecutionId());
@@ -165,15 +175,14 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
             }
         }
 
-        // 优先级2：用户手动提供的 mockContext（覆盖父执行的同名 key）
+        // 优先级2：手动提供的 mockContext（覆盖父执行的同名 key）
         if (req.getMockContext() != null && !req.getMockContext().isEmpty()) {
             req.getMockContext().forEach((nodeId, outputs) ->
                     contextManager.putNodeOutput(executionId, nodeId, outputs));
-            log.info("[Standalone] 注入 mockContext keys={}",
-                    req.getMockContext().keySet());
+            log.info("[Standalone] 注入 mockContext keys={}", req.getMockContext().keySet());
         }
 
-        // 优先级3：写入 input 参数
+        // 优先级3：input 参数
         if (req.getInputParams() != null && !req.getInputParams().isEmpty()) {
             contextManager.putNodeOutput(executionId, "input", req.getInputParams());
         }
@@ -185,8 +194,13 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
 
     private StandaloneRunResultVO executeTargetNode(String executionId,
                                                     PipelineGraph graph,
-                                                    StepNode node) {
-        // 1. 抢锁 PENDING → RUNNING
+                                                    StepNode node,
+                                                    String zoneCode) {
+        // 查步骤记录取 callbackToken / attempt
+        StepExecutionDO stepDO = stepMapper.selectByExecutionNodeAttempt(
+                executionId, node.getNodeId(), 1);
+
+        // 1. 乐观锁抢占 PENDING → RUNNING
         boolean acquired = stepStateMachine.tryStart(
                 executionId, node.getNodeId(), 1);
         if (!acquired) {
@@ -197,39 +211,37 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
         // 2. 解析入参
         Map<String, Object> inputParams = resolveInputParams(executionId, node);
 
-        // 3. 选择执行器
+        // 3. ★ 组装 StepDispatchContext（新签名，不再传 StepNode）
+        StepDispatchContext ctx = buildContext(
+                executionId, graph, node, stepDO, inputParams, zoneCode);
+
+        // 4. 选择执行器
         StepExecutor executor = executorFactory.hasExecutor(node.getStepType())
                 ? executorFactory.getExecutor(node.getStepType())
                 : mockStepExecutor;
 
         try {
-            // 4. 执行
-            StepResult result = executor.execute(node, executionId, inputParams);
+            // 5. 执行（新签名）
+            StepResult result = executor.execute(ctx);
 
-            // 5. 处理结果
+            // 6. 处理结果
             if (result.isWaiting()) {
-                // 异步节点：标记 WAITING，返回 executionId 让前端等回调
-                handleWaiting(executionId, node, result);
+                handleWaiting(executionId, node, stepDO, result);
                 return StandaloneRunResultVO.async(executionId);
             }
 
             if (result.isSuccess()) {
-                // 同步成功
-                stepStateMachine.markSuccess(
-                        executionId, node.getNodeId(), 1, result);
+                stepStateMachine.markSuccess(executionId, node.getNodeId(), 1, result);
                 if (result.getOutputs() != null && !result.getOutputs().isEmpty()) {
                     contextManager.putNodeOutput(
                             executionId, node.getNodeId(), result.getOutputs());
                 }
                 finishExecution(executionId, ExecutionStatusEnum.SUCCESS);
-                return StandaloneRunResultVO.syncSuccess(
-                        executionId, result.getOutputs());
+                return StandaloneRunResultVO.syncSuccess(executionId, result.getOutputs());
+
             } else {
-                // 同步失败
-                stepStateMachine.markFailed(
-                        executionId, node.getNodeId(), 1, result);
-                stepStateMachine.markDead(
-                        executionId, node.getNodeId(), 1);
+                stepStateMachine.markFailed(executionId, node.getNodeId(), 1, result);
+                stepStateMachine.markDead(executionId, node.getNodeId(), 1);
                 finishExecution(executionId, ExecutionStatusEnum.FAILED);
                 return StandaloneRunResultVO.syncFailed(
                         executionId, result.getErrorCode(), result.getErrorMsg());
@@ -238,12 +250,9 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
         } catch (Exception e) {
             log.error("[Standalone] 执行异常 executionId={} nodeId={} error={}",
                     executionId, node.getNodeId(), e.getMessage(), e);
-            StepResult failResult = StepResult.fail(
-                    "EXECUTE_EXCEPTION", e.getMessage());
-            stepStateMachine.markFailed(
-                    executionId, node.getNodeId(), 1, failResult);
-            stepStateMachine.markDead(
-                    executionId, node.getNodeId(), 1);
+            StepResult failResult = StepResult.fail("EXECUTE_EXCEPTION", e.getMessage());
+            stepStateMachine.markFailed(executionId, node.getNodeId(), 1, failResult);
+            stepStateMachine.markDead(executionId, node.getNodeId(), 1);
             finishExecution(executionId, ExecutionStatusEnum.FAILED);
             return StandaloneRunResultVO.syncFailed(
                     executionId, "EXECUTE_EXCEPTION", e.getMessage());
@@ -251,11 +260,62 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
     }
 
     // ================================================================
-    // 异步节点处理（复用 DagScheduler 的 WAITING 逻辑）
+    // 组装 StepDispatchContext
+    // ================================================================
+
+    private StepDispatchContext buildContext(String executionId,
+                                             PipelineGraph graph,
+                                             StepNode node,
+                                             StepExecutionDO stepDO,
+                                             Map<String, Object> inputParams,
+                                             String zoneCode) {
+        // 单步运行不需要回调引擎继续调度，结果直接在 executeTargetNode 里处理
+        // 这里传一个空 callback，executor 里有 WAITING 的情况 handleWaiting 会单独处理
+        DispatchCallback noopCallback = (execId, nodeId, attempt, success,
+                                         outputs, errCode, errMsg) ->
+                log.debug("[Standalone] ctx callback triggered nodeId={} success={}",
+                        nodeId, success);
+
+        return StepDispatchContext.builder()
+                .executionId(executionId)
+                .nodeId(node.getNodeId())
+                .attempt(stepDO != null ? stepDO.getAttempt() : 1)
+                .callbackToken(stepDO != null ? stepDO.getCallbackToken() : null)
+                // 基础配置
+                .stepType(node.getStepType().name())
+                .stepKey(node.getStepKey())
+                .stepName(node.getName())
+                .inputParams(inputParams)
+                // 资源调度
+                .zoneCode(zoneCode)
+                .priority(0)
+                .timeoutMs(node.getTimeoutMs() != null ? node.getTimeoutMs() : 30_000L)
+                .maxAttempts(node.getMaxAttempts() != null ? node.getMaxAttempts() : 3)
+                // INSTRUMENT 专用
+                .deviceType(node.getDeviceType())
+                .commandCode(node.getCommand())
+                // COMPUTE 专用
+                .executor(node.getExecutor())
+                .beanName(node.getBeanName())
+                .methodName(node.getMethodName())
+                .chainId(node.getChainId())
+                // CONDITION 专用
+                .conditionExpr(node.getConditionExpr())
+                .allBranches(node.getAllBranches())
+                // MOCK 专用
+                .mockOutput(node.getMockOutput())
+                // 回调（单步运行结果在本方法处理，不依赖 callback）
+                .callback(noopCallback)
+                .build();
+    }
+
+    // ================================================================
+    // WAITING 处理
     // ================================================================
 
     private void handleWaiting(String executionId,
                                StepNode node,
+                               StepExecutionDO stepDO,
                                StepResult result) {
         String callbackToken = result.getOutputs() != null
                 ? (String) result.getOutputs().get("_callbackToken")
@@ -273,47 +333,39 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
             waitingInfo.putAll(result.getOutputs());
         }
         waitingInfo.put("_callbackToken", callbackToken);
-        waitingInfo.put("_waitingFor", result.getWaitingFor().name());
-        waitingInfo.put("_waitingSince", LocalDateTime.now().toString());
+        waitingInfo.put("_waitingFor",    result.getWaitingFor().name());
+        waitingInfo.put("_waitingSince",  LocalDateTime.now().toString());
         contextManager.putNodeOutput(
                 executionId, node.getNodeId() + "_waiting", waitingInfo);
 
-        log.info("[Standalone] 节点进入等待 executionId={} nodeId={} waitingFor={}",
-                executionId, node.getNodeId(), result.getWaitingFor());
+        log.info("[Standalone] 节点进入等待 executionId={} nodeId={} waitingFor={} token={}",
+                executionId, node.getNodeId(), result.getWaitingFor(), callbackToken);
     }
 
     // ================================================================
     // 流程终态
     // ================================================================
 
-    private void finishExecution(String executionId,
-                                 ExecutionStatusEnum finalStatus) {
+    private void finishExecution(String executionId, ExecutionStatusEnum finalStatus) {
         executionStateMachine.transition(
-                executionId,
-                ExecutionStatusEnum.RUNNING,
-                finalStatus);
+                executionId, ExecutionStatusEnum.RUNNING, finalStatus);
         if (finalStatus == ExecutionStatusEnum.SUCCESS) {
             contextManager.cleanup(executionId);
         }
     }
 
     // ================================================================
-    // 入参解析（复用 DagScheduler 的逻辑）
+    // 入参解析
     // ================================================================
 
-    private Map<String, Object> resolveInputParams(String executionId,
-                                                   StepNode node) {
+    private Map<String, Object> resolveInputParams(String executionId, StepNode node) {
         Map<String, Object> inputParams = contextManager
                 .getNodeOutput(executionId, "input");
-
         Map<String, Object> mappedParams = contextManager.resolveInputMapping(
                 executionId, node.getInputMapping(), inputParams);
-
         Map<String, Object> merged = new HashMap<>(
                 node.getParams() != null ? node.getParams() : Map.of());
-        if (mappedParams != null) {
-            merged.putAll(mappedParams);
-        }
+        if (mappedParams != null) merged.putAll(mappedParams);
         return merged;
     }
 }

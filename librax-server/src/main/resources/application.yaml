@@ -308,7 +308,7 @@ librax:
     delete-batch-enable: true # 是否生成批量删除接口
     unit-test-enable: false # 是否生成单元测试
   tenant: # 多租户相关配置项
-    enable: true
+    enable: false
     ignore-urls:
       - /jmreport/* # 积木报表，无法携带租户编号
     ignore-visit-urls:
@@ -328,6 +328,9 @@ librax:
       - lab_sample_event
       - lab_sample_step
       - lab_sample_result
+      - lab_device_codec
+      - lab_device_command
+      - lab_device_info
     ignore-caches:
       - user_role_ids
       - permission_menu_ids

@@ -109,7 +109,8 @@ public class WaterQualityIntegrationTestController {
                 1,                        // version
                 inputParams,
                 "MANUAL",                 // triggerType
-                "operator-001"            // triggeredBy
+                "operator-001",            // triggeredBy
+                ""
         );
 
         log.info("========== Step2 完成：流程启动 executionId={} ==========", executionId);
@@ -416,7 +417,7 @@ public class WaterQualityIntegrationTestController {
         String executionId = executionService.start(
                 "water_quality_test", 1,
                 Map.of("sampleId", sampleId, "batchNo", "BATCH-MOCK"),
-                "MANUAL", "test-operator"
+                "MANUAL", "test-operator",""
         );
         result.put("step2_start", Map.of("executionId", executionId, "status", "OK"));
 

@@ -2,9 +2,11 @@
 package com.librax.lab.module.flow.engine.execution.executor;
 
 import com.googlecode.aviator.AviatorEvaluator;
+import com.librax.lab.module.flow.api.dispatch.StepDispatchContext;
+import com.librax.lab.module.flow.api.executor.StepExecutor;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
-import com.librax.lab.module.flow.engine.execution.model.StepResult;
-import com.librax.lab.module.flow.enums.StepTypeEnum;
+import com.librax.lab.module.flow.api.model.StepResult;
+import com.librax.lab.module.flow.api.enums.StepTypeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -41,6 +43,7 @@ import java.util.Map;
  *   <li>{@code expr}             → 表达式原文
  * </ul>
  */
+
 @Slf4j
 @Component
 public class ConditionStepExecutor implements StepExecutor {
@@ -51,70 +54,56 @@ public class ConditionStepExecutor implements StepExecutor {
     }
 
     @Override
-    public StepResult execute(StepNode node,
-                              String executionId,
-                              Map<String, Object> inputParams) {
-        String expr = node.getConditionExpr();
+    public StepResult execute(StepDispatchContext ctx) {
+        String expr = ctx.getConditionExpr();
+
         log.info("[ConditionExecutor] 求值 executionId={} nodeId={} expr={} params={}",
-                executionId, node.getNodeId(), expr, inputParams);
+                ctx.getExecutionId(), ctx.getNodeId(), expr, ctx.getInputParams());
 
         try {
-            // Aviator 求值
-            Object evalResult = AviatorEvaluator.execute(expr, inputParams);
-
-            // ★ 核心变化：统一转为分支名称字符串
+            Object evalResult = AviatorEvaluator.execute(expr, ctx.getInputParams());
             String branchName = resolveBranchName(evalResult);
 
             log.info("[ConditionExecutor] 求值完成 executionId={} nodeId={} " +
                             "rawResult={} branchName={}",
-                    executionId, node.getNodeId(), evalResult, branchName);
+                    ctx.getExecutionId(), ctx.getNodeId(), evalResult, branchName);
 
-            // 校验分支是否有对应的目标节点
-            String targetNodeId = node.resolveBranchTarget(branchName);
+            // branches 从 ctx 取（StepDispatchContext 需补充此字段，见下方说明）
+            Map<String, String> allBranches = ctx.getAllBranches();
+            String targetNodeId = allBranches != null ? allBranches.get(branchName) : null;
+
+            // 尝试 default 兜底
+            if (targetNodeId == null && allBranches != null) {
+                targetNodeId = allBranches.get("default");
+            }
+
             if (targetNodeId == null) {
                 return StepResult.fail("CONDITION_NO_MATCH",
                         String.format("表达式返回 '%s' 但没有匹配的分支，" +
                                         "也没有 default 分支。expr=%s, branches=%s",
-                                branchName, expr, node.getAllBranches()));
+                                branchName, expr, allBranches));
             }
 
-            // 输出
             Map<String, Object> outputs = new HashMap<>();
-            outputs.put("branchName", branchName);
-            outputs.put("conditionResult", evalResult);  // 保留原始值，兼容+调试
-            outputs.put("expr", expr);
-            outputs.put("matchedTarget", targetNodeId);
+            outputs.put("branchName",      branchName);
+            outputs.put("conditionResult", evalResult);
+            outputs.put("expr",            expr);
+            outputs.put("matchedTarget",   targetNodeId);
             return StepResult.ok(outputs);
 
         } catch (Exception e) {
             log.error("[ConditionExecutor] 表达式求值异常 executionId={} nodeId={} " +
                             "expr={} error={}",
-                    executionId, node.getNodeId(), expr, e.getMessage());
+                    ctx.getExecutionId(), ctx.getNodeId(), expr, e.getMessage());
             return StepResult.fail("CONDITION_EVAL_FAIL",
                     "表达式求值失败: " + expr + "，原因: " + e.getMessage());
         }
     }
 
-    /**
-     * 将表达式结果统一转为分支名称
-     *
-     * Boolean true  → "true"   (向后兼容)
-     * Boolean false → "false"  (向后兼容)
-     * String "abc"  → "abc"    (新的多路分支)
-     * Number 1      → "1"
-     * null          → "default"
-     */
     private String resolveBranchName(Object result) {
-        if (result == null) {
-            return "default";
-        }
-        if (result instanceof String) {
-            String s = ((String) result).trim();
-            return s.isEmpty() ? "default" : s;
-        }
-        if (result instanceof Boolean) {
-            return result.toString(); // "true" or "false"
-        }
+        if (result == null)             return "default";
+        if (result instanceof String s) return s.trim().isEmpty() ? "default" : s.trim();
+        if (result instanceof Boolean)  return result.toString();
         return result.toString().trim();
     }
 }

@@ -1,8 +1,10 @@
 package com.librax.lab.module.flow.engine.execution.executor;
 
+import com.librax.lab.module.flow.api.dispatch.StepDispatchContext;
+import com.librax.lab.module.flow.api.executor.StepExecutor;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
-import com.librax.lab.module.flow.engine.execution.model.StepResult;
-import com.librax.lab.module.flow.enums.StepTypeEnum;
+import com.librax.lab.module.flow.api.model.StepResult;
+import com.librax.lab.module.flow.api.enums.StepTypeEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -53,123 +55,88 @@ public class NotifyStepExecutor implements StepExecutor {
     }
 
     @Override
-    public StepResult execute(StepNode node,
-                              String executionId,
-                              Map<String, Object> inputParams) {
-        // 1. 从 params 取通知配置
-        String channelType = getStringParam(inputParams, "channel", "LOG");
-        String title = getStringParam(inputParams, "title", "流程通知");
-        String template = getStringParam(inputParams, "template", "");
-        String webhook = getStringParam(inputParams, "webhook", null);
+    public StepResult execute(StepDispatchContext ctx) {
+        Map<String, Object> inputParams = ctx.getInputParams();
 
-        // 2. 渲染模板
+        String channelType = getStringParam(inputParams, "channel", "LOG");
+        String title       = getStringParam(inputParams, "title", "流程通知");
+        String template    = getStringParam(inputParams, "template", "");
+        String webhook     = getStringParam(inputParams, "webhook", null);
+
+        // 内置变量注入
         Map<String, Object> templateVars = new HashMap<>(inputParams);
-        templateVars.put("nodeId", node.getNodeId());
-        templateVars.put("executionId", executionId);
-        templateVars.put("timestamp", LocalDateTime.now().toString());
+        templateVars.put("nodeId",      ctx.getNodeId());
+        templateVars.put("executionId", ctx.getExecutionId());
+        templateVars.put("timestamp",   LocalDateTime.now().toString());
         String content = renderTemplate(template, templateVars);
 
         log.info("[NotifyExecutor] 发送通知 executionId={} nodeId={} channel={} title={}",
-                executionId, node.getNodeId(), channelType, title);
+                ctx.getExecutionId(), ctx.getNodeId(), channelType, title);
 
-        // 3. 查找通道并发送
         Map<String, Object> outputs = new HashMap<>();
         outputs.put("channel", channelType);
-        outputs.put("title", title);
-        outputs.put("sentAt", LocalDateTime.now().toString());
+        outputs.put("title",   title);
+        outputs.put("sentAt",  LocalDateTime.now().toString());
 
         try {
             NotifyChannel channel = findChannel(channelType);
             if (channel == null) {
-                log.warn("[NotifyExecutor] 未找到通道实现 channel={}, 降级为日志输出",
-                        channelType);
                 logFallback(title, content);
                 outputs.put("notifyResult", "FALLBACK_TO_LOG");
                 outputs.put("sent", true);
             } else {
                 boolean sent = channel.send(NotifyMessage.builder()
-                        .channel(channelType)
-                        .title(title)
-                        .content(content)
+                        .channel(channelType).title(title).content(content)
                         .webhook(webhook)
                         .recipients(getListParam(inputParams, "recipients"))
                         .atAll(getBoolParam(inputParams, "atAll", false))
                         .build());
-
                 outputs.put("notifyResult", sent ? "SUCCESS" : "SEND_FAILED");
                 outputs.put("sent", sent);
-
-                if (!sent) {
-                    log.warn("[NotifyExecutor] 通知发送失败（不阻塞流程） " +
-                            "executionId={} nodeId={}", executionId, node.getNodeId());
-                }
+                if (!sent) log.warn("[NotifyExecutor] 通知发送失败 executionId={} nodeId={}",
+                        ctx.getExecutionId(), ctx.getNodeId());
             }
         } catch (Exception e) {
-            log.error("[NotifyExecutor] 通知发送异常（不阻塞流程） " +
-                            "executionId={} nodeId={} error={}",
-                    executionId, node.getNodeId(), e.getMessage(), e);
+            log.error("[NotifyExecutor] 通知异常 executionId={} nodeId={} error={}",
+                    ctx.getExecutionId(), ctx.getNodeId(), e.getMessage(), e);
             outputs.put("notifyResult", "ERROR");
-            outputs.put("sent", false);
+            outputs.put("sent",     false);
             outputs.put("errorMsg", e.getMessage());
         }
 
-        // 4. 始终返回 SUCCESS — 通知不阻塞流程
         return StepResult.ok(outputs);
     }
 
-    // ================================================================
-    // 模板渲染
-    // ================================================================
-
-    /**
-     * 简单模板渲染：${key} → value
-     */
     private String renderTemplate(String template, Map<String, Object> vars) {
         if (!StringUtils.hasText(template)) return "";
         String result = template;
         for (Map.Entry<String, Object> entry : vars.entrySet()) {
-            String placeholder = "${" + entry.getKey() + "}";
-            String value = entry.getValue() != null ? entry.getValue().toString() : "";
-            result = result.replace(placeholder, value);
+            result = result.replace("${" + entry.getKey() + "}",
+                    entry.getValue() != null ? entry.getValue().toString() : "");
         }
         return result;
     }
 
-    // ================================================================
-    // 通道查找
-    // ================================================================
-
-    private NotifyChannel findChannel(String channelType) {
+    private NotifyChannel findChannel(String type) {
         return channels.stream()
-                .filter(c -> c.supportChannel().equalsIgnoreCase(channelType))
-                .findFirst()
-                .orElse(null);
+                .filter(c -> c.supportChannel().equalsIgnoreCase(type))
+                .findFirst().orElse(null);
     }
 
     private void logFallback(String title, String content) {
-        log.info("[NotifyExecutor][LOG通道] title={} content={}", title, content);
+        log.info("[NotifyExecutor][LOG] title={} content={}", title, content);
     }
 
-    // ================================================================
-    // 参数取值工具
-    // ================================================================
-
-    private String getStringParam(Map<String, Object> params, String key, String defaultVal) {
-        Object val = params.get(key);
-        return val != null ? val.toString() : defaultVal;
+    private String getStringParam(Map<String, Object> p, String k, String d) {
+        Object v = p.get(k); return v != null ? v.toString() : d;
     }
-
-    private boolean getBoolParam(Map<String, Object> params, String key, boolean defaultVal) {
-        Object val = params.get(key);
-        if (val instanceof Boolean) return (Boolean) val;
-        if (val != null) return Boolean.parseBoolean(val.toString());
-        return defaultVal;
+    private boolean getBoolParam(Map<String, Object> p, String k, boolean d) {
+        Object v = p.get(k);
+        if (v instanceof Boolean b) return b;
+        return v != null ? Boolean.parseBoolean(v.toString()) : d;
     }
-
     @SuppressWarnings("unchecked")
-    private List<String> getListParam(Map<String, Object> params, String key) {
-        Object val = params.get(key);
-        if (val instanceof List) return (List<String>) val;
-        return List.of();
+    private List<String> getListParam(Map<String, Object> p, String k) {
+        Object v = p.get(k); return v instanceof List ? (List<String>) v : List.of();
     }
 }

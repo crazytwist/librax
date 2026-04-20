@@ -2,7 +2,7 @@ package com.librax.lab.module.flow.engine.definition;
 
 import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
-import com.librax.lab.module.flow.enums.StepTypeEnum;
+import com.librax.lab.module.flow.api.enums.StepTypeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.jgrapht.alg.cycle.CycleDetector;
 import org.jgrapht.graph.DefaultEdge;

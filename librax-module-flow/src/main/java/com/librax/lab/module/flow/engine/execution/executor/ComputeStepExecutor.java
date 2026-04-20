@@ -1,8 +1,10 @@
 package com.librax.lab.module.flow.engine.execution.executor;
 
+import com.librax.lab.module.flow.api.dispatch.StepDispatchContext;
+import com.librax.lab.module.flow.api.executor.StepExecutor;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
-import com.librax.lab.module.flow.engine.execution.model.StepResult;
-import com.librax.lab.module.flow.enums.StepTypeEnum;
+import com.librax.lab.module.flow.api.model.StepResult;
+import com.librax.lab.module.flow.api.enums.StepTypeEnum;
 import com.yomahub.liteflow.core.FlowExecutor;
 import com.yomahub.liteflow.flow.LiteflowResponse;
 import lombok.RequiredArgsConstructor;
@@ -39,6 +41,7 @@ import java.util.Map;
  * <p>幂等要求：同一步骤重试时会再次调用 execute()，
  * 具体的 Bean 方法和 LiteFlow Chain 必须保证幂等。
  */
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
@@ -53,137 +56,69 @@ public class ComputeStepExecutor implements StepExecutor {
     }
 
     @Override
-    public StepResult execute(StepNode node,
-                              String executionId,
-                              Map<String, Object> inputParams) {
-        String executor = node.getExecutor();
+    public StepResult execute(StepDispatchContext ctx) {
+        String executor = ctx.getExecutor();
+        String executionId = ctx.getExecutionId();
+        String nodeId = ctx.getNodeId();
+
         log.info("[ComputeExecutor] 开始执行 executionId={} nodeId={} executor={}",
-                executionId, node.getNodeId(), executor);
+                executionId, nodeId, executor);
 
         try {
-            Map<String, Object> outputs;
-            switch (executor) {
-                case "BEAN":
-                    outputs = executeBean(node, executionId, inputParams);
-                    break;
-                case "LITEFLOW":
-                    outputs = executeLiteFlow(node, executionId, inputParams);
-                    break;
-                default:
-                    return StepResult.fail("COMPUTE_ERROR",
-                            "不支持的 executor 类型: " + executor);
-            }
+            Map<String, Object> outputs = switch (executor) {
+                case "BEAN" -> executeBean(ctx);
+                case "LITEFLOW" -> executeLiteFlow(ctx);
+                default -> throw new IllegalArgumentException(
+                        "不支持的 executor 类型: " + executor);
+            };
 
             log.info("[ComputeExecutor] 执行成功 executionId={} nodeId={} outputKeys={}",
-                    executionId, node.getNodeId(), outputs.keySet());
+                    executionId, nodeId, outputs.keySet());
             return StepResult.ok(outputs);
 
         } catch (Exception e) {
             log.error("[ComputeExecutor] 执行异常 executionId={} nodeId={} executor={} error={}",
-                    executionId, node.getNodeId(), executor, e.getMessage(), e);
-            return StepResult.fail("COMPUTE_ERROR",
-                    "计算节点执行失败: " + e.getMessage());
+                    executionId, nodeId, executor, e.getMessage(), e);
+            return StepResult.fail("COMPUTE_ERROR", "计算节点执行失败: " + e.getMessage());
         }
     }
 
-    // ================================================================
-    // BEAN 模式
-    // ================================================================
-
-    /**
-     * 反射调用 Spring Bean 方法
-     *
-     * <p>方法签名约定：
-     * {@code Map<String, Object> methodName(Map<String, Object> inputParams)}
-     *
-     * @param node        节点定义（含 beanName、methodName）
-     * @param executionId 执行实例ID（日志用）
-     * @param inputParams 运行时入参
-     * @return 方法返回的 Map
-     */
     @SuppressWarnings("unchecked")
-    private Map<String, Object> executeBean(StepNode node,
-                                            String executionId,
-                                            Map<String, Object> inputParams) throws Exception {
-        String beanName = node.getBeanName();
-        String methodName = node.getMethodName();
-
-        // 1. 从 Spring 容器获取 Bean
-        Object bean = applicationContext.getBean(beanName);
-
-        // 2. 查找方法（统一签名：Map 入参，Map 返回）
-        Method method = bean.getClass().getMethod(methodName, Map.class);
+    private Map<String, Object> executeBean(StepDispatchContext ctx) throws Exception {
+        Object bean = applicationContext.getBean(ctx.getBeanName());
+        Method method = bean.getClass().getMethod(ctx.getMethodName(), Map.class);
 
         log.info("[ComputeExecutor] BEAN调用 executionId={} bean={}.{}() params={}",
-                executionId, beanName, methodName, inputParams.keySet());
+                ctx.getExecutionId(), ctx.getBeanName(),
+                ctx.getMethodName(), ctx.getInputParams().keySet());
 
-        // 3. 反射调用
-        Object result = method.invoke(bean, inputParams);
-
-        // 4. 返回值处理
-        if (result == null) {
-            return new HashMap<>();
-        }
-        if (result instanceof Map) {
-            return (Map<String, Object>) result;
-        }
-        // 非 Map 返回值，包装成 {"result": xxx}
+        Object result = method.invoke(bean, ctx.getInputParams());
+        if (result == null) return new HashMap<>();
+        if (result instanceof Map) return (Map<String, Object>) result;
         return Map.of("result", result);
     }
 
-    // ================================================================
-    // LITEFLOW 模式
-    // ================================================================
-
-    /**
-     * 调用 LiteFlow Chain
-     *
-     * <p>inputParams 通过 requestData 传入 Chain，
-     * Chain 内的组件通过 {@code this.getRequestData()} 获取。
-     *
-     * <p>输出约定：
-     * <ul>
-     *   <li>Chain 中的组件通过 {@code this.getContextBean(ComputeContext.class)}
-     *       把结果写入上下文
-     *   <li>执行完毕后从 LiteflowResponse 的 contextBean 中提取输出
-     *   <li>如果没有 ComputeContext，尝试从 response 的 slot 数据中提取
-     * </ul>
-     *
-     * @param node        节点定义（含 chainId）
-     * @param executionId 执行实例ID
-     * @param inputParams 运行时入参
-     * @return Chain 执行后的输出 Map
-     */
-    private Map<String, Object> executeLiteFlow(StepNode node,
-                                                String executionId,
-                                                Map<String, Object> inputParams) {
-        String chainId = node.getChainId();
-
+    private Map<String, Object> executeLiteFlow(StepDispatchContext ctx) {
         log.info("[ComputeExecutor] LITEFLOW调用 executionId={} chainId={} params={}",
-                executionId, chainId, inputParams.keySet());
+                ctx.getExecutionId(), ctx.getChainId(), ctx.getInputParams().keySet());
 
-        // 1. 创建上下文对象，把 inputParams 放进去
         ComputeContext context = new ComputeContext();
-        context.setInputParams(inputParams);
+        context.setInputParams(ctx.getInputParams());
 
-        // 2. 执行 Chain
         LiteflowResponse response = flowExecutor.execute2Resp(
-                chainId, null, context);
+                ctx.getChainId(), null, context);
 
-        // 3. 检查执行结果
         if (!response.isSuccess()) {
             Exception cause = response.getCause();
-            String errorMsg = cause != null ? cause.getMessage() : "LiteFlow Chain 执行失败";
-            throw new RuntimeException(errorMsg, cause);
+            throw new RuntimeException(
+                    cause != null ? cause.getMessage() : "LiteFlow Chain 执行失败", cause);
         }
 
-        // 4. 从上下文提取输出
-        ComputeContext resultContext = response.getContextBean(ComputeContext.class);
-        if (resultContext != null && resultContext.getOutputs() != null) {
-            return resultContext.getOutputs();
+        ComputeContext resultCtx = response.getContextBean(ComputeContext.class);
+        if (resultCtx != null && resultCtx.getOutputs() != null) {
+            return resultCtx.getOutputs();
         }
-
-        log.warn("[ComputeExecutor] LiteFlow Chain 无输出 chainId={}", chainId);
+        log.warn("[ComputeExecutor] LiteFlow Chain 无输出 chainId={}", ctx.getChainId());
         return new HashMap<>();
     }
 }

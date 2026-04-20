@@ -24,7 +24,7 @@ public class ExecutionEventPublisher {
     /**
      * 发布流程级事件
      */
-    @Async
+    @Async("labEventListenerExecutor")
     public void publishPipelineEvent(String executionId,
                                      String nodeId,
                                      EventTypeEnum eventType,
@@ -42,7 +42,7 @@ public class ExecutionEventPublisher {
     /**
      * 发布步骤级事件
      */
-    @Async
+    @Async("labEventListenerExecutor")
     public void publishStepEvent(String executionId,
                                  String nodeId,
                                  Integer attempt,

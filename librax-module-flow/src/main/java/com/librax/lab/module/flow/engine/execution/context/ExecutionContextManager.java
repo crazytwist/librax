@@ -189,7 +189,7 @@ public class ExecutionContextManager {
     /**
      * 异步持久化到 DB（追加写，不覆盖其他节点数据）
      */
-    @Async
+    @Async("labEventListenerExecutor")
     protected void asyncPersistToDB(String executionId,
                                     String nodeId,
                                     String outputJson) {

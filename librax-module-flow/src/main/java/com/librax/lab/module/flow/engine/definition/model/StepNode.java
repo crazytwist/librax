@@ -1,7 +1,7 @@
 package com.librax.lab.module.flow.engine.definition.model;
 
 import com.librax.lab.module.flow.enums.FailStrategyEnum;
-import com.librax.lab.module.flow.enums.StepTypeEnum;
+import com.librax.lab.module.flow.api.enums.StepTypeEnum;
 import lombok.Builder;
 import lombok.Data;
 
@@ -22,6 +22,11 @@ public class StepNode {
     private String name;
     /** 步骤类型 */
     private StepTypeEnum stepType;
+    /** DIRECT=直连执行 QUEUED=压入区域队列 */
+    private String dispatchMode;
+    /** 任务执行类型,QUEUED 模式下控制 TaskRouter 路由 */
+    private String taskType;
+
 
     // ---- 编排关系 ----
     /** 前置节点 nodeId 列表，空表示入口节点 */
@@ -40,7 +45,7 @@ public class StepNode {
     /** 超时时间(ms) */
     private Long timeoutMs;
     /** 最大重试次数 */
-    private int maxAttempts;
+    private Integer maxAttempts;
     /** 重试退避时间(ms) */
     private Long backoffMs;
     /** 节点失败策略 */

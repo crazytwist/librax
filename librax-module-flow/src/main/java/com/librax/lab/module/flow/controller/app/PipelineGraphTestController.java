@@ -1,6 +1,7 @@
 package com.librax.lab.module.flow.controller.app;
 
 import com.librax.lab.framework.common.pojo.CommonResult;
+import com.librax.lab.module.flow.controller.app.vo.PipelineStartReqVO;
 import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecutionDO;
 import com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO;
 import com.librax.lab.module.flow.dal.mysql.pipelineexecution.PipelineExecutionMapper;
@@ -11,6 +12,7 @@ import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.service.pipelineexecution.PipelineExecutionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,6 +31,9 @@ import java.util.stream.Collectors;
 public class PipelineGraphTestController {
 
     private final PipelineGraphCache graphCache;
+    private final PipelineExecutionService executionService;
+    private final PipelineExecutionMapper executionMapper;
+    private final StepExecutionMapper stepMapper;
 
     /**
      * 验证流程图加载是否正确
@@ -41,7 +46,6 @@ public class PipelineGraphTestController {
             @RequestParam Integer version) {
 
         PipelineGraph graph = graphCache.get(pipelineKey, version);
-
         // 组装返回信息，方便肉眼核对
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("pipelineKey",  graph.getPipelineKey());
@@ -98,12 +102,6 @@ public class PipelineGraphTestController {
     }
 
 
-
-
-    private final PipelineExecutionService executionService;
-    private final PipelineExecutionMapper executionMapper;
-    private final StepExecutionMapper stepMapper;
-
     /**
      * 启动一条流程（Mock模式）
      * POST /admin-api/flow/test/start
@@ -111,19 +109,14 @@ public class PipelineGraphTestController {
      */
     @Operation(summary = "启动一条流程")
     @PostMapping("/start")
-    public CommonResult<Map<String, Object>> start(@RequestBody Map<String, Object> body) {
-        String pipelineKey = (String) body.get("pipelineKey");
-        Integer version = body.get("version") != null
-                ? Integer.valueOf(body.get("version").toString()) : null;
-
-        // 除 pipelineKey/version 外的字段作为 inputParams 传入
-        Map<String, Object> inputParams = new LinkedHashMap<>(body);
-        inputParams.remove("pipelineKey");
-        inputParams.remove("version");
-
+    public CommonResult<Map<String, Object>> start(@RequestBody @Valid PipelineStartReqVO req) {
         String executionId = executionService.start(
-                pipelineKey, version, inputParams, "MANUAL", "test-user");
-
+                req.getPipelineKey(),
+                req.getPipelineVersion(),
+                req.getInputParams(),
+                req.getTriggerType(),
+                req.getTriggeredBy(),
+                req.getZoneCode());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("executionId", executionId);
         result.put("message", "流程已启动，稍后调用 /progress 查看进度");

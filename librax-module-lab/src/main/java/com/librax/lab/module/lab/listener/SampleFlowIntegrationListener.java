@@ -3,7 +3,6 @@ package com.librax.lab.module.lab.listener;
 
 import com.librax.lab.module.flow.engine.execution.context.ExecutionContextManager;
 import com.librax.lab.module.flow.engine.execution.event.*;
-import com.librax.lab.module.flow.engine.execution.scheduler.SchedulerConstants;
 import com.librax.lab.module.lab.service.sample.SampleLifecycleService;
 import com.librax.lab.module.lab.service.sample.SampleResultHandleService;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static com.librax.lab.module.flow.enums.StepTypeEnum.INSTRUMENT;
+import static com.librax.lab.module.flow.api.enums.StepTypeEnum.INSTRUMENT;
 import static com.librax.lab.module.flow.engine.execution.scheduler.SchedulerConstants.CONTEXT_KEY_INPUT;
 
 /**

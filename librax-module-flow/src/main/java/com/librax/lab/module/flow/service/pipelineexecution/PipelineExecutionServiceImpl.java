@@ -33,6 +33,8 @@ import com.librax.lab.framework.common.util.object.BeanUtils;
 
 import com.librax.lab.module.flow.dal.mysql.pipelineexecution.PipelineExecutionMapper;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.validation.annotation.Validated;
 
 import static com.librax.lab.framework.common.exception.util.ServiceExceptionUtil.exception;
@@ -50,14 +52,12 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
     private final PipelineGraphCache graphCache;
     private final PipelineExecutionMapper executionMapper;
     private final StepExecutionMapper stepMapper;
-    private final ExecutionContextMapper contextMapper;
     private final ExecutionStateMachine executionStateMachine;
     private final DagScheduler dagScheduler;
     private final ExecutionContextManager contextManager;
     private final ExecutionEventPublisher eventPublisher;
     // Spring 自动注入所有实现了 PipelineStartHook 的 Bean（来自其他模块）
     private final List<PipelineStartHook> startHooks;
-
 
 
     @Override
@@ -125,69 +125,55 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
      * 5. 流程状态 PENDING → RUNNING
      * 6. 触发调度器开始调度
      */
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String start(String pipelineKey,
                         Integer pipelineVersion,
                         Map<String, Object> inputParams,
                         String triggerType,
-                        String triggeredBy) {
+                        String triggeredBy,
+                        String zoneCode) {         // ★ 新增
 
-        // 1. 加载流程图（校验通过才能拿到，否则抛异常）
         PipelineGraph graph = graphCache.get(pipelineKey, pipelineVersion);
-        log.info("[ExecutionService] 启动流程 pipelineKey={} version={} triggeredBy={}",
-                pipelineKey, graph.getVersion(), triggeredBy);
+        log.info("[ExecutionService] 启动流程 pipelineKey={} version={} zoneCode={} triggeredBy={}",
+                pipelineKey, graph.getVersion(), zoneCode, triggeredBy);
 
-        // 2. 生成执行实例ID
         String executionId = UUID.randomUUID().toString().replace("-", "");
 
-        // 3. 创建流程执行主记录（PENDING）
-        createPipelineExecution(executionId, graph, inputParams, triggerType, triggeredBy);
+        // ★ zoneCode 直接传进去
+        createPipelineExecution(executionId, graph, inputParams,
+                triggerType, triggeredBy, zoneCode);
 
-        // 4. 初始化所有节点的步骤执行记录（PENDING）
         initStepExecutions(executionId, graph);
 
-        // 5. 把流程初始参数写入上下文，供后续节点 ${input.xxx} 引用
         if (inputParams != null && !inputParams.isEmpty()) {
             contextManager.putNodeOutput(executionId, CONTEXT_KEY_INPUT, inputParams);
         }
 
-        // ★ 调用所有注册的前置钩子（lab 模块的 SampleBindHook 在这里执行）
         for (PipelineStartHook hook : startHooks) {
-            hook.beforeSchedule(executionId, pipelineKey,
-                    graph.getVersion(), inputParams);
+            hook.beforeSchedule(executionId, pipelineKey, graph.getVersion(), inputParams);
         }
 
-        // 6. 流程状态 PENDING → RUNNING（乐观锁）
         executionStateMachine.transition(
-                executionId,
-                ExecutionStatusEnum.PENDING,
-                ExecutionStatusEnum.RUNNING);
+                executionId, ExecutionStatusEnum.PENDING, ExecutionStatusEnum.RUNNING);
 
-        // 7. 触发调度器（事务提交后执行，避免调度器读不到刚插入的数据）
-        //    使用 TransactionSynchronizationManager 保证事务提交后再调度
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        eventPublisher.publishPipelineEvent(
+                                executionId, null,
+                                EventTypeEnum.PIPELINE_STARTED,
+                                ExecutionStatusEnum.PENDING.name(),
+                                ExecutionStatusEnum.RUNNING.name(),
+                                Map.of("pipelineKey", pipelineKey,
+                                        "pipelineVersion", graph.getVersion()));
+                        dagScheduler.schedule(executionId, pipelineKey, graph.getVersion());
+                    }
+                });
 
-        org.springframework.transaction.support.TransactionSynchronizationManager
-                .registerSynchronization(
-                        new org.springframework.transaction.support.TransactionSynchronization() {
-                            @Override
-                            public void afterCommit() {
-                                // ★ 新增：发布流程启动事件
-                                eventPublisher.publishPipelineEvent(
-                                        executionId, null,
-                                        EventTypeEnum.PIPELINE_STARTED,
-                                        ExecutionStatusEnum.PENDING.name(),
-                                        ExecutionStatusEnum.RUNNING.name(),
-                                        Map.of("pipelineKey", pipelineKey,
-                                                "pipelineVersion", graph.getVersion()));
-
-                                // 触发调度（原有）
-                                dagScheduler.schedule(executionId, pipelineKey, graph.getVersion());
-                            }
-                        });
-
-        log.info("[ExecutionService] 流程已启动 executionId={} pipelineKey={} version={}",
-                executionId, pipelineKey, graph.getVersion());
+        log.info("[ExecutionService] 流程已启动 executionId={}", executionId);
         return executionId;
     }
 
@@ -243,7 +229,8 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
                                          PipelineGraph graph,
                                          Map<String, Object> inputParams,
                                          String triggerType,
-                                         String triggeredBy) {
+                                         String triggeredBy,
+                                         String zoneCode) {
         PipelineExecutionDO record = new PipelineExecutionDO();
         record.setExecutionId(executionId);
         record.setPipelineKey(graph.getPipelineKey());
@@ -252,6 +239,7 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         record.setTriggerType(triggerType != null ? triggerType : "MANUAL");
         record.setTriggeredBy(triggeredBy);
         record.setInputParams(inputParams != null ? JSON.toJSONString(inputParams) : null);
+        record.setZoneCode(zoneCode);   // ★ 写入 zone_code
         record.setRowVersion(0);
         executionMapper.insert(record);
     }

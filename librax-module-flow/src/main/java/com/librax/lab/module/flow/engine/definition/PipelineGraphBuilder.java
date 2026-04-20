@@ -11,7 +11,7 @@ import com.librax.lab.module.flow.dal.mysql.stepdefinition.StepDefinitionMapper;
 import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.enums.FailStrategyEnum;
-import com.librax.lab.module.flow.enums.StepTypeEnum;
+import com.librax.lab.module.flow.api.enums.StepTypeEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -162,6 +162,9 @@ public class PipelineGraphBuilder {
                 .name(sd.getName())
                 // 修正1：字段名对齐 StepNode，使用 stepType 而非 stepTypeEnum
                 .stepType(StepTypeEnum.valueOf(sd.getStepType()))
+                // 加入分发模式 直连 还是 队列
+                .dispatchMode(ps.getDispatchMode())
+                .taskType(ps.getTaskType())
                 // ── 编排关系 ──────────────────────────────────────────
                 .dependsOn(parseList(ps.getDependsOn()))
                 .conditionExpr(ps.getConditionExpr())

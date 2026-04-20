@@ -1,13 +1,15 @@
 package com.librax.lab.module.flow.engine.execution.scheduler;
 
+import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecutionDO;
 import com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO;
+import com.librax.lab.module.flow.dal.mysql.pipelineexecution.PipelineExecutionMapper;
 import com.librax.lab.module.flow.dal.mysql.stepexecution.StepExecutionMapper;
 import com.librax.lab.module.flow.engine.definition.PipelineGraphCache;
 import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.engine.execution.context.ExecutionContextManager;
 import com.librax.lab.module.flow.engine.execution.event.ExecutionEventPublisher;
-import com.librax.lab.module.flow.engine.execution.model.StepResult;
+import com.librax.lab.module.flow.api.model.StepResult;
 import com.librax.lab.module.flow.engine.execution.statemachine.ExecutionStateMachine;
 import com.librax.lab.module.flow.enums.*;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +54,8 @@ public class DagScheduler {
     private final ExecutionContextManager contextManager;
     private final ExecutionEventPublisher eventPublisher;
     private final ScheduledExecutorService watchdogPool;
+    private final PipelineExecutionMapper executionMapper; // 新增，用于查 zoneCode
+
 
     // 委托组件
     private final StepSubmitter stepSubmitter;
@@ -69,7 +73,12 @@ public class DagScheduler {
                          String pipelineKey,
                          Integer pipelineVersion) {
         PipelineGraph graph = graphCache.get(pipelineKey, pipelineVersion);
-        doSchedule(executionId, graph);
+
+        // 查本次执行的 zoneCode，填入 graph 副本（不污染缓存中的共享对象）
+        String zoneCode = resolveZoneCode(executionId);
+        // 用一个局部副本携带 zoneCode，避免并发问题
+        PipelineGraph executionGraph = copyWithZone(graph, zoneCode);
+        doSchedule(executionId, executionGraph);
     }
 
     /**
@@ -81,13 +90,16 @@ public class DagScheduler {
                                String nodeId,
                                int attempt,
                                StepResult result) {
+        
         PipelineGraph graph = graphCache.get(pipelineKey, pipelineVersion);
-        StepNode node = graph.getStep(nodeId);
+        String zoneCode = resolveZoneCode(executionId);
+        PipelineGraph executionGraph = copyWithZone(graph, zoneCode);
 
+        StepNode node = executionGraph.getStep(nodeId);
         if (result.isSuccess()) {
-            handleSuccess(executionId, graph, node, attempt, result);
+            handleSuccess(executionId, executionGraph, node, attempt, result);
         } else {
-            handleFailure(executionId, graph, node, attempt, result);
+            handleFailure(executionId, executionGraph, node, attempt, result);
         }
     }
 
@@ -264,5 +276,38 @@ public class DagScheduler {
      */
     public void scheduleImmediate(String executionId, PipelineGraph graph) {
         doSchedule(executionId, graph);
+    }
+
+
+    // ── 工具方法 ──────────────────────────────────────────────────
+
+    /**
+     * 查本次执行的 zoneCode
+     * 结果可缓存（同一 executionId 的 zoneCode 不会变），
+     * 这里简单实现直接查 DB，后续可加本地缓存优化
+     */
+    private String resolveZoneCode(String executionId) {
+        PipelineExecutionDO execution = executionMapper
+                .selectByExecutionId(executionId);
+        return execution != null ? execution.getZoneCode() : null;
+    }
+
+    /**
+     * 创建携带 zoneCode 的 graph 副本
+     * 只复制引用，不深拷贝 steps/dag（只读字段，共享安全）
+     * zoneCode 是本次执行独有的，单独 set
+     */
+    private PipelineGraph copyWithZone(PipelineGraph graph, String zoneCode) {
+        PipelineGraph copy = new PipelineGraph();
+        copy.setPipelineKey(graph.getPipelineKey());
+        copy.setVersion(graph.getVersion());
+        copy.setName(graph.getName());
+        copy.setFailStrategy(graph.getFailStrategy());
+        copy.setDefaultTimeoutMs(graph.getDefaultTimeoutMs());
+        copy.setSteps(graph.getSteps());           // 共享引用，只读
+        copy.setStepIndex(graph.getStepIndex());   // 共享引用，只读
+        copy.setDag(graph.getDag());               // 共享引用，只读
+        copy.setZoneCode(zoneCode);                // 本次执行独有
+        return copy;
     }
 }

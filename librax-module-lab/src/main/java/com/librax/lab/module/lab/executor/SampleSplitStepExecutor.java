@@ -1,9 +1,9 @@
 package com.librax.lab.module.lab.executor;
 
-import com.librax.lab.module.flow.engine.definition.model.StepNode;
-import com.librax.lab.module.flow.engine.execution.executor.StepExecutor;
-import com.librax.lab.module.flow.engine.execution.model.StepResult;
-import com.librax.lab.module.flow.enums.StepTypeEnum;
+import com.librax.lab.module.flow.api.dispatch.StepDispatchContext;
+import com.librax.lab.module.flow.api.enums.StepTypeEnum;
+import com.librax.lab.module.flow.api.executor.StepExecutor;
+import com.librax.lab.module.flow.api.model.StepResult;
 import com.librax.lab.module.lab.dal.vo.SampleSplitReqVO;
 import com.librax.lab.module.lab.dal.vo.SampleSplitResultVO;
 import com.librax.lab.module.lab.service.sample.SampleLifecycleService;
@@ -12,7 +12,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -63,9 +65,8 @@ public class SampleSplitStepExecutor implements StepExecutor {
 
     @Override
     @SuppressWarnings("unchecked")
-    public StepResult execute(StepNode node,
-                              String executionId,
-                              Map<String, Object> inputParams) {
+    public StepResult execute(StepDispatchContext ctx) {
+        Map<String, Object> inputParams = ctx.getInputParams();
 
         // 1. 取参数
         String sampleId = (String) inputParams.get("sampleId");
@@ -86,7 +87,7 @@ public class SampleSplitStepExecutor implements StepExecutor {
 
         log.info("[SampleSplitExecutor] 开始拆分 executionId={} nodeId={} " +
                         "sampleId={} splitCount={}",
-                executionId, node.getNodeId(), sampleId, splits.size());
+                ctx.getExecutionId(), ctx.getNodeId(), sampleId, splits.size());
 
         try {
             // 2. 构建拆分请求
@@ -103,8 +104,8 @@ public class SampleSplitStepExecutor implements StepExecutor {
             req.setParentSampleId(sampleId);
             req.setSplits(splitItems);
             req.setContainerType(containerType);
-            req.setExecutionId(executionId);
-            req.setNodeId(node.getNodeId());
+            req.setExecutionId(ctx.getExecutionId());
+            req.setNodeId(ctx.getNodeId());
 
             // 3. 执行拆分
             SampleSplitResultVO result = sampleLifecycleService.splitSample(req);
@@ -114,7 +115,7 @@ public class SampleSplitStepExecutor implements StepExecutor {
             outputs.put("parentSampleId", sampleId);
             outputs.put("childSamples", result.getChildSamples().stream()
                     .map(child -> Map.of(
-                            "label", child.getLabel(),
+                            "label",    child.getLabel(),
                             "sampleId", child.getSampleId(),
                             "volumeUl", child.getVolumeUl()))
                     .collect(Collectors.toList()));
@@ -123,7 +124,7 @@ public class SampleSplitStepExecutor implements StepExecutor {
 
             log.info("[SampleSplitExecutor] 拆分完成 executionId={} nodeId={} " +
                             "parent={} children={}",
-                    executionId, node.getNodeId(), sampleId,
+                    ctx.getExecutionId(), ctx.getNodeId(), sampleId,
                     result.getChildSamples().stream()
                             .map(SampleSplitResultVO.ChildSample::getSampleId)
                             .collect(Collectors.toList()));
@@ -133,15 +134,14 @@ public class SampleSplitStepExecutor implements StepExecutor {
         } catch (Exception e) {
             log.error("[SampleSplitExecutor] 拆分失败 executionId={} nodeId={} " +
                             "sampleId={} error={}",
-                    executionId, node.getNodeId(), sampleId, e.getMessage(), e);
-            return StepResult.fail("SAMPLE_SPLIT_ERROR",
-                    "样本拆分失败: " + e.getMessage());
+                    ctx.getExecutionId(), ctx.getNodeId(), sampleId, e.getMessage(), e);
+            return StepResult.fail("SAMPLE_SPLIT_ERROR", "样本拆分失败: " + e.getMessage());
         }
     }
 
     private BigDecimal toBigDecimal(Object value) {
         if (value == null) return BigDecimal.ZERO;
-        if (value instanceof BigDecimal) return (BigDecimal) value;
+        if (value instanceof BigDecimal b) return b;
         if (value instanceof Number) return new BigDecimal(value.toString());
         return new BigDecimal(value.toString());
     }

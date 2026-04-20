@@ -1,7 +1,7 @@
 
 package com.librax.lab.module.flow.engine.execution.executor;
 
-import com.librax.lab.module.flow.enums.StepTypeEnum;
+import com.librax.lab.module.flow.api.enums.StepTypeEnum;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -15,8 +15,8 @@ import java.util.stream.Collectors;
  *
  * <p>职责：根据步骤类型（{@link StepTypeEnum}）返回对应的执行器实现。
  *
- * <p>自动注册机制：Spring 启动时会将所有 {@link StepExecutor} 实现类注入进来，
- * 工厂通过 {@link StepExecutor#supportType()} 自动建立类型到执行器的映射关系。
+ * <p>自动注册机制：Spring 启动时会将所有 {@link com.librax.lab.module.flow.api.executor.StepExecutor} 实现类注入进来，
+ * 工厂通过 {@link com.librax.lab.module.flow.api.executor.StepExecutor#supportType()} 自动建立类型到执行器的映射关系。
  * 新增执行器只需实现接口并加 {@code @Component}，无需修改工厂代码。
  *
  * <p>执行器优先级：当 {@code run_mode=MOCK} 时，调度器会直接使用 {@link MockStepExecutor}，
@@ -30,18 +30,18 @@ public class StepExecutorFactory {
      * 类型 → 执行器映射表
      * key: StepTypeEnum，value: 对应的执行器实现
      */
-    private final Map<StepTypeEnum, StepExecutor> executorMap;
+    private final Map<StepTypeEnum, com.librax.lab.module.flow.api.executor.StepExecutor> executorMap;
 
     /**
      * 构造时自动注入所有 StepExecutor 实现，建立映射关系
      *
      * @param executors Spring 自动发现的所有 StepExecutor 实现列表
      */
-    public StepExecutorFactory(List<StepExecutor> executors) {
+    public StepExecutorFactory(List<com.librax.lab.module.flow.api.executor.StepExecutor> executors) {
         this.executorMap = executors.stream()
                 .filter(e -> e.supportType() != null)
                 .collect(Collectors.toMap(
-                        StepExecutor::supportType,
+                        com.librax.lab.module.flow.api.executor.StepExecutor::supportType,
                         Function.identity(),
                         // 同一类型有多个实现时，后注册的覆盖先注册的（用于覆盖默认实现）
                         (existing, replacement) -> {
@@ -67,8 +67,8 @@ public class StepExecutorFactory {
      * @return 对应的执行器实现
      * @throws IllegalArgumentException 当没有注册该类型的执行器时抛出
      */
-    public StepExecutor getExecutor(StepTypeEnum stepType) {
-        StepExecutor executor = executorMap.get(stepType);
+    public com.librax.lab.module.flow.api.executor.StepExecutor getExecutor(StepTypeEnum stepType) {
+        com.librax.lab.module.flow.api.executor.StepExecutor executor = executorMap.get(stepType);
         if (executor == null) {
             throw new IllegalArgumentException(
                     "[StepExecutorFactory] 未找到执行器，请检查是否已实现并注册: stepType=" + stepType);

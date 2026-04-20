@@ -51,6 +51,11 @@
             <artifactId>librax-module-device</artifactId>
             <version>${revision}</version>
         </dependency>
+        <dependency>
+            <groupId>com.librax.boot</groupId>
+            <artifactId>librax-module-task</artifactId>
+            <version>${revision}</version>
+        </dependency>
 
 
         <!-- 会员中心。默认注释，保证编译速度 -->

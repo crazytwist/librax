@@ -1,4 +1,4 @@
-package com.librax.lab.module.flow.enums;
+package com.librax.lab.module.flow.api.enums;
 
 
 public enum StepTypeEnum {

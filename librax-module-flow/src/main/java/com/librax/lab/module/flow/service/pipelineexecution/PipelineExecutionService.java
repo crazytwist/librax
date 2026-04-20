@@ -1,6 +1,7 @@
 package com.librax.lab.module.flow.service.pipelineexecution;
 
 import java.util.*;
+
 import jakarta.validation.*;
 import com.librax.lab.module.flow.controller.admin.pipelineexecution.vo.*;
 import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecutionDO;
@@ -39,10 +40,10 @@ public interface PipelineExecutionService {
     void deletePipelineExecution(Long id);
 
     /**
-    * 批量删除流程执行实例，支持完整流程、节点单独运行、补偿执行
-    *
-    * @param ids 编号
-    */
+     * 批量删除流程执行实例，支持完整流程、节点单独运行、补偿执行
+     *
+     * @param ids 编号
+     */
     void deletePipelineExecutionListByIds(List<Long> ids);
 
     /**
@@ -62,7 +63,6 @@ public interface PipelineExecutionService {
     PageResult<PipelineExecutionDO> getPipelineExecutionPage(PipelineExecutionPageReqVO pageReqVO);
 
 
-
     // -----------------------------------------------------------------------------------------------------------------
 
     /**
@@ -73,13 +73,15 @@ public interface PipelineExecutionService {
      * @param inputParams     外部传入的初始参数，节点可通过 ${input.xxx} 引用，如 sampleId
      * @param triggerType     触发类型：MANUAL/SCHEDULE/EVENT
      * @param triggeredBy     触发人ID或触发源标识
+     * @param zoneCode        可为 null（不限区域）
      * @return 执行实例唯一ID（UUID），可用于后续查询进度
      */
     String start(String pipelineKey,
                  Integer pipelineVersion,
                  Map<String, Object> inputParams,
                  String triggerType,
-                 String triggeredBy);
+                 String triggeredBy,
+                 String zoneCode);
 
     /**
      * 暂停正在执行的流程

@@ -4,7 +4,7 @@ import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecu
 import com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO;
 import com.librax.lab.module.flow.dal.mysql.pipelineexecution.PipelineExecutionMapper;
 import com.librax.lab.module.flow.dal.mysql.stepexecution.StepExecutionMapper;
-import com.librax.lab.module.flow.engine.execution.model.StepResult;
+import com.librax.lab.module.flow.api.model.StepResult;
 import com.librax.lab.module.flow.engine.execution.scheduler.DagScheduler;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;

@@ -6,7 +6,7 @@
     <parent>
         <groupId>com.librax.boot</groupId>
         <artifactId>librax</artifactId>
-        <version>2025.11-SNAPSHOT</version>
+        <version>${revision}</version>
     </parent>
 
     <artifactId>librax-module-flow-api</artifactId>
@@ -17,4 +17,15 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
+
+    <dependencies>
+        <dependency>
+            <groupId>com.librax.boot</groupId>
+            <artifactId>librax-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+    </dependencies>
 </project>

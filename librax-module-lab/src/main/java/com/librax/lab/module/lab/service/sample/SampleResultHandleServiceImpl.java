@@ -8,7 +8,7 @@ import com.librax.lab.module.lab.dal.mysql.sample.SampleInfoMapper;
 import com.librax.lab.module.lab.dal.mysql.sample.SampleResultMapper;
 import com.librax.lab.module.lab.enums.AbnormalFlagEnum;
 import com.librax.lab.module.lab.enums.ReviewStatusEnum;
-import com.librax.lab.module.lab.framework.util.LabIdGenerator;
+import com.librax.lab.module.infra.framework.util.LabIdGenerator;
 import com.librax.lab.module.lab.service.sample.TestItemReferenceRegistry.TestItemReference;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

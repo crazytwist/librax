@@ -1,9 +1,11 @@
 package com.librax.lab.module.flow.dal.dataobject.pipelinestep;
 
 import lombok.*;
+
 import java.util.*;
 import java.time.LocalDateTime;
 import java.time.LocalDateTime;
+
 import com.baomidou.mybatisplus.annotation.*;
 import com.librax.lab.framework.mybatis.core.dataobject.BaseDO;
 
@@ -39,6 +41,14 @@ public class PipelineStepDO extends BaseDO {
      * 节点 ID，同一流程版本内唯一，小写+下划线，如 s_ph
      */
     private String nodeId;
+    /**
+     * DIRECT=直连执行 QUEUED=压入区域队列
+     */
+    private String dispatchMode;
+    /**
+     * 任务执行类型,QUEUED 模式下控制 TaskRouter 路由
+     */
+    private String taskType;
     /**
      * 关联 pd_step_definition.step_key
      */

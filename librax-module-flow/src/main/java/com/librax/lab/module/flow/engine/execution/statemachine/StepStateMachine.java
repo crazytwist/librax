@@ -2,15 +2,16 @@ package com.librax.lab.module.flow.engine.execution.statemachine;
 
 import com.alibaba.fastjson.JSON;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.librax.lab.module.flow.api.statemachine.StepStateApi;
 import com.librax.lab.module.flow.dal.dataobject.executioneventlog.ExecutionEventLogDO;
 import com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO;
 import com.librax.lab.module.flow.dal.mysql.executioneventlog.ExecutionEventLogMapper;
 import com.librax.lab.module.flow.dal.mysql.stepexecution.StepExecutionMapper;
 import com.librax.lab.module.flow.engine.execution.event.ExecutionEventPublisher;
-import com.librax.lab.module.flow.engine.execution.model.StepResult;
+import com.librax.lab.module.flow.api.model.StepResult;
 import com.librax.lab.module.flow.enums.EventTypeEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;
-import com.librax.lab.module.flow.enums.WaitingForEnum;
+import com.librax.lab.module.flow.api.enums.WaitingForEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.librax.lab.module.flow.enums.EventTypeEnum.STEP_WAITING;
 import static com.librax.lab.module.flow.enums.StepStatusEnum.RUNNING;
@@ -45,7 +47,7 @@ import static com.librax.lab.module.flow.enums.StepStatusEnum.WAITING;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class StepStateMachine {
+public class StepStateMachine implements StepStateApi {
 
     private final StepExecutionMapper stepMapper;
     private final ExecutionEventPublisher eventPublisher;
@@ -65,6 +67,7 @@ public class StepStateMachine {
      */
     public boolean tryStart(String executionId, String nodeId, int attempt) {
         LocalDateTime now = LocalDateTime.now();
+        String callbackToken = UUID.randomUUID().toString().replace("-", "");
 
         LambdaUpdateWrapper<StepExecutionDO> wrapper = new LambdaUpdateWrapper<StepExecutionDO>()
                 .eq(StepExecutionDO::getExecutionId, executionId)
@@ -73,6 +76,7 @@ public class StepStateMachine {
                 .eq(StepExecutionDO::getStatus, StepStatusEnum.PENDING.name())
                 .set(StepExecutionDO::getStatus, RUNNING.name())
                 .set(StepExecutionDO::getStartedAt, now)
+                .set(StepExecutionDO::getCallbackToken, callbackToken)
                 .set(StepExecutionDO::getUpdater, "SYSTEM")
                 .set(StepExecutionDO::getUpdateTime, now);
 

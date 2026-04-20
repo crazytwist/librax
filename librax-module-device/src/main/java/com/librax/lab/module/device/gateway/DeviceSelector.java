@@ -22,9 +22,11 @@ public class DeviceSelector {
         List<DeviceInfoDO> candidates = deviceInfoMapper
                 .selectEnabledByType(deviceType);
 
-        return candidates.stream()
-                .filter(d -> stateCache.isIdle(d.getDeviceId()))
-                .findFirst()
-                .orElse(null);
+//        return candidates.stream()
+//                .filter(d -> stateCache.isIdle(d.getDeviceId()))
+//                .findFirst()
+//                .orElse(null);
+
+        return candidates.get(0);
     }
 }

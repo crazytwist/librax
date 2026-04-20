@@ -1,9 +1,10 @@
 
-package com.librax.lab.module.flow.engine.execution.executor;
+package com.librax.lab.module.flow.api.executor;
 
-import com.librax.lab.module.flow.engine.definition.model.StepNode;
-import com.librax.lab.module.flow.engine.execution.model.StepResult;
-import com.librax.lab.module.flow.enums.StepTypeEnum;
+
+import com.librax.lab.module.flow.api.dispatch.StepDispatchContext;
+import com.librax.lab.module.flow.api.enums.StepTypeEnum;
+import com.librax.lab.module.flow.api.model.StepResult;
 
 import java.util.Map;
 
@@ -14,8 +15,8 @@ import java.util.Map;
  *
  * <p>实现类列表：
  * <ul>
- *   <li>{@link MockStepExecutor}       - Mock执行器，开发测试用，返回预设输出
- *   <li>{@link ConditionStepExecutor}  - 条件执行器，Aviator表达式求值，决定分支走向
+ *   <li>{MockStepExecutor}       - Mock执行器，开发测试用，返回预设输出
+ *   <li>{ConditionStepExecutor}  - 条件执行器，Aviator表达式求值，决定分支走向
  *   <li>InstrumentStepExecutor         - 仪器执行器，发MQ指令，异步等设备回调
  *   <li>ComputeStepExecutor            - 计算执行器，调Spring Bean或LiteFlow Chain
  *   <li>WaitStepExecutor               - 等待执行器，等固定时长或外部信号
@@ -44,13 +45,8 @@ public interface StepExecutor {
 
     /**
      * 执行步骤
-     *
-     * @param node        步骤节点定义（含设备类型、执行器配置、超时重试策略等）
-     * @param executionId 流程执行实例ID（日志追踪、设备回调匹配用）
-     * @param inputParams 运行时入参（静态params + inputMapping解析结果合并后的最终值）
-     * @return 执行结果：
-     *         成功 → {@code StepResult.ok(outputs)}，outputs 写入上下文供后续节点引用；
-     *         失败 → {@code StepResult.fail(errorCode, errorMsg)}，触发重试或DEAD流转
+     * @param ctx   分发上下文（替换原来的 StepNode + executionId + inputParams 三个参数）
+     * @return 执行结果
      */
-    StepResult execute(StepNode node, String executionId, Map<String, Object> inputParams);
+    StepResult execute(StepDispatchContext ctx);
 }

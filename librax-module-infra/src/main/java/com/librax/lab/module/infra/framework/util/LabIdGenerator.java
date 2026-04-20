@@ -1,24 +1,24 @@
-package com.librax.lab.module.lab.framework.util;
+package com.librax.lab.module.infra.framework.util;
 
 
 import org.springframework.stereotype.Component;
 
 /**
  * 实验室业务 ID 生成器
- *
+ * <p>
  * 基于雪花算法，生成各业务域的唯一 ID。
  * 格式：业务前缀 + 雪花 long（转 36 进制压缩长度）
- *
+ * <p>
  * 生成示例：
- *   样本ID:   S-lk4z2p8q1
- *   结果ID:   R-lk4z2p8q2
- *   执行ID:   直接用 UUID（已有，不改）
- *
+ * 样本ID:   S-lk4z2p8q1
+ * 结果ID:   R-lk4z2p8q2
+ * 执行ID:   直接用 UUID（已有，不改）
+ * <p>
  * 雪花算法说明：
- *   - 1 bit 符号位（固定0）
- *   - 41 bit 时间戳（毫秒，从 2024-01-01 起算，可用约 69 年）
- *   - 10 bit 工作节点（5 bit datacenterId + 5 bit workerId，支持 1024 个节点）
- *   - 12 bit 序列号（同一毫秒内最多 4096 个）
+ * - 1 bit 符号位（固定0）
+ * - 41 bit 时间戳（毫秒，从 2024-01-01 起算，可用约 69 年）
+ * - 10 bit 工作节点（5 bit datacenterId + 5 bit workerId，支持 1024 个节点）
+ * - 12 bit 序列号（同一毫秒内最多 4096 个）
  */
 @Component
 public class LabIdGenerator {
@@ -66,24 +66,36 @@ public class LabIdGenerator {
     // 业务 ID 生成接口
     // ----------------------------------------------------------------
 
-    /** 样本 ID：S-xxxxxxxxxx */
+    /**
+     * 样本 ID：S-xxxxxxxxxx
+     */
     public String nextSampleId() {
         return "S-" + toBase36(nextId());
     }
 
-    /** 检测结果 ID：R-xxxxxxxxxx */
+    /**
+     * 检测结果 ID：R-xxxxxxxxxx
+     */
     public String nextResultId() {
         return "R-" + toBase36(nextId());
     }
 
-    /** 物料批次 ID：M-xxxxxxxxxx */
+    /**
+     * 物料批次 ID：M-xxxxxxxxxx
+     */
     public String nextMaterialId() {
         return "M-" + toBase36(nextId());
     }
 
-    /** 通用 long ID（给 MyBatis-Plus 主键等场景） */
+    /**
+     * 通用 long ID（给 MyBatis-Plus 主键等场景）
+     */
     public long nextLongId() {
         return nextId();
+    }
+
+    public String nextTaskId() {
+        return "K-" + toBase36(nextId());
     }
 
     // ----------------------------------------------------------------
@@ -97,7 +109,10 @@ public class LabIdGenerator {
             // 时钟回拨：最多容忍 5ms，否则抛异常
             long diff = lastTimestamp - ts;
             if (diff <= 5) {
-                try { Thread.sleep(diff * 2); } catch (InterruptedException ignored) {}
+                try {
+                    Thread.sleep(diff * 2);
+                } catch (InterruptedException ignored) {
+                }
                 ts = currentTimestamp();
             }
             if (ts < lastTimestamp) {
@@ -131,7 +146,9 @@ public class LabIdGenerator {
         return ts;
     }
 
-    /** Long → Base36 字符串（数字+小写字母，比纯数字短约 20%） */
+    /**
+     * Long → Base36 字符串（数字+小写字母，比纯数字短约 20%）
+     */
     private String toBase36(long id) {
         return Long.toString(id, 36);
     }

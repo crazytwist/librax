@@ -1,7 +1,7 @@
-package com.librax.lab.module.flow.engine.execution.model;
+package com.librax.lab.module.flow.api.model;
 
 
-import com.librax.lab.module.flow.enums.WaitingForEnum;
+import com.librax.lab.module.flow.api.enums.WaitingForEnum;
 import lombok.Data;
 
 import java.util.Map;
