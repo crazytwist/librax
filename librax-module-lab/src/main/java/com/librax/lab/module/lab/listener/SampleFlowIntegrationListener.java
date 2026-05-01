@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.librax.lab.module.flow.api.enums.StepTypeEnum.INSTRUMENT;
-import static com.librax.lab.module.flow.engine.execution.scheduler.SchedulerConstants.CONTEXT_KEY_INPUT;
+import static com.librax.lab.module.flow.api.scheduler.SchedulerConstants.CONTEXT_KEY_INPUT;
 
 /**
  * 样本-流程集成监听器

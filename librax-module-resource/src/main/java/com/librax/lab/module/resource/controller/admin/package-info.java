@@ -1,1 +1,0 @@
-package com.librax.lab.module.resource.controller.admin;

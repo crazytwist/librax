@@ -212,9 +212,10 @@ public class PipelineGraphBuilder {
                 .chainId(sd.getChainId())
                 // ── INSTRUMENT 专用 ───────────────────────────────────
                 .deviceType(sd.getDeviceType())
-                // 修正3：PipelineStepDO 缺少 command 字段（需补充，见下方说明）
-                // 补充 command 字段后恢复此行：.command(coalesce(ps.getCommand(), sd.getCommand()))
                 .command(sd.getCommand())
+                // 资源启用和所属区域编码
+                .resourceEnabled(ps.getResourceEnabled())
+                .zoneCode(ps.getZoneCode())
                 .build();
     }
 

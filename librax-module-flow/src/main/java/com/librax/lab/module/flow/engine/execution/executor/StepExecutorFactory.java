@@ -2,7 +2,9 @@
 package com.librax.lab.module.flow.engine.execution.executor;
 
 import com.librax.lab.module.flow.api.enums.StepTypeEnum;
+import com.librax.lab.module.flow.api.executor.StepExecutor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
@@ -26,26 +28,19 @@ import java.util.stream.Collectors;
 @Component
 public class StepExecutorFactory {
 
-    /**
-     * 类型 → 执行器映射表
-     * key: StepTypeEnum，value: 对应的执行器实现
-     */
-    private final Map<StepTypeEnum, com.librax.lab.module.flow.api.executor.StepExecutor> executorMap;
+    private final Map<StepTypeEnum, StepExecutor> executorMap;
+    private final ApplicationContext applicationContext;  // ★ 新增
 
-    /**
-     * 构造时自动注入所有 StepExecutor 实现，建立映射关系
-     *
-     * @param executors Spring 自动发现的所有 StepExecutor 实现列表
-     */
-    public StepExecutorFactory(List<com.librax.lab.module.flow.api.executor.StepExecutor> executors) {
+    public StepExecutorFactory(List<StepExecutor> executors,
+                               ApplicationContext applicationContext) {  // ★ 新增参数
+        this.applicationContext = applicationContext;
         this.executorMap = executors.stream()
                 .filter(e -> e.supportType() != null)
                 .collect(Collectors.toMap(
-                        com.librax.lab.module.flow.api.executor.StepExecutor::supportType,
+                        StepExecutor::supportType,
                         Function.identity(),
-                        // 同一类型有多个实现时，后注册的覆盖先注册的（用于覆盖默认实现）
                         (existing, replacement) -> {
-                            log.warn("[StepExecutorFactory] 执行器类型冲突，使用后注册的实现: type={} old={} new={}",
+                            log.warn("[StepExecutorFactory] 执行器类型冲突 type={} old={} new={}",
                                     replacement.supportType(),
                                     existing.getClass().getSimpleName(),
                                     replacement.getClass().getSimpleName());
@@ -61,27 +56,34 @@ public class StepExecutorFactory {
     }
 
     /**
-     * 根据步骤类型获取执行器
-     *
-     * @param stepType 步骤类型
-     * @return 对应的执行器实现
-     * @throws IllegalArgumentException 当没有注册该类型的执行器时抛出
+     * 按步骤类型路由（CONDITION / WAIT / NOTIFY 等）
      */
-    public com.librax.lab.module.flow.api.executor.StepExecutor getExecutor(StepTypeEnum stepType) {
-        com.librax.lab.module.flow.api.executor.StepExecutor executor = executorMap.get(stepType);
+    public StepExecutor getExecutor(StepTypeEnum stepType) {
+        StepExecutor executor = executorMap.get(stepType);
         if (executor == null) {
             throw new IllegalArgumentException(
-                    "[StepExecutorFactory] 未找到执行器，请检查是否已实现并注册: stepType=" + stepType);
+                    "[StepExecutorFactory] 未找到执行器: stepType=" + stepType);
         }
         return executor;
     }
 
     /**
-     * 判断某类型是否有注册的执行器
-     *
-     * @param stepType 步骤类型
-     * @return true=有注册，false=未注册
+     * COMPUTE 类型按 beanName 从 Spring 容器取具体实现
+     * beanName 对应 pd_step_definition.bean_name
      */
+    public StepExecutor getExecutor(StepTypeEnum stepType, String beanName) {
+        // 只有 COMPUTE 类型才按 beanName 路由
+        if (stepType == StepTypeEnum.COMPUTE && beanName != null && !beanName.isEmpty()) {
+            try {
+                return applicationContext.getBean(beanName, StepExecutor.class);
+            } catch (Exception e) {
+                throw new IllegalArgumentException(
+                        "[StepExecutorFactory] 未找到 COMPUTE 执行器: beanName=" + beanName, e);
+            }
+        }
+        return getExecutor(stepType);
+    }
+
     public boolean hasExecutor(StepTypeEnum stepType) {
         return executorMap.containsKey(stepType);
     }

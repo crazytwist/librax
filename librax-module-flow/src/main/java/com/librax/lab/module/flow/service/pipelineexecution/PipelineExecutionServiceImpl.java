@@ -2,9 +2,7 @@ package com.librax.lab.module.flow.service.pipelineexecution;
 
 import com.alibaba.fastjson.JSON;
 import com.librax.lab.module.flow.api.PipelineStartHook;
-import com.librax.lab.module.flow.dal.dataobject.executioncontext.ExecutionContextDO;
 import com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO;
-import com.librax.lab.module.flow.dal.mysql.executioncontext.ExecutionContextMapper;
 import com.librax.lab.module.flow.dal.mysql.stepexecution.StepExecutionMapper;
 import com.librax.lab.module.flow.engine.definition.PipelineGraphCache;
 import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
@@ -22,9 +20,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.stream.Collectors;
 
-import static com.librax.lab.module.flow.engine.execution.scheduler.SchedulerConstants.CONTEXT_KEY_INPUT;
+import static com.librax.lab.module.flow.api.scheduler.SchedulerConstants.CONTEXT_KEY_INPUT;
 
 import com.librax.lab.module.flow.controller.admin.pipelineexecution.vo.*;
 import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecutionDO;
@@ -133,31 +130,31 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
                         Map<String, Object> inputParams,
                         String triggerType,
                         String triggeredBy,
-                        String zoneCode) {         // ★ 新增
-
+                        String zoneCode) {
+        // 1. 加载并校验流程定义（从 Cache，含 Validator 校验）
         PipelineGraph graph = graphCache.get(pipelineKey, pipelineVersion);
         log.info("[ExecutionService] 启动流程 pipelineKey={} version={} zoneCode={} triggeredBy={}",
                 pipelineKey, graph.getVersion(), zoneCode, triggeredBy);
 
         String executionId = UUID.randomUUID().toString().replace("-", "");
-
-        // ★ zoneCode 直接传进去
+        // 2. 创建 pe_pipeline_execution（PENDING）
         createPipelineExecution(executionId, graph, inputParams,
-                triggerType, triggeredBy, zoneCode);
-
+                triggerType, triggeredBy);
+        // 3. 初始化所有节点的 pe_step_execution（PENDING）
         initStepExecutions(executionId, graph);
-
+        // 4. 初始化 pe_execution_context（空）
         if (inputParams != null && !inputParams.isEmpty()) {
             contextManager.putNodeOutput(executionId, CONTEXT_KEY_INPUT, inputParams);
         }
-
+        // 4.1 加载样本信息
         for (PipelineStartHook hook : startHooks) {
             hook.beforeSchedule(executionId, pipelineKey, graph.getVersion(), inputParams);
         }
-
+        // 5. 流程状态 PENDING → RUNNING
         executionStateMachine.transition(
                 executionId, ExecutionStatusEnum.PENDING, ExecutionStatusEnum.RUNNING);
 
+        // 6. 触发调度器开始调度
         TransactionSynchronizationManager.registerSynchronization(
                 new TransactionSynchronization() {
                     @Override
@@ -229,8 +226,7 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
                                          PipelineGraph graph,
                                          Map<String, Object> inputParams,
                                          String triggerType,
-                                         String triggeredBy,
-                                         String zoneCode) {
+                                         String triggeredBy) {
         PipelineExecutionDO record = new PipelineExecutionDO();
         record.setExecutionId(executionId);
         record.setPipelineKey(graph.getPipelineKey());
@@ -239,7 +235,6 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         record.setTriggerType(triggerType != null ? triggerType : "MANUAL");
         record.setTriggeredBy(triggeredBy);
         record.setInputParams(inputParams != null ? JSON.toJSONString(inputParams) : null);
-        record.setZoneCode(zoneCode);   // ★ 写入 zone_code
         record.setRowVersion(0);
         executionMapper.insert(record);
     }

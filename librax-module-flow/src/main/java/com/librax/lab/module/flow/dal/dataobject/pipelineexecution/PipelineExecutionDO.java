@@ -54,10 +54,6 @@ public class PipelineExecutionDO extends BaseDO {
      */
     private String triggeredBy;
     /**
-     * 执行所在区域，关联 lab_zone_slot
-     */
-    private String zoneCode;
-    /**
      * 外部传入初始参数，节点可通过 ${input.xxx} 引用
      */
     private String inputParams;

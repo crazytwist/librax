@@ -2,10 +2,12 @@ package com.librax.lab.module.flow.dal.mysql.stepexecution;
 
 import java.util.*;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.librax.lab.framework.common.pojo.PageResult;
 import com.librax.lab.framework.mybatis.core.query.LambdaQueryWrapperX;
 import com.librax.lab.framework.mybatis.core.mapper.BaseMapperX;
 import com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO;
+import com.librax.lab.module.flow.enums.StepStatusEnum;
 import org.apache.ibatis.annotations.Mapper;
 import com.librax.lab.module.flow.controller.admin.stepexecution.vo.*;
 import org.apache.ibatis.annotations.Param;
@@ -44,15 +46,38 @@ public interface StepExecutionMapper extends BaseMapperX<StepExecutionDO> {
 
 
     StepExecutionDO selectLatestAttempt(@Param("executionId") String executionId,
-                                        @Param("nodeId")     String nodeId);
+                                        @Param("nodeId") String nodeId);
 
 
     StepExecutionDO selectByExecutionNodeAttempt(
             @Param("executionId") String executionId,
-            @Param("nodeId")      String nodeId,
-            @Param("attempt")     int attempt);
+            @Param("nodeId") String nodeId,
+            @Param("attempt") int attempt);
 
 
     List<StepExecutionDO> selectLatestByExecutionId(String executionId);
 
+
+    default void resetToPending(String executionId, String nodeId) {
+        update(new LambdaUpdateWrapper<StepExecutionDO>()
+                .eq(StepExecutionDO::getExecutionId, executionId)
+                .eq(StepExecutionDO::getNodeId, nodeId)
+                .set(StepExecutionDO::getStatus, StepStatusEnum.PENDING.name()));
+    }
+
+    default void markResourceAcquired(String executionId, String nodeId, int attempt) {
+        update(new LambdaUpdateWrapper<StepExecutionDO>()
+                .eq(StepExecutionDO::getExecutionId, executionId)
+                .eq(StepExecutionDO::getNodeId, nodeId)
+                .eq(StepExecutionDO::getAttempt, attempt)
+                .set(StepExecutionDO::getResourceAcquired, 1));
+    }
+
+    default void clearResourceAcquired(String executionId, String nodeId, int attempt) {
+        update(new LambdaUpdateWrapper<StepExecutionDO>()
+                .eq(StepExecutionDO::getExecutionId, executionId)
+                .eq(StepExecutionDO::getNodeId, nodeId)
+                .eq(StepExecutionDO::getAttempt, attempt)
+                .set(StepExecutionDO::getResourceAcquired, 0));
+    }
 }

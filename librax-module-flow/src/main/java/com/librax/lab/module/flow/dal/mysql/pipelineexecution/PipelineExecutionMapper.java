@@ -40,7 +40,6 @@ public interface PipelineExecutionMapper extends BaseMapperX<PipelineExecutionDO
                 .eqIfPresent(PipelineExecutionDO::getStatus, reqVO.getStatus())
                 .eqIfPresent(PipelineExecutionDO::getTriggerType, reqVO.getTriggerType())
                 .eqIfPresent(PipelineExecutionDO::getTriggeredBy, reqVO.getTriggeredBy())
-                .eqIfPresent(PipelineExecutionDO::getZoneCode, reqVO.getZoneCode())
                 .eqIfPresent(PipelineExecutionDO::getInputParams, reqVO.getInputParams())
                 .eqIfPresent(PipelineExecutionDO::getParentExecutionId, reqVO.getParentExecutionId())
                 .eqIfPresent(PipelineExecutionDO::getStandaloneNodeId, reqVO.getStandaloneNodeId())

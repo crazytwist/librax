@@ -13,7 +13,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 /**
- * 步骤失败处理器 — 负责重试、DEAD 决策、告警
+ * 步骤失败处理器 — 负责重试、DEAD 决策、资源释放、告警
  */
 @Slf4j
 @Component
@@ -23,6 +23,7 @@ public class StepFailureHandler {
     private final StepStateMachine stepStateMachine;
     private final ExecutionStateMachine executionStateMachine;
     private final ExceptionEngine exceptionEngine;
+    private final StepSubmitter stepSubmitter;
 
     /**
      * 处理步骤失败
@@ -58,20 +59,28 @@ public class StepFailureHandler {
         // 4. 根据决策执行
         switch (decision.getAction()) {
             case RETRY:
+                // 重试不释放资源：下次重试还需要申请，由下一次 submit 重新走申请流程
+                // 但当前这次 attempt 的资源需要释放，否则下次申请时会冲突
+                stepSubmitter.releaseIfHeld(executionId, node.getNodeId(), attempt, "STEP_RETRY");
                 handleRetry(executionId, node, decision, scheduleDelayed);
                 break;
 
             case DEAD_FAIL_FAST:
+                // ★ DEAD 终态释放资源
+                stepSubmitter.releaseIfHeld(executionId, node.getNodeId(), attempt, "STEP_DEAD");
                 handleDeadFailFast(executionId, node, attempt);
                 break;
 
             case DEAD_CONTINUE:
+                // ★ DEAD 终态释放资源
+                stepSubmitter.releaseIfHeld(executionId, node.getNodeId(), attempt, "STEP_DEAD");
                 handleDeadContinue(executionId, node, attempt, scheduleImmediate);
                 break;
 
             default:
-                log.warn("[StepFailureHandler] 未知决策 action={}, 默认 FAIL_FAST",
+                log.warn("[StepFailureHandler] 未知决策 action={}，默认 FAIL_FAST",
                         decision.getAction());
+                stepSubmitter.releaseIfHeld(executionId, node.getNodeId(), attempt, "STEP_DEAD");
                 handleDeadFailFast(executionId, node, attempt);
         }
     }
@@ -94,7 +103,6 @@ public class StepFailureHandler {
                 decision.getStepKey(),
                 decision.getStepType());
 
-        // 延迟调度（传入延迟毫秒数）
         scheduleDelayed.accept(decision.getBackoffMs());
     }
 

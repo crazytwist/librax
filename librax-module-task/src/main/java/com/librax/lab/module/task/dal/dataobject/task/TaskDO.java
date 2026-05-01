@@ -102,6 +102,10 @@ public class TaskDO extends BaseDO {
      */
     private String failReason;
     /**
+     * 重试次数 对应 pe_step_execution.attempt  步骤的重试次数
+     */
+    private Integer attempt;
+    /**
      * 当前已重试次数
      */
     private Integer retryCount;

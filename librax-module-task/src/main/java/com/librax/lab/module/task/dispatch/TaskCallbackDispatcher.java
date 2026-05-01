@@ -2,6 +2,8 @@ package com.librax.lab.module.task.dispatch;
 
 import com.alibaba.fastjson.JSON;
 import com.librax.lab.module.flow.api.event.TaskCompletedEvent;
+import com.librax.lab.module.flow.api.resource.ResourcePool;
+import com.librax.lab.module.flow.engine.execution.scheduler.StepSubmitter;
 import com.librax.lab.module.task.dal.dataobject.task.TaskDO;
 import com.librax.lab.module.task.dal.mysql.task.TaskMapper;
 import com.librax.lab.module.task.enums.TaskStatusEnum;
@@ -35,6 +37,8 @@ public class TaskCallbackDispatcher {
     private final TaskMapper taskMapper;
     private final TaskEventPublisher eventPublisher;
     private final ApplicationEventPublisher springEventPublisher;
+    private final ResourcePool resourcePool;
+
 
     /**
      * 任务完成回调
@@ -91,19 +95,22 @@ public class TaskCallbackDispatcher {
 
         // 4. 写事件日志
         String toStatus = success ? TaskStatusEnum.DONE.name() : TaskStatusEnum.FAILED.name();
-        Map<String, Object> payload = success
-                ? null
-                : Map.of("errorCode", String.valueOf(errorCode),
-                "errorMsg",  String.valueOf(errorMsg));
-        eventPublisher.publish(task.getTaskId(),
-                success ? "DONE" : "FAILED",
-                currentStatus, toStatus, payload);
 
-        // TODO: resource 模块接入后,在此处释放 Zone 槽位和设备互斥锁
-        // resourcePool.release(task.getResourceId());
+        Map<String, Object> payload = success ? null
+                : Map.of("errorCode", String.valueOf(errorCode),
+                "errorMsg", String.valueOf(errorMsg));
+
+        eventPublisher.publish(task.getTaskId(), toStatus, currentStatus, toStatus, payload);
+
+        // 释放该步骤持有的所有资源(QUEUED 路径)
+        String holderKey = StepSubmitter.buildHolderKey(
+                task.getExecutionId(), task.getNodeId(), task.getAttempt());
+        int released = resourcePool.releaseByHolder(holderKey);
+        if (released > 0) {
+            log.info("[TaskCallbackDispatcher] 释放资源 holder={} count={}", holderKey, released);
+        }
 
         // 5. 发 Spring Event,flow 模块监听后推进 DAG 调度
-        //    task 模块不直接依赖 flow 实现类,打破循环依赖
         springEventPublisher.publishEvent(new TaskCompletedEvent(
                 this,
                 callbackToken,

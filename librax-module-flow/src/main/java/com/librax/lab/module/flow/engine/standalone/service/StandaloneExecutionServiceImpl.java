@@ -133,7 +133,6 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
         record.setTriggeredBy(req.getTriggeredBy());
         record.setStandaloneNodeId(node.getNodeId());
         record.setParentExecutionId(req.getParentExecutionId());
-        record.setZoneCode(zoneCode);
         record.setInputParams(
                 req.getInputParams() != null
                         ? JSON.toJSONString(req.getInputParams()) : null);

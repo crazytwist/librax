@@ -1,11 +1,13 @@
 package com.librax.lab.module.flow.engine.execution.callback;
 
+import com.librax.lab.module.flow.api.resource.ResourcePool;
 import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecutionDO;
 import com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO;
 import com.librax.lab.module.flow.dal.mysql.pipelineexecution.PipelineExecutionMapper;
 import com.librax.lab.module.flow.dal.mysql.stepexecution.StepExecutionMapper;
 import com.librax.lab.module.flow.api.model.StepResult;
 import com.librax.lab.module.flow.engine.execution.scheduler.DagScheduler;
+import com.librax.lab.module.flow.engine.execution.scheduler.StepSubmitter;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;
 import lombok.RequiredArgsConstructor;
@@ -22,10 +24,11 @@ public class StepCallbackService {
     private final PipelineExecutionMapper executionMapper;
     private final StepExecutionMapper stepMapper;
     private final DagScheduler dagScheduler;
+    private final ResourcePool resourcePool;
 
     /**
      * 外部回调推进步骤
-     *
+     * <p>
      * 设备回调、人工审批、外部事件都走这个方法
      *
      * @param executionId   执行实例ID
@@ -97,6 +100,13 @@ public class StepCallbackService {
                 nodeId,
                 stepDO.getAttempt(),
                 stepResult);
+
+        // 释放资源(DIRECT 路径,以及 QUEUED 路径走事件桥过来时的兜底)
+        String holderKey = StepSubmitter.buildHolderKey(executionId, nodeId, stepDO.getAttempt());
+        int released = resourcePool.releaseByHolder(holderKey);
+        if (released > 0) {
+            log.info("[StepCallbackService] 释放资源 holder={} count={}", holderKey, released);
+        }
 
         return CallbackResult.ok();
     }

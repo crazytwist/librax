@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 
 /**
- * 步骤成功处理器 — 负责更新状态、应用 output_mapping、触发下轮调度
+ * 步骤成功处理器 — 负责更新状态、应用 output_mapping、释放资源、触发下轮调度
  */
 @Slf4j
 @Component
@@ -23,6 +23,7 @@ public class StepSuccessHandler {
     private final StepStateMachine stepStateMachine;
     private final ExecutionContextManager contextManager;
     private final OutputMappingResolver outputMappingResolver;
+    private final StepSubmitter stepSubmitter;
 
     /**
      * 处理步骤成功
@@ -41,7 +42,10 @@ public class StepSuccessHandler {
         // 2. 应用 output_mapping，写入上下文
         applyOutputMapping(executionId, node, result);
 
-        // 3. 触发下一轮调度
+        // 3. ★ 释放资源（有则释放，无则跳过）
+        stepSubmitter.releaseIfHeld(executionId, node.getNodeId(), attempt, "STEP_COMPLETE");
+
+        // 4. 触发下一轮调度
         scheduleTrigger.run();
         return true;
     }

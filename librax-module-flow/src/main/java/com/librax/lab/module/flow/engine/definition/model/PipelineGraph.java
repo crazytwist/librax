@@ -20,7 +20,6 @@ public class PipelineGraph {
     private String name;
     private FailStrategyEnum failStrategy;
     private Long defaultTimeoutMs;
-    private String zoneCode;
 
 
     // ---- 节点列表 ----

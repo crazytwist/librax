@@ -70,6 +70,7 @@ public class QueuedDispatchSpi implements DispatchSpi {
         task.setMaxRetry(ctx.getMaxAttempts());
         task.setQueuedAt(LocalDateTime.now());
         task.setPayload(buildPayload(ctx));
+        task.setAttempt(ctx.getAttempt());
         return task;
     }
 

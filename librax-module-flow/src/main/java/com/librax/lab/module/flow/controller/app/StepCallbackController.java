@@ -83,7 +83,7 @@ public class StepCallbackController {
                 req.getExecutionId(),
                 req.getNodeId(),
                 req.getCallbackToken(),
-                req.isApproved(),   // approved=true → 步骤成功，false → 步骤失败
+                req.isApproved(),
                 outputs,
                 req.isApproved() ? null : "REJECTED",
                 req.isApproved() ? null : "审批驳回: " + req.getComment());

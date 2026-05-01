@@ -1,12 +1,14 @@
 package com.librax.lab.module.flow.dal.dataobject.stepexecution;
 
 import lombok.*;
+
 import java.util.*;
 import java.time.LocalDateTime;
 import java.time.LocalDateTime;
 import java.time.LocalDateTime;
 import java.time.LocalDateTime;
 import java.time.LocalDateTime;
+
 import com.baomidou.mybatisplus.annotation.*;
 import com.librax.lab.framework.mybatis.core.dataobject.BaseDO;
 
@@ -110,6 +112,15 @@ public class StepExecutionDO extends BaseDO {
      * 本节点触发的补偿执行 ID，DEAD 且触发补偿时填写
      */
     private String compensateExecutionId;
+    /**
+     * 执行时所在区域，冗余自步骤定义，便于查询追踪
+     */
+    private String zoneCode;
+    /**
+     * 资源是否已申请：0=未申请，1=已持有（宕机恢复时判断是否需要先释放）
+     */
+    private Integer resourceAcquired;
+
 
 
 }

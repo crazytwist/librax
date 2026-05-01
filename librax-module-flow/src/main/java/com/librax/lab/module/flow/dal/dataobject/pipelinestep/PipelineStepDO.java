@@ -145,5 +145,15 @@ public class PipelineStepDO extends BaseDO {
      */
     private String uiPosition;
 
+    /**
+     * 是否启用资源
+     */
+    private Boolean resourceEnabled;
+
+    /**
+     * 所属区域编码
+     */
+    private String zoneCode;
+
 
 }

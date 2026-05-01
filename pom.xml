@@ -23,6 +23,7 @@
         <module>librax-module-flow-api</module>
         <module>librax-module-device</module>
         <module>librax-module-task</module>
+        <module>librax-module-device-api</module>
         <!--        <module>librax-module-report</module>-->
 <!--        <module>librax-module-mp</module>-->
 <!--        <module>librax-module-pay</module>-->

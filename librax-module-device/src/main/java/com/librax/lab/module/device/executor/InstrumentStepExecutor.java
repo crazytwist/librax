@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.librax.lab.module.flow.api.scheduler.SchedulerConstants.CONTEXT_KEY_RESOURCE_ID;
+
 /**
  * 仪器步骤执行器
  *
@@ -33,12 +35,13 @@ public class InstrumentStepExecutor implements StepExecutor {
 
     @Override
     public StepResult execute(StepDispatchContext ctx) {
-        String deviceType  = ctx.getDeviceType();
+        String deviceType = ctx.getDeviceType();
         String commandCode = ctx.getCommandCode();
 
-        log.info("[InstrumentExecutor] 发送设备指令 executionId={} nodeId={} " +
-                        "deviceType={} commandCode={}",
-                ctx.getExecutionId(), ctx.getNodeId(), deviceType, commandCode);
+        String resourceId = (String) ctx.getInputParams().get(CONTEXT_KEY_RESOURCE_ID);
+
+        log.info("[InstrumentExecutor] 发送设备指令 nodeId={} deviceId={} device={} cmd={}",
+                ctx.getNodeId(), resourceId, deviceType, commandCode);
 
         // 调设备网关发指令（非阻塞）
         // 设备完成后通过 CallbackDispatcher 回调 StepCallbackService 推进 DAG
@@ -49,16 +52,17 @@ public class InstrumentStepExecutor implements StepExecutor {
 //                ctx.getInputParams(),
 //                ctx.getExecutionId(),
 //                ctx.getNodeId(),
-//                ctx.getCallbackToken());
+//                ctx.getCallbackToken());   // ← 透传给设备
 
         String taskId = UUID.randomUUID().toString();
 
-        // 返回 WAITING，等设备回调
-        // _callbackToken 不在此处放入，由 DirectDispatchSpi.handleWaiting() 负责生成并写入 DB
+        // 返回 WAITING,等设备回调
+        // _callbackToken 已由 StepStateMachine.tryStart 生成并写入 pe_step_execution.callback_token
+        // 可通过 ctx.getCallbackToken() 获取,此处无需传递(DirectDispatchSpi.handleWaiting 会统一处理)
         return StepResult.waitForDevice(Map.of(
                 "deviceTaskId", taskId,
-                "deviceType",   deviceType,
-                "command",      commandCode
+                "deviceType", deviceType,
+                "command", commandCode
         ));
     }
 }

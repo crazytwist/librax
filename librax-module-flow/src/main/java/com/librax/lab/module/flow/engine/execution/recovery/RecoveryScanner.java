@@ -2,15 +2,18 @@ package com.librax.lab.module.flow.engine.execution.recovery;
 
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.librax.lab.module.flow.api.resource.ResourcePool;
 import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecutionDO;
 import com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO;
 import com.librax.lab.module.flow.dal.mysql.pipelineexecution.PipelineExecutionMapper;
 import com.librax.lab.module.flow.dal.mysql.stepexecution.StepExecutionMapper;
 import com.librax.lab.module.flow.engine.execution.scheduler.DagScheduler;
+import com.librax.lab.module.flow.engine.execution.scheduler.StepSubmitter;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Component;
@@ -42,6 +45,7 @@ public class RecoveryScanner {
     private final PipelineExecutionMapper executionMapper;
     private final StepExecutionMapper stepMapper;
     private final DagScheduler dagScheduler;
+    private final ResourcePool resourcePool;
 
     @EventListener(ApplicationReadyEvent.class)
     public void onApplicationReady() {
@@ -85,7 +89,7 @@ public class RecoveryScanner {
         // 2. 找出 RUNNING 状态的步骤，重置为 PENDING
         List<StepExecutionDO> runningSteps = steps.stream()
                 .filter(s -> StepStatusEnum.RUNNING.name().equals(s.getStatus()))
-                .collect(Collectors.toList());
+                .toList();
 
         int resetCount = 0;
         for (StepExecutionDO step : runningSteps) {
@@ -130,4 +134,24 @@ public class RecoveryScanner {
                 .set(StepExecutionDO::getUpdater, "RECOVERY")
                 .set(StepExecutionDO::getUpdateTime, now));
     }
+
+    private void recoverRunningStep(StepExecutionDO step) {
+        // 查有没有未释放的 hold 记录
+        String resourceId = resourcePool
+                .queryHeldResourceId(step.getExecutionId(), step.getNodeId(), step.getAttempt());
+        if (StringUtils.isNotBlank(resourceId)) {
+            String holderKey = StepSubmitter.buildHolderKey(
+                    step.getExecutionId(), step.getNodeId(), step.getAttempt());
+            // 释放 Redis 锁 + 更新 hold 记录
+            resourcePool.release(resourceId, holderKey);
+//            resourceHoldMapper.markReleased(step.getExecutionId(), step.getNodeId(),
+//                    step.getAttempt(), "RECOVERY", LocalDateTime.now());
+            log.info("[RecoveryScanner] 释放宕机遗留资源 nodeId={} resourceId={}",
+                    step.getNodeId(), resourceId);
+        }
+        // 原有重置逻辑
+        stepMapper.resetToPending(step.getExecutionId(), step.getNodeId());
+    }
+
+
 }

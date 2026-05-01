@@ -5,12 +5,22 @@ import com.librax.lab.framework.common.exception.ErrorCode;
 /**
  * Resource 错误码枚举类
  * <p>
- * resource 系统，使用 1-006-000-000 段
+ * flow 系统，使用 1_070_001_000 段
  */
 public interface ErrorCodeConstants {
 
-    ErrorCode LOCATION_NOT_EXISTS = new ErrorCode(1_006_000_001, "区位信息不存在");
-    ErrorCode MATERIAL_CONFIG_NOT_EXISTS = new ErrorCode(1_006_000_002, "物料配置不存在");
-    ErrorCode MATERIAL_NOT_EXISTS = new ErrorCode(1_006_000_003, "物料信息不存在");
+    // ── 资源定义 ──────────────────────────────────────────────────────
+    ErrorCode ZONE_QUOTA_NOT_EXISTS =
+            new ErrorCode(1_070_001_000, "区域对共享资源的配额不存在");
+
+    ErrorCode CONFIG_NOT_EXISTS =
+            new ErrorCode(1_070_001_001, "资源配置表不存在");
+
+    ErrorCode STEP_RESOURCE_HOLD_NOT_EXISTS =
+            new ErrorCode(1_070_001_002, "步骤资源持有不存在");
+
+    ErrorCode STEP_RESOURCE_REQ_NOT_EXISTS =
+            new ErrorCode(1_070_001_003, "步骤资源需求定义不存在");
+
 
 }

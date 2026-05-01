@@ -90,7 +90,7 @@ public class StepDispatchContext {
     /**
      * 执行区域编码
      * 影响固定资源（仪器）的查找范围和移动资源（AGV）的配额检查。
-     * 对应 pe_pipeline_execution.zone_code
+     * 对应 pd_pipeline_step.zone_code
      */
     private String zoneCode;
 

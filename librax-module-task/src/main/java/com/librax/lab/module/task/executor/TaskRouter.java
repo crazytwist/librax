@@ -169,15 +169,6 @@ public class TaskRouter {
             return;
         }
 
-        // TODO: 在此处接入 ResourcePool 申请资源（resource 模块就绪后实现）
-        //       AcquireResult result = resourcePool.acquire(
-        //           extractResourceSubtype(task), task.getZoneCode(), task.getTaskId());
-        //       if (!result.isSuccess()) {
-        //           enqueueWithDelay(task, 2000L); // 资源不可用，退避重试
-        //           return;
-        //       }
-        //       taskMapper.updateExecutorId(task.getTaskId(), result.getResourceId());
-
         try {
             taskMapper.updateAssigned(task.getTaskId());
             eventPublisher.publish(taskId, "ASSIGNED",
@@ -190,7 +181,6 @@ public class TaskRouter {
         } catch (Exception e) {
             log.error("[TaskRouter] 任务分发异常 taskId={} error={}",
                     taskId, e.getMessage(), e);
-            // TODO: 资源模块接入后，在此处释放已申请的资源
             failTask(task, "DISPATCH_ERROR", e.getMessage());
         }
     }

@@ -59,7 +59,7 @@ public class ExecutionEventPublisher {
     }
 
     // ================================================================
-    // Spring Event 发布（新增）
+    // Spring Event 发布
     // ================================================================
 
     private void publishSpringPipelineEvent(String executionId,
