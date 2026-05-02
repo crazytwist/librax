@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Librax 流程引擎 · 完整架构文档</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --bg2: #13161e;
+    --bg3: #1a1f2b;
+    --border: #252b3a;
+    --border2: #2e3650;
+    --text: #c8d0e0;
+    --text-dim: #6b7591;
+    --text-bright: #e8edf8;
+    --blue: #4a9eff;
+    --blue-dim: #1e3a5f;
+    --teal: #2dd4bf;
+    --teal-dim: #0f3330;
+    --amber: #f59e0b;
+    --amber-dim: #3d2a00;
+    --coral: #f87171;
+    --coral-dim: #3d1515;
+    --purple: #a78bfa;
+    --purple-dim: #2d1f5e;
+    --green: #4ade80;
+    --green-dim: #0f2f1a;
+    --mono: 'IBM Plex Mono', monospace;
+    --serif: 'Noto Serif SC', serif;
+    --sans: 'Inter', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  /* ── Header ── */
+  .header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 64px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(74,158,255,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .header-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--blue);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .header-title {
+    font-family: var(--serif);
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--text-bright);
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+  .header-sub {
+    color: var(--text-dim);
+    font-size: 15px;
+    max-width: 640px;
+  }
+  .header-meta {
+    display: flex;
+    gap: 24px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+  .meta-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    color: var(--text-dim);
+  }
+  .meta-pill.blue { border-color: var(--blue-dim); color: var(--blue); background: rgba(74,158,255,0.05); }
+  .meta-pill.teal { border-color: var(--teal-dim); color: var(--teal); background: rgba(45,212,191,0.05); }
+  .meta-pill.amber { border-color: var(--amber-dim); color: var(--amber); background: rgba(245,158,11,0.05); }
+
+  /* ── Layout ── */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 48px 80px; }
+
+  /* ── Section ── */
+  .section { margin-top: 64px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--blue);
+    background: var(--blue-dim);
+    padding: 3px 10px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+  }
+  .section-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-bright);
+  }
+
+  /* ── Prose ── */
+  .prose { max-width: 800px; }
+  .prose p { margin-bottom: 16px; color: var(--text); line-height: 1.8; }
+  .prose strong { color: var(--text-bright); font-weight: 600; }
+  .prose em { color: var(--amber); font-style: normal; }
+
+  /* ── Cards ── */
+  .card-grid {
+    display: grid;
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .card-grid.col2 { grid-template-columns: 1fr 1fr; }
+  .card-grid.col3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--border2); }
+  .card.blue { border-left: 3px solid var(--blue); }
+  .card.teal { border-left: 3px solid var(--teal); }
+  .card.amber { border-left: 3px solid var(--amber); }
+  .card.coral { border-left: 3px solid var(--coral); }
+  .card.purple { border-left: 3px solid var(--purple); }
+  .card.green { border-left: 3px solid var(--green); }
+
+  .card-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-bright);
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+  }
+  .card-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    font-family: var(--mono);
+  }
+  .card p { font-size: 13px; color: var(--text); line-height: 1.7; }
+
+  /* ── Tags ── */
+  .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin: 2px;
+    letter-spacing: 0.5px;
+  }
+  .tag.new { background: rgba(74,158,255,0.15); color: var(--blue); border: 1px solid var(--blue-dim); }
+  .tag.mod { background: rgba(247,158,11,0.15); color: var(--amber); border: 1px solid var(--amber-dim); }
+  .tag.del { background: rgba(248,113,113,0.15); color: var(--coral); border: 1px solid var(--coral-dim); }
+  .tag.keep { background: rgba(107,117,145,0.15); color: var(--text-dim); border: 1px solid var(--border); }
+
+  /* ── Layer diagram ── */
+  .layer-stack { display: flex; flex-direction: column; gap: 3px; margin-top: 24px; }
+  .layer {
+    display: flex;
+    align-items: stretch;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    min-height: 60px;
+  }
+  .layer-label {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    padding: 12px 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    white-space: nowrap;
+    min-width: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .layer-label.api { background: var(--blue-dim); color: var(--blue); }
+  .layer-label.service { background: var(--purple-dim); color: var(--purple); }
+  .layer-label.engine { background: var(--teal-dim); color: var(--teal); }
+  .layer-label.resource { background: var(--amber-dim); color: var(--amber); }
+  .layer-label.spi { background: var(--green-dim); color: var(--green); }
+  .layer-label.infra { background: var(--coral-dim); color: var(--coral); }
+
+  .layer-body {
+    flex: 1;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .layer-chip {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 4px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .layer-chip.new { border-color: var(--blue-dim); color: var(--blue); background: rgba(74,158,255,0.05); }
+  .layer-chip.mod { border-color: rgba(245,158,11,0.3); color: var(--amber); background: rgba(245,158,11,0.05); }
+  .layer-chip.del { border-color: rgba(248,113,113,0.3); color: var(--coral); background: rgba(248,113,113,0.05); text-decoration: line-through; }
+
+  /* ── Flow diagram ── */
+  .flow {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px;
+    margin-top: 24px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    line-height: 2;
+    overflow-x: auto;
+  }
+  .flow .step { color: var(--text-bright); }
+  .flow .arrow { color: var(--text-dim); }
+  .flow .branch { color: var(--teal); }
+  .flow .note { color: var(--text-dim); font-style: italic; }
+  .flow .highlight { color: var(--amber); }
+  .flow .new { color: var(--blue); }
+
+  /* ── Table ── */
+  .arch-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    font-size: 13px;
+  }
+  .arch-table th {
+    text-align: left;
+    padding: 10px 16px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+  }
+  .arch-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    line-height: 1.6;
+  }
+  .arch-table tr:hover td { background: var(--bg2); }
+  .arch-table .mono { font-family: var(--mono); font-size: 11px; color: var(--text-bright); }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* ── Highlight block ── */
+  .insight {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-left: 3px solid var(--blue);
+    border-radius: 6px;
+    padding: 20px 24px;
+    margin: 20px 0;
+  }
+  .insight-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--blue);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .insight p { font-size: 13px; color: var(--text); }
+
+  /* ── DB schema block ── */
+  .schema-block {
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-top: 16px;
+  }
+  .schema-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+  }
+  .schema-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-bright);
+  }
+  .schema-comment { font-size: 11px; color: var(--text-dim); }
+  .schema-fields { padding: 4px 0; }
+  .schema-field {
+    display: grid;
+    grid-template-columns: 200px 140px 1fr;
+    gap: 16px;
+    padding: 7px 16px;
+    font-size: 12px;
+    border-bottom: 1px solid var(--border);
+    align-items: start;
+  }
+  .schema-field:last-child { border-bottom: none; }
+  .schema-field:hover { background: rgba(255,255,255,0.02); }
+  .field-name { font-family: var(--mono); color: var(--text-bright); }
+  .field-type { font-family: var(--mono); font-size: 11px; color: var(--teal); }
+  .field-desc { color: var(--text-dim); font-size: 12px; }
+  .field-new .field-name::after { content: ' NEW'; font-size: 9px; color: var(--blue); margin-left: 4px; vertical-align: middle; }
+  .field-del .field-name { text-decoration: line-through; color: var(--coral); }
+  .field-del .field-type { color: var(--coral-dim); }
+
+  @media (max-width: 768px) {
+    .header { padding: 32px 24px; }
+    .container { padding: 0 24px 60px; }
+    .card-grid.col2, .card-grid.col3 { grid-template-columns: 1fr; }
+    .schema-field { grid-template-columns: 1fr; gap: 4px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ HEADER ══════════════ -->
+<div class="header">
+  <div class="header-label">Librax Lab · 架构文档 v2.0</div>
+  <div class="header-title">流程引擎完整架构<br>原始设计 → 资源调度重构</div>
+  <div class="header-sub">从核心思想、模块分层、数据模型到资源调度接入的全链路分析，涵盖每一处设计决策的原因与权衡。</div>
+  <div class="header-meta">
+    <span class="meta-pill blue">Spring Boot · Java 17</span>
+    <span class="meta-pill teal">DAG 调度引擎</span>
+    <span class="meta-pill amber">资源调度 · Redis Lock</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ══════════════ 1. 系统定位 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">01</span>
+    <h2 class="section-title">系统定位与核心思想</h2>
+  </div>
+
+  <div class="prose">
+    <p>Librax 是一套面向实验室自动化场景的 <strong>流程编排与执行引擎</strong>。它解决的核心问题是：将一组有依赖关系的实验步骤（仪器操作、AGV 搬运、数据计算、条件判断）按 DAG 拓扑顺序并行调度执行，同时保证状态一致性、资源不超卖、故障可恢复。</p>
+
+    <p>与通用流程引擎（Temporal、Airflow）的本质区别在于 <em>物理资源维度</em>：每个步骤执行前必须抢占到真实的物理设备（离心机、AGV、显微镜），设备有区域归属和并发限制，这是实验室场景独有的约束。</p>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">核心设计哲学</div>
+    <p>调度器只负责「往前走」——找就绪节点、并行提交。资源申请是「门卫」——步骤执行前必须过的关。异常处理是「擦屁股员」——完全独立于主流程。三者通过事件解耦，各司其职。</p>
+  </div>
+
+  <div class="card-grid col3" style="margin-top:24px">
+    <div class="card blue">
+      <div class="card-title">DAG 调度</div>
+      <p>纯拓扑计算，不感知业务。依赖满足即并行提交，靠乐观锁防重复执行。</p>
+    </div>
+    <div class="card amber">
+      <div class="card-title">资源调度</div>
+      <p>步骤级门卫，Redis 锁 + 区域配额。申请失败不报错，等待重新调度。</p>
+    </div>
+    <div class="card coral">
+      <div class="card-title">异常处理</div>
+      <p>独立 ExceptionEngine，处理链模式。超时、重试、补偿、告警各司其职。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 2. 模块分层 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">02</span>
+    <h2 class="section-title">模块分层架构</h2>
+  </div>
+
+  <div class="prose">
+    <p>整个系统按<strong>垂直领域</strong>拆分为独立模块，模块间通过 API 接口和 Spring 事件通信，不直接依赖实现类。核心原则是：<em>定义层不感知执行，调度层不感知业务，执行层不感知调度</em>。</p>
+  </div>
+
+  <div class="layer-stack">
+
+    <div class="layer">
+      <div class="layer-label api">API</div>
+      <div class="layer-body">
+        <span class="layer-chip">PipelineExecutionController</span>
+        <span class="layer-chip">CallbackController</span>
+        <span class="layer-chip">ResourceAdminController</span>
+        <span style="font-size:11px;color:var(--text-dim);margin-left:8px">HTTP 入口，异步返回 executionId，鉴权/限流在此层</span>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label service">SERVICE</div>
+      <div class="layer-body">
+        <span class="layer-chip">PipelineExecutionService</span>
+        <span class="layer-chip">ExecutionStateMachine</span>
+        <span class="layer-chip">ExecutionContextManager</span>
+        <span style="font-size:11px;color:var(--text-dim);margin-left:8px">事务边界，启动5步原子操作，事务提交后触发调度</span>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label engine">ENGINE</div>
+      <div class="layer-body">
+        <span class="layer-chip">DagScheduler</span>
+        <span class="layer-chip">StepSubmitter</span>
+        <span class="layer-chip">StepStateMachine</span>
+        <span class="layer-chip">StepSuccessHandler</span>
+        <span class="layer-chip">StepFailureHandler</span>
+        <span class="layer-chip">ExceptionCoordinator</span>
+        <span class="layer-chip">TimeoutWatchdog</span>
+        <span class="layer-chip">PipelineGraphCache</span>
+        <span class="layer-chip">PipelineGraphBuilder</span>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label resource">RESOURCE</div>
+      <div class="layer-body">
+        <span class="layer-chip new">ResourcePool（接口）</span>
+        <span class="layer-chip new">ResourcePoolImpl</span>
+        <span class="layer-chip new">ResourceSelector</span>
+        <span class="layer-chip new">RedisResourceLock</span>
+        <span class="layer-chip new">lab_resource_config</span>
+        <span class="layer-chip new">lab_zone_quota</span>
+        <span class="layer-chip new">pd_step_resource_req</span>
+        <span class="layer-chip new">pe_step_resource_hold</span>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label spi">SPI / DISPATCH</div>
+      <div class="layer-body">
+        <span class="layer-chip">DispatchSpi（接口）</span>
+        <span class="layer-chip">DirectDispatchSpi</span>
+        <span class="layer-chip">QueuedDispatchSpi</span>
+        <span class="layer-chip">StepExecutorFactory</span>
+        <span class="layer-chip">InstrumentStepExecutor</span>
+        <span class="layer-chip">ConditionStepExecutor</span>
+        <span class="layer-chip">ComputeStepExecutor</span>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label infra">INFRA</div>
+      <div class="layer-body">
+        <span class="layer-chip">MySQL（状态持久化）</span>
+        <span class="layer-chip">Redis（上下文热存储 + 资源锁）</span>
+        <span class="layer-chip">ScheduledExecutorService（定时扫描）</span>
+        <span class="layer-chip">ThreadPoolExecutor（步骤并发）</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="display:flex;gap:16px;margin-top:16px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--text-dim)">图例：</span>
+    <span class="layer-chip new">蓝色边框 = 本次新增</span>
+    <span class="layer-chip mod">黄色边框 = 本次修改</span>
+    <span class="layer-chip del">红色 = 删除</span>
+  </div>
+</div>
+
+<!-- ══════════════ 3. 原始设计 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">03</span>
+    <h2 class="section-title">原始设计详解</h2>
+  </div>
+
+  <div class="prose">
+    <p>原始引擎围绕 <strong>DAG 调度 + 状态机 + SPI 分发</strong> 三核心构建，已实现完整的执行生命周期管理，包括异常处理链、超时扫描、补偿机制。以下是各核心模块的设计原因。</p>
+  </div>
+
+  <div class="card-grid col2" style="margin-top:24px">
+
+    <div class="card blue">
+      <div class="card-title">PipelineGraphCache — 懒加载 + 版本隔离</div>
+      <div class="card-sub">engine/definition/PipelineGraphCache.java</div>
+      <p><strong>为什么：</strong>流程定义是只读的，同一个版本不需要反复解析。运行中的执行实例必须绑定启动时的图版本，不能被后续修改影响。</p><br>
+      <p><strong>手段：</strong>ConcurrentHashMap&lt;(key,version), Graph&gt;，首次访问时从 DB 加载并缓存，不同版本独立存储。</p>
+    </div>
+
+    <div class="card purple">
+      <div class="card-title">DagScheduler — 纯拓扑调度</div>
+      <div class="card-sub">engine/execution/scheduler/DagScheduler.java</div>
+      <p><strong>为什么：</strong>调度逻辑和业务逻辑解耦，才能独立演进。调度器只知道「谁依赖谁」，不知道「步骤做什么」。</p><br>
+      <p><strong>手段：</strong>每轮 doSchedule() 扫描全部节点状态，找出 PENDING 且依赖全部 SUCCESS/SKIPPED 的节点，并行提交。事件驱动循环推进，无外部定时器。</p>
+    </div>
+
+    <div class="card teal">
+      <div class="card-title">StepStateMachine — 乐观锁 tryStart</div>
+      <div class="card-sub">engine/execution/statemachine/StepStateMachine.java</div>
+      <p><strong>为什么：</strong>同一个步骤可能被多次提交（重试、并发调度）。tryStart 用 CAS 保证只有一个线程能成功将步骤 PENDING→RUNNING，其余线程发现失败后自动放弃。</p><br>
+      <p><strong>手段：</strong>UPDATE ... WHERE status='PENDING' AND version=#{v}，affectedRows=0 则放弃。</p>
+    </div>
+
+    <div class="card amber">
+      <div class="card-title">ExceptionCoordinator — 处理链</div>
+      <div class="card-sub">engine/execution/exception/ExceptionCoordinator.java</div>
+      <p><strong>为什么：</strong>超时、重试、补偿、告警是不同的关注点，不能全塞进 onStepComplete。处理链让策略可配置，新增策略无需修改核心代码。</p><br>
+      <p><strong>手段：</strong>责任链模式，RetryHandler → CompensationHandler → AlertHandler，每个 Handler 处理后返回 HANDLED 或 PASS_TO_NEXT。</p>
+    </div>
+
+    <div class="card coral">
+      <div class="card-title">ExecutionContextManager — Redis热写+DB冷备</div>
+      <div class="card-sub">engine/execution/context/ExecutionContextManager.java</div>
+      <p><strong>为什么：</strong>步骤间传递数据（上游输出→下游输入）读写极频繁，DB 响应太慢。同时需要持久化应对 Redis 故障和宕机恢复。</p><br>
+      <p><strong>手段：</strong>节点输出实时写 Redis，异步写 pe_execution_context 表（JSON 全量覆盖）。恢复时从 DB 重建上下文。</p>
+    </div>
+
+    <div class="card green">
+      <div class="card-title">DispatchSpi — 双轨分发</div>
+      <div class="card-sub">api/dispatch/DispatchSpi.java（接口）</div>
+      <p><strong>为什么：</strong>同步仪器指令（DIRECT）和异步任务队列（QUEUED）的执行模型完全不同，统一接口屏蔽差异，调度器无需感知。</p><br>
+      <p><strong>手段：</strong>pd_pipeline_step.dispatch_mode 决定使用哪个 SPI 实现，StepSubmitter 通过 DispatchSpiFactory 路由。</p>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════ 4. 资源调度问题分析 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">04</span>
+    <h2 class="section-title">原始设计的资源问题</h2>
+  </div>
+
+  <div class="prose">
+    <p>原始设计中 ResourcePool 已有接口定义，但接入点和数据模型存在几个关键问题，本次重构主要解决这些问题。</p>
+  </div>
+
+  <table class="arch-table">
+    <tr>
+      <th>问题</th>
+      <th>原始设计</th>
+      <th>问题所在</th>
+      <th>本次修复</th>
+    </tr>
+    <tr>
+      <td><strong>区域归属</strong></td>
+      <td class="mono">PipelineGraph.zoneCode<br>（从 pe_pipeline_execution 查）</td>
+      <td>区域是步骤级概念，同一流程不同步骤可能在不同区。流程级 zoneCode 语义错误。</td>
+      <td>删 pe_pipeline_execution.zone_code。pd_pipeline_step 加 zone_code，StepNode 携带，从 node 取。</td>
+    </tr>
+    <tr>
+      <td><strong>资源开关</strong></td>
+      <td class="mono">needsResource() 判断<br>node.deviceType != null</td>
+      <td>deviceType 是执行器路由用的，不是资源调度开关。同类步骤不一定都需要抢占资源。</td>
+      <td>pd_pipeline_step 加 resource_enabled 字段，显式开关，粒度在步骤级。</td>
+    </tr>
+    <tr>
+      <td><strong>资源绑定粒度</strong></td>
+      <td>资源需求没有定义层，无法配置一步多资源</td>
+      <td>实际业务中一个步骤需要多台设备（如离心机+操作台），无法表达。</td>
+      <td>新建 pd_step_resource_req，1:N 关联步骤，每行一个资源需求。</td>
+    </tr>
+    <tr>
+      <td><strong>释放时机</strong></td>
+      <td>仅 dispatch 异常时释放，tryStart 失败时释放</td>
+      <td>步骤成功/DEAD/超时时资源不释放，导致资源永久泄漏。</td>
+      <td>StepSuccessHandler、StepFailureHandler、TimeoutWatchdog 各加 releaseIfHeld()。</td>
+    </tr>
+    <tr>
+      <td><strong>宕机恢复</strong></td>
+      <td>RecoveryScanner 无资源感知</td>
+      <td>宕机前已申请资源的步骤，恢复后 Redis 锁还在，导致资源永久锁定。</td>
+      <td>pe_step_execution 加 resource_acquired 字段，RecoveryScanner 扫到时先释放资源再重置步骤。</td>
+    </tr>
+    <tr>
+      <td><strong>审计追踪</strong></td>
+      <td>只有 Redis 锁记录</td>
+      <td>Redis 无持久化保证，无法追溯"这个步骤用了哪台设备多少时间"。</td>
+      <td>新建 pe_step_resource_hold 表，写 DB 记录，released_at IS NULL 表示持有中。</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ══════════════ 5. 资源调度核心思想 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">05</span>
+    <h2 class="section-title">资源调度核心思想</h2>
+  </div>
+
+  <div class="card-grid col3" style="margin-top:0">
+    <div class="card blue">
+      <div class="card-title">① 资源属于步骤，不属于流程</div>
+      <p>申请和释放的生命周期跟随步骤执行，不跟随流程。同一流程不同步骤用完全不同的设备。</p>
+    </div>
+    <div class="card teal">
+      <div class="card-title">② 申请必须原子</div>
+      <p>一步多资源时，要么全部申请成功才执行，要么一个都不占。部分申请会导致资源白白锁住（死锁前置条件）。</p>
+    </div>
+    <div class="card amber">
+      <div class="card-title">③ 资源分三类，策略不同</div>
+      <p>EXCLUSIVE 固定设备（本区独占）、SHARED 移动设备（全局 + 配额）、SLOT 容量（计数器）。不同类型锁机制不同。</p>
+    </div>
+  </div>
+
+  <div class="card-grid col3" style="margin-top:16px">
+    <div class="card purple">
+      <div class="card-title">④ 不足时等待，不报失败</div>
+      <p>资源不足不改步骤状态、不消耗重试次数，直接返回。等资源释放后 DagScheduler 重新触发，步骤再次竞争。</p>
+    </div>
+    <div class="card coral">
+      <div class="card-title">⑤ 防死锁：固定申请序</div>
+      <p>所有步骤按 sort_order 全局统一顺序申请资源。步骤A和步骤B都按 CENTRIFUGE→AGV 顺序申请，死锁从根本消除。</p>
+    </div>
+    <div class="card green">
+      <div class="card-title">⑥ 资源泄漏三道防线</div>
+      <p>正常：StepSuccessHandler/FailureHandler 释放。超时：TimeoutWatchdog 释放。宕机：RecoveryScanner 启动时释放。</p>
+    </div>
+  </div>
+
+  <!-- 资源申请流程 -->
+  <div class="flow">
+    <div><span class="step">DagScheduler.doSchedule()</span></div>
+    <div><span class="arrow">  └→ </span><span class="step">StepSubmitter.submit()</span></div>
+    <div><span class="arrow">       └→ </span><span class="step">node.isResourceEnabled()</span> <span class="branch">?</span></div>
+    <div><span class="arrow">            ├─ false → </span><span class="step">直接 dispatch(ctx)</span> <span class="note">// 开关关闭，跳过资源逻辑</span></div>
+    <div><span class="arrow">            └─ true  → </span><span class="new">ResourcePool.acquire(AcquireRequest)</span></div>
+    <div><span class="arrow">                           ├→ </span><span class="new">ResourceSelector.select()</span> <span class="note">// 按类型+区域+健康筛候选设备</span></div>
+    <div><span class="arrow">                           ├→ </span><span class="new">尝试独占资源（本区 EXCLUSIVE）</span></div>
+    <div><span class="arrow">                           ├→ </span><span class="new">尝试共享资源（检验 ZoneQuota）</span></div>
+    <div><span class="arrow">                           ├─ 失败 → </span><span class="highlight">直接 return，等下轮调度</span></div>
+    <div><span class="arrow">                           └─ 成功 → </span><span class="new">写 pe_step_resource_hold</span></div>
+    <div><span class="arrow">                                       → </span><span class="step">StepStateMachine.tryStart()</span></div>
+    <div><span class="arrow">                                       → </span><span class="step">dispatch(ctx)</span> <span class="note">// ctx 携带 resourceId</span></div>
+    <br>
+    <div><span class="step">步骤完成（成功 / 失败 / 超时）</span></div>
+    <div><span class="arrow">  └→ </span><span class="new">releaseIfHeld(executionId, nodeId, attempt, reason)</span></div>
+    <div><span class="arrow">       └→ </span><span class="new">ResourcePool.release(resourceId, holderKey)</span></div>
+    <div><span class="arrow">       └→ </span><span class="new">pe_step_resource_hold.released_at = now()</span></div>
+  </div>
+</div>
+
+<!-- ══════════════ 6. 数据模型全景 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">06</span>
+    <h2 class="section-title">数据模型全景（最终版）</h2>
+  </div>
+
+  <div class="prose">
+    <p>所有表按前缀分层：<strong>pd_</strong> = 流程定义，<strong>pe_</strong> = 流程执行，<strong>lab_</strong> = 实验室资源配置。</p>
+  </div>
+
+  <!-- pd_pipeline_step -->
+  <div class="schema-block" style="margin-top:24px">
+    <div class="schema-header">
+      <span class="schema-name">pd_pipeline_step</span>
+      <span class="schema-comment">流程步骤定义（本次加2字段）</span>
+    </div>
+    <div class="schema-fields">
+      <div class="schema-field"><span class="field-name">pipeline_key</span><span class="field-type">varchar(64)</span><span class="field-desc">关联 pd_pipeline_definition.pipeline_key</span></div>
+      <div class="schema-field"><span class="field-name">node_id</span><span class="field-type">varchar(64)</span><span class="field-desc">节点ID，同流程内唯一</span></div>
+      <div class="schema-field"><span class="field-name">dispatch_mode</span><span class="field-type">varchar(16)</span><span class="field-desc">DIRECT / QUEUED，分发模式</span></div>
+      <div class="schema-field"><span class="field-name">depends_on</span><span class="field-type">json</span><span class="field-desc">前置节点 node_id 列表</span></div>
+      <div class="schema-field field-new"><span class="field-name">resource_enabled</span><span class="field-type">tinyint(1)</span><span class="field-desc">资源调度开关：0=直接执行，1=执行前申请资源</span></div>
+      <div class="schema-field field-new"><span class="field-name">zone_code</span><span class="field-type">varchar(32)</span><span class="field-desc">步骤所属区域，固定资源隔离依据，INSTRUMENT步骤必填</span></div>
+    </div>
+  </div>
+
+  <!-- pd_step_resource_req -->
+  <div class="schema-block">
+    <div class="schema-header">
+      <span class="schema-name">pd_step_resource_req</span>
+      <span class="schema-comment" style="color:var(--blue)">★ 新建：步骤资源需求定义（1:N，一步多资源）</span>
+    </div>
+    <div class="schema-fields">
+      <div class="schema-field field-new"><span class="field-name">pipeline_step_id</span><span class="field-type">bigint</span><span class="field-desc">关联 pd_pipeline_step.id（步骤节点级别，非步骤定义级别）</span></div>
+      <div class="schema-field field-new"><span class="field-name">resource_type</span><span class="field-type">varchar(32)</span><span class="field-desc">需要的资源类型，如 PH_METER、AGV，对应 lab_resource_config.resource_type</span></div>
+      <div class="schema-field field-new"><span class="field-name">quantity</span><span class="field-type">int</span><span class="field-desc">需要数量，通常为1，AGV等可能&gt;1</span></div>
+      <div class="schema-field field-new"><span class="field-name">is_exclusive</span><span class="field-type">tinyint(1)</span><span class="field-desc">1=独占（同时只能一个步骤用）0=共享（只读设备可并发）</span></div>
+      <div class="schema-field field-new"><span class="field-name">sort_order</span><span class="field-type">int</span><span class="field-desc">全局统一申请顺序，所有步骤必须按相同顺序申请，防死锁</span></div>
+    </div>
+  </div>
+
+  <!-- pe_step_execution -->
+  <div class="schema-block">
+    <div class="schema-header">
+      <span class="schema-name">pe_step_execution</span>
+      <span class="schema-comment">步骤执行记录（本次加2字段）</span>
+    </div>
+    <div class="schema-fields">
+      <div class="schema-field"><span class="field-name">execution_id</span><span class="field-type">varchar(64)</span><span class="field-desc">关联 pe_pipeline_execution.execution_id</span></div>
+      <div class="schema-field"><span class="field-name">node_id</span><span class="field-type">varchar(64)</span><span class="field-desc">节点ID</span></div>
+      <div class="schema-field"><span class="field-name">status</span><span class="field-type">varchar(32)</span><span class="field-desc">PENDING|RUNNING|SUCCESS|FAILED|DEAD|SKIPPED|TIMEOUT|RETRYING</span></div>
+      <div class="schema-field"><span class="field-name">attempt</span><span class="field-type">int</span><span class="field-desc">第几次重试，每次重试新建一行</span></div>
+      <div class="schema-field"><span class="field-name">device_id</span><span class="field-type">varchar(64)</span><span class="field-desc">实际分配到的设备ID（已有字段，保留）</span></div>
+      <div class="schema-field field-new"><span class="field-name">zone_code</span><span class="field-type">varchar(32)</span><span class="field-desc">执行时所在区域，冗余自步骤定义，便于查询追踪</span></div>
+      <div class="schema-field field-new"><span class="field-name">resource_acquired</span><span class="field-type">tinyint(1)</span><span class="field-desc">资源是否已申请：1=已持有，宕机恢复时判断是否需要先释放</span></div>
+    </div>
+  </div>
+
+  <!-- pe_pipeline_execution -->
+  <div class="schema-block">
+    <div class="schema-header">
+      <span class="schema-name">pe_pipeline_execution</span>
+      <span class="schema-comment">流程执行实例（本次删1字段）</span>
+    </div>
+    <div class="schema-fields">
+      <div class="schema-field"><span class="field-name">execution_id</span><span class="field-type">varchar(64)</span><span class="field-desc">执行唯一业务ID，UUID</span></div>
+      <div class="schema-field"><span class="field-name">pipeline_key</span><span class="field-type">varchar(64)</span><span class="field-desc">流程标识</span></div>
+      <div class="schema-field"><span class="field-name">status</span><span class="field-type">varchar(32)</span><span class="field-desc">PENDING|RUNNING|SUCCESS|FAILED|CANCELLED</span></div>
+      <div class="schema-field field-del"><span class="field-name">zone_code</span><span class="field-type">varchar(32)</span><span class="field-desc">删除：区域是步骤级概念，不是流程级。同一流程不同步骤可能在不同区。</span></div>
+    </div>
+  </div>
+
+  <!-- pe_step_resource_hold -->
+  <div class="schema-block">
+    <div class="schema-header">
+      <span class="schema-name">pe_step_resource_hold</span>
+      <span class="schema-comment" style="color:var(--blue)">★ 新建：步骤执行资源占用记录</span>
+    </div>
+    <div class="schema-fields">
+      <div class="schema-field field-new"><span class="field-name">execution_id</span><span class="field-type">varchar(64)</span><span class="field-desc">关联 pe_pipeline_execution.execution_id</span></div>
+      <div class="schema-field field-new"><span class="field-name">node_id</span><span class="field-type">varchar(64)</span><span class="field-desc">节点ID</span></div>
+      <div class="schema-field field-new"><span class="field-name">attempt</span><span class="field-type">int</span><span class="field-desc">第几次重试，与 pe_step_execution.attempt 对应</span></div>
+      <div class="schema-field field-new"><span class="field-name">resource_id</span><span class="field-type">varchar(64)</span><span class="field-desc">实际占用的具体设备ID，关联 lab_resource_config.resource_id</span></div>
+      <div class="schema-field field-new"><span class="field-name">resource_type</span><span class="field-type">varchar(32)</span><span class="field-desc">资源类型，冗余存便于查询</span></div>
+      <div class="schema-field field-new"><span class="field-name">acquired_at</span><span class="field-type">datetime(3)</span><span class="field-desc">申请到资源的时间</span></div>
+      <div class="schema-field field-new"><span class="field-name">released_at</span><span class="field-type">datetime(3)</span><span class="field-desc">NULL=当前持有中，有值=已释放。idx_resource(resource_id, released_at) 支持快速查"谁占着"</span></div>
+      <div class="schema-field field-new"><span class="field-name">release_reason</span><span class="field-type">varchar(32)</span><span class="field-desc">STEP_COMPLETE / STEP_DEAD / TIMEOUT / CANCELLED / RECOVERY</span></div>
+    </div>
+  </div>
+
+  <!-- lab_resource_config -->
+  <div class="schema-block">
+    <div class="schema-header">
+      <span class="schema-name">lab_resource_config</span>
+      <span class="schema-comment">资源配置表（已有，本次加2字段支持 CAS）</span>
+    </div>
+    <div class="schema-fields">
+      <div class="schema-field"><span class="field-name">resource_id</span><span class="field-type">varchar(64)</span><span class="field-desc">资源唯一ID，如 PH-METER-01、AGV-01</span></div>
+      <div class="schema-field"><span class="field-name">resource_type</span><span class="field-type">varchar(32)</span><span class="field-desc">资源类型，如 PH_METER / AGV</span></div>
+      <div class="schema-field"><span class="field-name">ownership_type</span><span class="field-type">varchar(16)</span><span class="field-desc">EXCLUSIVE=独占（本区）/ SHARED=共享（全局+配额）</span></div>
+      <div class="schema-field"><span class="field-name">zone_code</span><span class="field-type">varchar(32)</span><span class="field-desc">独占时必填，共享时为 NULL</span></div>
+      <div class="schema-field"><span class="field-name">max_concurrent</span><span class="field-type">int</span><span class="field-desc">最大并发持有数</span></div>
+      <div class="schema-field"><span class="field-name">enabled</span><span class="field-type">bit(1)</span><span class="field-desc">是否启用，0=禁用不参与调度</span></div>
+    </div>
+  </div>
+
+  <!-- lab_zone_quota -->
+  <div class="schema-block">
+    <div class="schema-header">
+      <span class="schema-name">lab_zone_quota</span>
+      <span class="schema-comment">区域对共享资源的配额（已有，不变）</span>
+    </div>
+    <div class="schema-fields">
+      <div class="schema-field"><span class="field-name">zone_code</span><span class="field-type">varchar(32)</span><span class="field-desc">区域编码，如 ZONE-A</span></div>
+      <div class="schema-field"><span class="field-name">resource_type</span><span class="field-type">varchar(32)</span><span class="field-desc">共享资源类型，如 AGV</span></div>
+      <div class="schema-field"><span class="field-name">max_borrow</span><span class="field-type">int</span><span class="field-desc">本区最多同时借用数，防止单区垄断公共资源</span></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════ 7. 关键改动 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">07</span>
+    <h2 class="section-title">关键代码改动清单</h2>
+  </div>
+
+  <table class="arch-table">
+    <tr>
+      <th>文件</th>
+      <th>操作</th>
+      <th>改动内容</th>
+      <th>原因</th>
+    </tr>
+    <tr>
+      <td class="mono">DagScheduler.java</td>
+      <td><span class="tag mod">修改</span></td>
+      <td>删 resolveZoneCode()、copyWithZone()、PipelineExecutionMapper 注入。schedule() 和 onStepComplete() 直接用 graphCache.get()。</td>
+      <td>zoneCode 改为步骤级，graph 副本不再需要携带 zoneCode。</td>
+    </tr>
+    <tr>
+      <td class="mono">StepSubmitter.java</td>
+      <td><span class="tag mod">修改</span></td>
+      <td>needsResource() 改用 node.isResourceEnabled()。zoneCode 从 node 取。申请后写 pe_step_resource_hold。抽出 releaseResource() / rollbackResource()。</td>
+      <td>修复开关逻辑和区域取值错误，补充 DB 占用记录。</td>
+    </tr>
+    <tr>
+      <td class="mono">StepNode.java</td>
+      <td><span class="tag mod">修改</span></td>
+      <td>加 resourceEnabled、zoneCode 字段。</td>
+      <td>携带步骤级资源配置。</td>
+    </tr>
+    <tr>
+      <td class="mono">PipelineGraph.java</td>
+      <td><span class="tag mod">修改</span></td>
+      <td>删 zoneCode 字段。</td>
+      <td>区域是步骤级，不是流程级。</td>
+    </tr>
+    <tr>
+      <td class="mono">PipelineGraphBuilder.java</td>
+      <td><span class="tag mod">修改</span></td>
+      <td>assembleNode() 从 pd_pipeline_step 读 resource_enabled 和 zone_code，resource_enabled=1 时从 pd_step_resource_req 加载资源需求列表。</td>
+      <td>步骤资源需求在图构建时注入，运行时无需再查表。</td>
+    </tr>
+    <tr>
+      <td class="mono">StepSuccessHandler.java</td>
+      <td><span class="tag mod">修改</span></td>
+      <td>handle() 末尾加 releaseIfHeld(executionId, nodeId, attempt, "STEP_COMPLETE")。</td>
+      <td>步骤成功后释放资源，原来缺失。</td>
+    </tr>
+    <tr>
+      <td class="mono">StepFailureHandler.java</td>
+      <td><span class="tag mod">修改</span></td>
+      <td>步骤达到 DEAD 终态时加 releaseIfHeld("STEP_DEAD")。</td>
+      <td>重试耗尽进 DEAD 后释放资源，原来缺失。</td>
+    </tr>
+    <tr>
+      <td class="mono">TimeoutWatchdog.java</td>
+      <td><span class="tag mod">修改</span></td>
+      <td>超时强制终止时加 releaseIfHeld("TIMEOUT")。</td>
+      <td>超时后释放资源，原来缺失。</td>
+    </tr>
+    <tr>
+      <td class="mono">RecoveryScanner.java</td>
+      <td><span class="tag mod">修改</span></td>
+      <td>扫到 RUNNING 步骤时，查 pe_step_resource_hold 有无未释放记录，有则先 release 再重置 PENDING。</td>
+      <td>宕机恢复防止资源永久锁定。</td>
+    </tr>
+    <tr>
+      <td class="mono">ResourcePoolImpl.java</td>
+      <td><span class="tag keep">不变</span></td>
+      <td>逻辑完整，直接复用。</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td class="mono">RedisResourceLock.java</td>
+      <td><span class="tag keep">不变</span></td>
+      <td>三类 Redis Key 管理完整，直接复用。</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td class="mono">ResourceSelector.java</td>
+      <td><span class="tag keep">不变</span></td>
+      <td>候选设备筛选逻辑完整，直接复用。</td>
+      <td>—</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ══════════════ 8. Redis Key 设计 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">08</span>
+    <h2 class="section-title">Redis Key 设计</h2>
+  </div>
+
+  <div class="flow">
+    <div><span class="note">// 资源锁（Hash）</span></div>
+    <div><span class="step">resource:lock:{resourceId}</span>  <span class="arrow">→</span>  <span class="branch">{ holder, zoneCode, acquiredAt }</span></div>
+    <div><span class="note">// 作用：判断设备是否被占用，存储持有者和申请区域</span></div>
+    <br>
+    <div><span class="note">// 持有者反向索引（Set）</span></div>
+    <div><span class="step">resource:holder:{holderKey}</span>  <span class="arrow">→</span>  <span class="branch">Set&lt;resourceId&gt;</span></div>
+    <div><span class="note">// holderKey = executionId:nodeId:attempt</span></div>
+    <div><span class="note">// 作用：批量释放一个步骤的所有资源（releaseByHolder）</span></div>
+    <br>
+    <div><span class="note">// 区域配额计数（String/Int）</span></div>
+    <div><span class="step">resource:zone:{zone}:borrow:{type}</span>  <span class="arrow">→</span>  <span class="branch">当前借用数</span></div>
+    <div><span class="note">// 作用：防止单区垄断 AGV 等共享资源，incrQuota/decrQuota 维护</span></div>
+  </div>
+
+  <div class="insight" style="margin-top:20px">
+    <div class="insight-label">为什么用 Redis 而不是 DB 做资源锁</div>
+    <p>资源竞争是毫秒级决策，多个步骤并发争同一台设备，DB 行锁的响应延迟（5-20ms）会成为瓶颈。Redis 的 Hash.putIfAbsent 操作是原子的，延迟在 1ms 以内。DB 表（pe_step_resource_hold）用于审计和宕机恢复，不用于运行时竞争。两者职责完全分开。</p>
+  </div>
+</div>
+
+<!-- ══════════════ 9. 整体调度流程 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">09</span>
+    <h2 class="section-title">完整执行流程（含资源调度）</h2>
+  </div>
+
+  <div class="flow">
+    <div><span class="note">【流程启动】</span></div>
+    <div><span class="step">POST /pipeline/{key}/start</span></div>
+    <div><span class="arrow">  └→ </span><span class="step">PipelineExecutionService.start()</span></div>
+    <div><span class="arrow">       ├→ [事务内] 创建 pe_pipeline_execution + 初始化所有 pe_step_execution(PENDING)</span></div>
+    <div><span class="arrow">       └→ [事务提交后] DagScheduler.schedule(executionId)</span></div>
+    <br>
+    <div><span class="note">【调度循环】（每轮由节点完成事件触发）</span></div>
+    <div><span class="step">DagScheduler.doSchedule(executionId)</span></div>
+    <div><span class="arrow">  ├→ 加载所有步骤状态 → 找就绪节点（PENDING + 依赖全满足）</span></div>
+    <div><span class="arrow">  └→ 并行 forEach(readyNode → StepSubmitter.submit())</span></div>
+    <br>
+    <div><span class="note">【步骤执行】</span></div>
+    <div><span class="step">StepSubmitter.submit(executionId, graph, node)</span></div>
+    <div><span class="arrow">  ├→ CONDITION节点：同步执行，不需要资源，直接走</span></div>
+    <div><span class="arrow">  └→ 其他节点：</span></div>
+    <div><span class="arrow">       ├→ </span><span class="new">node.isResourceEnabled() = true → ResourcePool.acquire()</span></div>
+    <div><span class="arrow">       │    ├─ 申请失败 → return（等下轮调度，不改状态）</span></div>
+    <div><span class="arrow">       │    └─ 申请成功 → </span><span class="new">写 pe_step_resource_hold</span><span class="arrow"> → 继续</span></div>
+    <div><span class="arrow">       ├→ StepStateMachine.tryStart()</span><span class="note">（CAS: PENDING→RUNNING）</span></div>
+    <div><span class="arrow">       │    └─ 失败 → rollbackResource() → return</span></div>
+    <div><span class="arrow">       └→ dispatch(ctx) → DispatchSpi 路由执行</span></div>
+    <br>
+    <div><span class="note">【步骤完成回调】</span></div>
+    <div><span class="step">DagScheduler.onStepComplete()</span></div>
+    <div><span class="arrow">  ├─ 成功 → StepSuccessHandler → 写上下文 → </span><span class="new">releaseIfHeld(STEP_COMPLETE)</span><span class="arrow"> → doSchedule()</span></div>
+    <div><span class="arrow">  └─ 失败 → StepFailureHandler → ExceptionCoordinator</span></div>
+    <div><span class="arrow">               ├→ RetryHandler: 重试次数未耗尽 → 延迟重试</span></div>
+    <div><span class="arrow">               ├→ CompensationHandler: 需要补偿 → 触发补偿步骤</span></div>
+    <div><span class="arrow">               └→ AlertHandler: 告警 + </span><span class="new">releaseIfHeld(STEP_DEAD)</span><span class="arrow"> + FailureImpact 处理</span></div>
+    <br>
+    <div><span class="note">【超时扫描】（每10秒）</span></div>
+    <div><span class="step">TimeoutWatchdog.scan()</span></div>
+    <div><span class="arrow">  └→ 找 RUNNING 且 started_at + timeout_ms &lt; now 的步骤</span></div>
+    <div><span class="arrow">       └→ CAS: RUNNING→TIMEOUT → interrupt线程 → </span><span class="new">releaseIfHeld(TIMEOUT)</span><span class="arrow"> → ExceptionCoordinator</span></div>
+    <br>
+    <div><span class="note">【宕机恢复】（启动时扫描）</span></div>
+    <div><span class="step">RecoveryScanner.recover()</span></div>
+    <div><span class="arrow">  └→ 找 RUNNING 状态的步骤</span></div>
+    <div><span class="arrow">       ├→ </span><span class="new">resource_acquired=1 → release(RECOVERY) → 清除 Redis 锁</span></div>
+    <div><span class="arrow">       └→ 重置为 PENDING → 重新参与调度</span></div>
+  </div>
+</div>
+
+<!-- ══════════════ 10. 设计决策总结 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">10</span>
+    <h2 class="section-title">关键设计决策总结</h2>
+  </div>
+
+  <table class="arch-table">
+    <tr>
+      <th>决策点</th>
+      <th>选择</th>
+      <th>为什么不用其他方案</th>
+    </tr>
+    <tr>
+      <td><strong>资源锁</strong></td>
+      <td>Redis Hash + putIfAbsent</td>
+      <td>DB 行锁延迟高（5-20ms），Redis &lt;1ms。资源竞争是高频操作，需要快速响应。</td>
+    </tr>
+    <tr>
+      <td><strong>步骤并发控制</strong></td>
+      <td>DB 乐观锁（tryStart CAS）</td>
+      <td>分布式锁（Redisson）引入额外依赖和续期问题。乐观锁冲突概率低，冲突时直接放弃不重试，代价小。</td>
+    </tr>
+    <tr>
+      <td><strong>上下文存储</strong></td>
+      <td>Redis 热写 + DB 异步冷备</td>
+      <td>纯 DB 太慢；纯 Redis 宕机丢数据。双写同步影响主流程性能。热冷分离是最优折中。</td>
+    </tr>
+    <tr>
+      <td><strong>超时发现</strong></td>
+      <td>DB 扫描（每10s）</td>
+      <td>内存定时器在宕机后丢失，多实例时归属不确定。DB 扫描无状态，任何实例都能接管。</td>
+    </tr>
+    <tr>
+      <td><strong>异常处理</strong></td>
+      <td>独立 ExceptionEngine，责任链</td>
+      <td>塞进 onStepComplete 会导致主流程膨胀。责任链让策略可配置，新增策略无需改核心代码。</td>
+    </tr>
+    <tr>
+      <td><strong>资源等待</strong></td>
+      <td>直接返回，等下轮调度</td>
+      <td>阻塞等待会占用线程。独立等待队列增加复杂度。等下轮调度简单，DagScheduler 本来就是重入的。</td>
+    </tr>
+    <tr>
+      <td><strong>防死锁</strong></td>
+      <td>sort_order 全局固定申请序</td>
+      <td>超时检测+回滚（银行家算法）复杂，还有延迟。固定申请序在定义层解决问题，运行时零开销。</td>
+    </tr>
+    <tr>
+      <td><strong>图缓存</strong></td>
+      <td>ConcurrentHashMap，版本隔离</td>
+      <td>启动时全量加载浪费内存。懒加载 + 版本 key 保证运行中的执行不受定义修改影响。</td>
+    </tr>
+  </table>
+</div>
+
+<div class="divider"></div>
+
+<div style="text-align:center;padding:20px 0;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+  Librax Lab · 流程引擎架构文档 v2.0 · 资源调度重构完整版
+</div>
+
+</div>
+</body>
+</html>

@@ -1,5 +1,6 @@
 package com.librax.lab.module.flow.dal.mysql.stepexecution;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
@@ -79,5 +80,18 @@ public interface StepExecutionMapper extends BaseMapperX<StepExecutionDO> {
                 .eq(StepExecutionDO::getNodeId, nodeId)
                 .eq(StepExecutionDO::getAttempt, attempt)
                 .set(StepExecutionDO::getResourceAcquired, 0));
+    }
+
+    default int casStartWithSnapshot(String executionId, String nodeId,
+                                     int attempt, LocalDateTime startedAt,
+                                     String inputSnapshot) {
+        return update(null, new LambdaUpdateWrapper<StepExecutionDO>()
+                .eq(StepExecutionDO::getExecutionId, executionId)
+                .eq(StepExecutionDO::getNodeId, nodeId)
+                .eq(StepExecutionDO::getAttempt, attempt)
+                .eq(StepExecutionDO::getStatus, StepStatusEnum.PENDING.name())
+                .set(StepExecutionDO::getStatus, StepStatusEnum.RUNNING.name())
+                .set(StepExecutionDO::getStartedAt, startedAt)
+                .set(StepExecutionDO::getInputSnapshot, inputSnapshot));  // ★
     }
 }

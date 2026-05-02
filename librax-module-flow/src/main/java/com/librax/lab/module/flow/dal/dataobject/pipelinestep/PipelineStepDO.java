@@ -155,5 +155,9 @@ public class PipelineStepDO extends BaseDO {
      */
     private String zoneCode;
 
+    /**
+     * 资源等待超时时间(ms)，步骤等待资源超过此值后触发失败，NULL 则用默认值
+     */
+    private Long resourceWaitTimeoutMs;
 
 }

@@ -1,11 +1,12 @@
 package com.librax.lab.module.flow.engine.definition;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 流程图缓存
@@ -18,12 +19,13 @@ import java.util.concurrent.ConcurrentHashMap;
  *   <li>key = pipelineKey:version，不同版本独立缓存，互不影响
  *   <li>首次访问时加载（懒加载），加载失败不写入缓存
  *   <li>发布新版本 / 修改定义后调用 {@link #invalidate} 主动失效
- *   <li>ConcurrentHashMap + computeIfAbsent 保证同一 key 只加载一次（无重复 DB 查询）
+ *   <li>Caffeine Cache 保证同一 key 只加载一次（无重复 DB 查询）
+ *   <li>maximumSize=256 防止版本过多导致 OOM
+ *   <li>expireAfterAccess=2h，运行中的执行会持续访问保持热，结束后自然淘汰
  * </ul>
  */
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class PipelineGraphCache {
 
     private final PipelineGraphBuilder builder;
@@ -31,8 +33,22 @@ public class PipelineGraphCache {
 
     /**
      * key = "pipelineKey:version"
+     * <p>Caffeine 替代 ConcurrentHashMap：
+     * - maximumSize 防止无限增长导致 OOM
+     * - expireAfterAccess 让不再使用的版本自动淘汰
+     * - 运行中的执行会持续 get() 访问，自动续期不会被淘汰
      */
-    private final ConcurrentHashMap<String, PipelineGraph> cache = new ConcurrentHashMap<>();
+    private final Cache<String, PipelineGraph> cache = Caffeine.newBuilder()
+            .maximumSize(256)
+            .expireAfterAccess(2, TimeUnit.HOURS)
+            .removalListener((key, value, cause) ->
+                    log.info("[PipelineGraphCache] 缓存淘汰 key={} cause={}", key, cause))
+            .build();
+
+    public PipelineGraphCache(PipelineGraphBuilder builder, PipelineGraphValidator validator) {
+        this.builder = builder;
+        this.validator = validator;
+    }
 
     // ----------------------------------------------------------------
     // 对外接口
@@ -48,8 +64,8 @@ public class PipelineGraphCache {
      */
     public PipelineGraph get(String pipelineKey, Integer version) {
         String key = cacheKey(pipelineKey, version);
-        // computeIfAbsent：同一 key 并发时只有一个线程执行 load，其余等待结果
-        return cache.computeIfAbsent(key, k -> load(pipelineKey, version));
+        // Caffeine.get：同一 key 并发时只有一个线程执行 load，其余等待结果
+        return cache.get(key, k -> load(pipelineKey, version));
     }
 
     /**
@@ -60,7 +76,9 @@ public class PipelineGraphCache {
      * @param version     版本号
      */
     public void invalidate(String pipelineKey, Integer version) {
-        PipelineGraph removed = cache.remove(cacheKey(pipelineKey, version));
+        String key = cacheKey(pipelineKey, version);
+        PipelineGraph removed = cache.getIfPresent(key);
+        cache.invalidate(key);
         if (removed != null) {
             log.info("[PipelineGraphCache] 缓存已失效 pipeline_key={} version={}",
                     pipelineKey, version);
@@ -78,7 +96,7 @@ public class PipelineGraphCache {
      */
     public void invalidateAll(String pipelineKey) {
         String prefix = pipelineKey + ":";
-        cache.keySet().removeIf(k -> k.startsWith(prefix));
+        cache.asMap().keySet().removeIf(k -> k.startsWith(prefix));
         log.info("[PipelineGraphCache] 所有版本缓存已失效 pipeline_key={}", pipelineKey);
     }
 
@@ -90,7 +108,7 @@ public class PipelineGraphCache {
      */
     public void preload(String pipelineKey, Integer version) {
         String key = cacheKey(pipelineKey, version);
-        if (cache.containsKey(key)) {
+        if (cache.getIfPresent(key) != null) {
             log.debug("[PipelineGraphCache] 已缓存，跳过预加载 pipeline_key={} version={}",
                     pipelineKey, version);
             return;
@@ -104,14 +122,14 @@ public class PipelineGraphCache {
      * 查询是否已缓存
      */
     public boolean isCached(String pipelineKey, Integer version) {
-        return cache.containsKey(cacheKey(pipelineKey, version));
+        return cache.getIfPresent(cacheKey(pipelineKey, version)) != null;
     }
 
     /**
      * 当前缓存数量（用于监控）
      */
-    public int size() {
-        return cache.size();
+    public long size() {
+        return cache.estimatedSize();
     }
 
     // ----------------------------------------------------------------

@@ -131,6 +131,12 @@
             <artifactId>liteflow-rule-sql</artifactId>
         </dependency>
 
+        <!-- Caffeine：流程图本地缓存（TTL + 大小限制，防 OOM） -->
+        <dependency>
+            <groupId>com.github.ben-manes.caffeine</groupId>
+            <artifactId>caffeine</artifactId>
+        </dependency>
+
         <!-- JGraphT：环检测、拓扑排序、关键路径计算 -->
         <dependency>
             <groupId>org.jgrapht</groupId>

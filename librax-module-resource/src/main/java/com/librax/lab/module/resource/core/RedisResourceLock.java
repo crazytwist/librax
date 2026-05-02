@@ -49,7 +49,7 @@ public class RedisResourceLock {
         String lockKey = lockKey(resourceId);
 
         Boolean acquired = redis.opsForHash().putIfAbsent(lockKey, FIELD_HOLDER, holderKey);
-        if (Boolean.FALSE.equals(acquired)) {
+        if (!acquired) {
             return false;
         }
 
@@ -114,10 +114,11 @@ public class RedisResourceLock {
         redis.delete(holderKey(holderKey));
     }
 
-    /** 区域配额 +1,返回 +1 后的值 */
-    public long incrQuota(String zoneCode, String resourceType) {
+    /**
+     * 区域配额 +1,返回 +1 后的值
+     */
+    public void incrQuota(String zoneCode, String resourceType) {
         Long v = redis.opsForValue().increment(quotaKey(zoneCode, resourceType));
-        return v == null ? 0L : v;
     }
 
     /** 区域配额 -1,兜底防负数 */

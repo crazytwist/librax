@@ -216,6 +216,8 @@ public class PipelineGraphBuilder {
                 // 资源启用和所属区域编码
                 .resourceEnabled(ps.getResourceEnabled())
                 .zoneCode(ps.getZoneCode())
+                // 资源等待超时（NULL 则由 StepSubmitter 使用默认值）
+                .resourceWaitTimeoutMs(ps.getResourceWaitTimeoutMs())
                 .build();
     }
 

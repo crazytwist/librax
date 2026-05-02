@@ -50,9 +50,7 @@ public class ResourcePoolImpl implements ResourcePool {
         ResourceSelector.Candidates candidates = selector.select(req);
 
         if (candidates.isEmpty()) {
-            AcquireFailReasonEnum reason = hasAnyConfig(req)
-                    ? AcquireFailReasonEnum.NO_HEALTHY
-                    : AcquireFailReasonEnum.NO_CONFIG;
+            AcquireFailReasonEnum reason = hasAnyConfig(req) ? AcquireFailReasonEnum.NO_HEALTHY : AcquireFailReasonEnum.NO_CONFIG;
             log.warn("[ResourcePool] 无候选资源 type={} zone={} reason={}",
                     req.getResourceType(), req.getZoneCode(), reason);
             return AcquireResult.fail(reason, DEFAULT_RETRY_MS);
@@ -63,8 +61,7 @@ public class ResourcePoolImpl implements ResourcePool {
         // 1. 优先尝试独占资源(本区)
         for (String rid : candidates.exclusive()) {
             if (lock.tryLock(rid, req.getHolderKey(), req.getZoneCode(), ttlMs)) {
-                log.info("[ResourcePool] 抢占独占资源 resourceId={} holder={}",
-                        rid, req.getHolderKey());
+                log.info("[ResourcePool] 抢占独占资源 resourceId={} holder={}", rid, req.getHolderKey());
                 return AcquireResult.ok(rid);
             }
         }

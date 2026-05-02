@@ -135,6 +135,13 @@ public class StepNode {
     private String deviceType;
     private String command;
 
+    // ---- 资源等待超时 ----
+    /**
+     * 资源等待超时时间(ms)，步骤在 PENDING 状态等待资源超过此值后触发失败。
+     * NULL 表示使用默认值 300_000ms（5分钟）。
+     */
+    private Long resourceWaitTimeoutMs;
+
     /**
      * 获取分支目标节点：优先用 branches，回退到 trueBranch/falseBranch
      *
