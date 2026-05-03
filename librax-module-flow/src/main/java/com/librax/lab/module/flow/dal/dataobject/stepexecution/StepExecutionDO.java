@@ -120,7 +120,4 @@ public class StepExecutionDO extends BaseDO {
      * 资源是否已申请：0=未申请，1=已持有（宕机恢复时判断是否需要先释放）
      */
     private Integer resourceAcquired;
-
-
-
 }

@@ -14,6 +14,7 @@ import com.librax.lab.module.flow.engine.execution.exception.FailureActionHelper
 import com.librax.lab.module.flow.engine.execution.exception.FailureDecision;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;
+import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -73,11 +74,14 @@ public class TimeoutWatchdog {
                 .selectByStatus(ExecutionStatusEnum.RUNNING.name());
 
         for (PipelineExecutionDO execution : runningExecutions) {
+            ExecutionMdc.set(execution.getExecutionId());
             try {
                 checkStepTimeouts(execution);
             } catch (Exception e) {
                 log.error("[TimeoutWatchdog] 步骤超时扫描异常 executionId={}",
                         execution.getExecutionId(), e);
+            } finally {
+                ExecutionMdc.clear();
             }
         }
     }
@@ -92,11 +96,14 @@ public class TimeoutWatchdog {
                 .selectByStatus(ExecutionStatusEnum.RUNNING.name());
 
         for (PipelineExecutionDO execution : runningExecutions) {
+            ExecutionMdc.set(execution.getExecutionId());
             try {
                 checkExecutionTimeout(execution);
             } catch (Exception e) {
                 log.error("[TimeoutWatchdog] 流程超时扫描异常 executionId={}",
                         execution.getExecutionId(), e);
+            } finally {
+                ExecutionMdc.clear();
             }
         }
     }

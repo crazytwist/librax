@@ -367,3 +367,7 @@ librax:
       type: redis # 消息总线的类型
 
 debug: false
+
+logging:
+  file:
+    name: /Users/yinan/workspace/logs/librax.log

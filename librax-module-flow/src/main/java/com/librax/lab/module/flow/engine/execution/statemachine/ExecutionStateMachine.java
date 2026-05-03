@@ -6,6 +6,7 @@ import com.librax.lab.module.flow.dal.mysql.pipelineexecution.PipelineExecutionM
 import com.librax.lab.module.flow.engine.execution.event.ExecutionEventPublisher;
 import com.librax.lab.module.flow.enums.EventTypeEnum;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
+import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -88,6 +89,7 @@ public class ExecutionStateMachine {
     public void transition(String executionId,
                            ExecutionStatusEnum from,
                            ExecutionStatusEnum to) {
+        ExecutionMdc.set(executionId);
         // 1. 校验流转合法性
         if (!canTransition(from, to)) {
             throw exception(PIPELINE_EXECUTION_STATUS_INVALID,

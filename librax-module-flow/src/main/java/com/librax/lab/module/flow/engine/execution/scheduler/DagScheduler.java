@@ -10,6 +10,7 @@ import com.librax.lab.module.flow.engine.execution.event.ExecutionEventPublisher
 import com.librax.lab.module.flow.api.model.StepResult;
 import com.librax.lab.module.flow.engine.execution.statemachine.ExecutionStateMachine;
 import com.librax.lab.module.flow.enums.*;
+import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -99,49 +100,54 @@ public class DagScheduler {
      * 调度核心：加载所有步骤当前状态，找出就绪节点并行提交
      */
     private void doSchedule(String executionId, PipelineGraph graph) {
-        // 1. 加载该流程所有节点的最新状态
-        List<StepExecutionDO> stepList = stepMapper.selectLatestByExecutionId(executionId);
-        Map<String, StepStatusEnum> statusMap = stepList.stream()
-                .collect(Collectors.toMap(
-                        StepExecutionDO::getNodeId,
-                        s -> StepStatusEnum.valueOf(s.getStatus()),
-                        (existing, replacement) -> replacement));
+        ExecutionMdc.set(executionId);
+        try {
+            // 1. 加载该流程所有节点的最新状态
+            List<StepExecutionDO> stepList = stepMapper.selectLatestByExecutionId(executionId);
+            Map<String, StepStatusEnum> statusMap = stepList.stream()
+                    .collect(Collectors.toMap(
+                            StepExecutionDO::getNodeId,
+                            s -> StepStatusEnum.valueOf(s.getStatus()),
+                            (existing, replacement) -> replacement));
 
-        // 2. 检查流程是否已全部完成
-        if (isAllDone(graph, statusMap)) {
-            finishPipeline(executionId, graph, statusMap);
-            return;
+            // 2. 检查流程是否已全部完成
+            if (isAllDone(graph, statusMap)) {
+                finishPipeline(executionId, graph, statusMap);
+                return;
+            }
+
+            // 3. 找出就绪节点：PENDING 且所有前置依赖都已满足
+            List<StepNode> readyNodes = graph.getSteps().stream()
+                    .filter(node -> isPending(node, statusMap))
+                    .filter(node -> isDependencySatisfied(node, statusMap))
+                    .toList();
+
+            if (readyNodes.isEmpty()) {
+                log.debug("[DagScheduler] 无就绪节点 executionId={}", executionId);
+                return;
+            }
+
+            log.info("[DagScheduler] 就绪节点 executionId={} nodes={}",
+                    executionId, readyNodes.stream().map(StepNode::getNodeId).collect(Collectors.toList()));
+
+            // 4. 并行提交所有就绪节点
+            readyNodes.forEach(node -> stepSubmitter.submit(executionId, graph, node,
+                    new StepSubmitter.DagSchedulerCallback() {
+                        @Override
+                        public void onStepComplete(String execId, PipelineGraph g,
+                                                   String nodeId, int attempt, StepResult result) {
+                            DagScheduler.this.onStepComplete(execId, g.getPipelineKey(),
+                                    g.getVersion(), nodeId, attempt, result);
+                        }
+
+                        @Override
+                        public Map<String, Object> resolveInputParams(String execId, StepNode n) {
+                            return DagScheduler.this.resolveInputParams(execId, n);
+                        }
+                    }));
+        } finally {
+            ExecutionMdc.clear();
         }
-
-        // 3. 找出就绪节点：PENDING 且所有前置依赖都已满足
-        List<StepNode> readyNodes = graph.getSteps().stream()
-                .filter(node -> isPending(node, statusMap))
-                .filter(node -> isDependencySatisfied(node, statusMap))
-                .toList();
-
-        if (readyNodes.isEmpty()) {
-            log.debug("[DagScheduler] 无就绪节点 executionId={}", executionId);
-            return;
-        }
-
-        log.info("[DagScheduler] 就绪节点 executionId={} nodes={}",
-                executionId, readyNodes.stream().map(StepNode::getNodeId).collect(Collectors.toList()));
-
-        // 4. 并行提交所有就绪节点
-        readyNodes.forEach(node -> stepSubmitter.submit(executionId, graph, node,
-                new StepSubmitter.DagSchedulerCallback() {
-                    @Override
-                    public void onStepComplete(String execId, PipelineGraph g,
-                                               String nodeId, int attempt, StepResult result) {
-                        DagScheduler.this.onStepComplete(execId, g.getPipelineKey(),
-                                g.getVersion(), nodeId, attempt, result);
-                    }
-
-                    @Override
-                    public Map<String, Object> resolveInputParams(String execId, StepNode n) {
-                        return DagScheduler.this.resolveInputParams(execId, n);
-                    }
-                }));
     }
 
     // ================================================================
@@ -254,7 +260,8 @@ public class DagScheduler {
      */
     public void scheduleDelayed(String executionId, PipelineGraph graph, long delayMs) {
         watchdogPool.schedule(
-                () -> doSchedule(executionId, graph),
+                ExecutionMdc.wrap(() -> doSchedule(executionId, graph),
+                        executionId, null, 0),
                 delayMs,
                 TimeUnit.MILLISECONDS);
     }

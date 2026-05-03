@@ -12,6 +12,7 @@ import com.librax.lab.module.flow.dal.mysql.stepexecution.StepExecutionMapper;
 import com.librax.lab.module.flow.engine.execution.event.ExecutionEventPublisher;
 import com.librax.lab.module.flow.enums.EventTypeEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;
+import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -75,6 +76,7 @@ public class StepStateMachine implements StepStateApi {
      */
     public boolean tryStart(String executionId, String nodeId,
                             int attempt, Map<String, Object> inputParams) {
+        ExecutionMdc.set(executionId, nodeId, attempt);
         LocalDateTime now           = LocalDateTime.now();
         String        callbackToken = UUID.randomUUID().toString().replace("-", "");
         String        snapshot      = (inputParams != null && !inputParams.isEmpty())
@@ -88,7 +90,7 @@ public class StepStateMachine implements StepStateApi {
                 .set(StepExecutionDO::getStatus,         RUNNING.name())
                 .set(StepExecutionDO::getStartedAt,      now)
                 .set(StepExecutionDO::getCallbackToken,  callbackToken)
-                .set(StepExecutionDO::getInputSnapshot,  snapshot)   // ★ 入参快照
+                .set(StepExecutionDO::getInputSnapshot,  snapshot)
                 .set(StepExecutionDO::getUpdater,        "SYSTEM")
                 .set(StepExecutionDO::getUpdateTime,     now);
 
@@ -129,6 +131,7 @@ public class StepStateMachine implements StepStateApi {
      */
     public void markSuccess(String executionId, String nodeId,
                             int attempt, StepResult result) {
+        ExecutionMdc.set(executionId, nodeId, attempt);
         LocalDateTime    now     = LocalDateTime.now();
         StepExecutionDO  current = stepMapper.selectByExecutionNodeAttempt(
                 executionId, nodeId, attempt);
@@ -171,6 +174,7 @@ public class StepStateMachine implements StepStateApi {
      */
     public void markFailed(String executionId, String nodeId,
                            int attempt, StepResult result) {
+        ExecutionMdc.set(executionId, nodeId, attempt);
         LocalDateTime now       = LocalDateTime.now();
         long          executeMs = calcExecuteMs(executionId, nodeId, attempt, now);
 
@@ -209,6 +213,7 @@ public class StepStateMachine implements StepStateApi {
      */
     public void insertRetryRow(String executionId, String nodeId,
                                int nextAttempt, String stepKey, String stepType) {
+        ExecutionMdc.set(executionId, nodeId, nextAttempt);
         LocalDateTime now = LocalDateTime.now();
 
         StepExecutionDO retryRow = new StepExecutionDO();
@@ -238,6 +243,7 @@ public class StepStateMachine implements StepStateApi {
      * FAILED → DEAD：耗尽所有重试次数，步骤彻底失败
      */
     public void markDead(String executionId, String nodeId, int attempt) {
+        ExecutionMdc.set(executionId, nodeId, attempt);
         LocalDateTime now = LocalDateTime.now();
 
         LambdaUpdateWrapper<StepExecutionDO> wrapper = new LambdaUpdateWrapper<StepExecutionDO>()
@@ -266,6 +272,7 @@ public class StepStateMachine implements StepStateApi {
      * PENDING → SKIPPED：CONDITION 节点未选中的分支直接跳过
      */
     public void markSkipped(String executionId, String nodeId, int attempt) {
+        ExecutionMdc.set(executionId, nodeId, attempt);
         LocalDateTime now = LocalDateTime.now();
 
         LambdaUpdateWrapper<StepExecutionDO> wrapper = new LambdaUpdateWrapper<StepExecutionDO>()
@@ -297,6 +304,7 @@ public class StepStateMachine implements StepStateApi {
     public void markWaiting(String executionId, String nodeId,
                             int attempt, WaitingForEnum waitingFor,
                             String callbackToken) {
+        ExecutionMdc.set(executionId, nodeId, attempt);
         LocalDateTime now = LocalDateTime.now();
 
         LambdaUpdateWrapper<StepExecutionDO> wrapper = new LambdaUpdateWrapper<StepExecutionDO>()

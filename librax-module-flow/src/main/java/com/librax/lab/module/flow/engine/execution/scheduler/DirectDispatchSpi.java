@@ -8,6 +8,7 @@ import com.librax.lab.module.flow.api.model.StepResult;
 import com.librax.lab.module.flow.engine.execution.executor.MockStepExecutor;
 import com.librax.lab.module.flow.engine.execution.executor.StepExecutorFactory;
 import com.librax.lab.module.flow.engine.execution.statemachine.StepStateMachine;
+import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -40,6 +41,7 @@ public class DirectDispatchSpi implements DispatchSpi {
 
     @Override
     public void dispatch(StepDispatchContext ctx) {
+        ExecutionMdc.set(ctx.getExecutionId(), ctx.getNodeId(), ctx.getAttempt());
         StepTypeEnum stepType = StepTypeEnum.valueOf(ctx.getStepType());
 
         // 选执行器：

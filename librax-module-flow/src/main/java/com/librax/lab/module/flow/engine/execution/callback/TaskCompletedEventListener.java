@@ -1,6 +1,7 @@
 package com.librax.lab.module.flow.engine.execution.callback;
 
 import com.librax.lab.module.flow.api.event.TaskCompletedEvent;
+import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
@@ -29,10 +30,10 @@ public class TaskCompletedEventListener {
     @Async("labEventListenerExecutor")
     @EventListener
     public void onTaskCompleted(TaskCompletedEvent event) {
-        log.info("[TaskCompletedListener] 收到任务完成事件 executionId={} nodeId={} success={}",
-                event.getExecutionId(), event.getNodeId(), event.isSuccess());
-
+        ExecutionMdc.set(event.getExecutionId(), event.getNodeId(), 0);
         try {
+            log.info("[TaskCompletedListener] 收到任务完成事件 executionId={} nodeId={} success={}",
+                    event.getExecutionId(), event.getNodeId(), event.isSuccess());
             stepCallbackService.callback(
                     event.getExecutionId(),
                     event.getNodeId(),
@@ -44,6 +45,8 @@ public class TaskCompletedEventListener {
         } catch (Exception e) {
             log.error("[TaskCompletedListener] 推进调度异常 executionId={} nodeId={}",
                     event.getExecutionId(), event.getNodeId(), e);
+        } finally {
+            ExecutionMdc.clear();
         }
     }
 }

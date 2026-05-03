@@ -5,6 +5,7 @@ import com.librax.lab.module.flow.engine.execution.scheduler.DagScheduler;
 import com.librax.lab.module.flow.engine.execution.statemachine.ExecutionStateMachine;
 import com.librax.lab.module.flow.engine.execution.statemachine.StepStateMachine;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
+import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -54,6 +55,7 @@ public class FailureActionHelper {
                         String errorCode,
                         String errorMsg,
                         FailureDecision decision) {
+        ExecutionMdc.set(executionId, nodeId, attempt);
 
         // 1. 告警
         if (decision.isAlertOnFail()) {

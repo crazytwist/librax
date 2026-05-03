@@ -29,10 +29,10 @@ import java.util.stream.Collectors;
 public class StepExecutorFactory {
 
     private final Map<StepTypeEnum, StepExecutor> executorMap;
-    private final ApplicationContext applicationContext;  // ★ 新增
+    private final ApplicationContext applicationContext;
 
     public StepExecutorFactory(List<StepExecutor> executors,
-                               ApplicationContext applicationContext) {  // ★ 新增参数
+                               ApplicationContext applicationContext) {
         this.applicationContext = applicationContext;
         this.executorMap = executors.stream()
                 .filter(e -> e.supportType() != null)

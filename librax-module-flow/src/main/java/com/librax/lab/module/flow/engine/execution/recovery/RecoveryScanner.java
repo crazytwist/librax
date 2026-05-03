@@ -11,6 +11,7 @@ import com.librax.lab.module.flow.engine.execution.scheduler.DagScheduler;
 import com.librax.lab.module.flow.engine.execution.scheduler.StepSubmitter;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;
+import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -63,11 +64,14 @@ public class RecoveryScanner {
             log.info("[RecoveryScanner] 发现 {} 个待恢复流程", runningExecutions.size());
 
             for (PipelineExecutionDO execution : runningExecutions) {
+                ExecutionMdc.set(execution.getExecutionId());
                 try {
                     recoverExecution(execution);
                 } catch (Exception e) {
                     log.error("[RecoveryScanner] 恢复失败 executionId={}",
                             execution.getExecutionId(), e);
+                } finally {
+                    ExecutionMdc.clear();
                 }
             }
 

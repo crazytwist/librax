@@ -16,6 +16,7 @@ import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.engine.execution.context.ExecutionContextManager;
 import com.librax.lab.module.flow.engine.execution.executor.StepExecutorFactory;
 import com.librax.lab.module.flow.engine.execution.statemachine.StepStateMachine;
+import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -33,14 +34,14 @@ import static com.librax.lab.module.flow.api.scheduler.SchedulerConstants.*;
 @RequiredArgsConstructor
 public class StepSubmitter {
 
-    private final StepExecutionMapper     stepMapper;
-    private final StepStateMachine        stepStateMachine;
+    private final StepExecutionMapper stepMapper;
+    private final StepStateMachine stepStateMachine;
     private final ExecutionContextManager contextManager;
-    private final StepExecutorFactory     executorFactory;
-    private final BranchSkipper           branchSkipper;
-    private final Executor                stepExecutorPool;
-    private final DispatchSpiFactory      dispatchSpiFactory;
-    private final ResourcePool            resourcePool;
+    private final StepExecutorFactory executorFactory;
+    private final BranchSkipper branchSkipper;
+    private final Executor stepExecutorPool;
+    private final DispatchSpiFactory dispatchSpiFactory;
+    private final ResourcePool resourcePool;
 
     /**
      * 资源等待默认超时时间：5分钟。
@@ -76,7 +77,7 @@ public class StepSubmitter {
 
         // 3. 申请资源（用 resource_enabled 开关控制）
         String resourceId = null;
-        String holderKey  = buildHolderKey(executionId, node.getNodeId(), stepDO.getAttempt());
+        String holderKey = buildHolderKey(executionId, node.getNodeId(), stepDO.getAttempt());
 
         if (node.isResourceEnabled()) {
             AcquireResult result = resourcePool.acquire(AcquireRequest.builder()
@@ -106,10 +107,10 @@ public class StepSubmitter {
             }
 
             resourceId = result.getResourceId();
-            writeResourceHold(executionId, node.getNodeId(),
-                    stepDO.getAttempt(), resourceId, node.getDeviceType());
-            log.info("[StepSubmitter] 资源已申请 executionId={} nodeId={} resourceId={}",
-                    executionId, node.getNodeId(), resourceId);
+            writeResourceHold(executionId, node.getNodeId(), stepDO.getAttempt(), resourceId, node.getDeviceType());
+            log.info("[StepSubmitter] 资源已申请 executionId={} nodeId={} resourceId={}", executionId, node.getNodeId(), resourceId);
+            //  把 resourceId 注入入参，执行器用它发设备指令
+            inputParams.put(CONTEXT_KEY_RESOURCE_ID, resourceId);
         }
 
         // 4. CAS 抢占步骤（PENDING → RUNNING），同时写 input_snapshot
@@ -127,10 +128,6 @@ public class StepSubmitter {
         stepDO = stepMapper.selectLatestAttempt(executionId, node.getNodeId());
         final StepExecutionDO finalStepDO = stepDO;
 
-        // 6. 把 resourceId 注入入参，执行器用它发设备指令
-        if (resourceId != null) {
-            inputParams.put(CONTEXT_KEY_RESOURCE_ID, resourceId);
-        }
 
         // 7. 组装上下文并分发（复用已解析的 inputParams，不重复解析）
         StepDispatchContext ctx = buildContext(
@@ -138,7 +135,7 @@ public class StepSubmitter {
         DispatchSpi spi = dispatchSpiFactory.getSpi(node.getDispatchMode());
         final String finalResourceId = resourceId;
 
-        stepExecutorPool.execute(() -> {
+        stepExecutorPool.execute(ExecutionMdc.wrap(() -> {
             try {
                 spi.dispatch(ctx);
             } catch (Exception e) {
@@ -153,7 +150,7 @@ public class StepSubmitter {
                         node.getNodeId(), finalStepDO.getAttempt(),
                         StepResult.fail("DISPATCH_ERROR", e.getMessage()));
             }
-        });
+        }, executionId, node.getNodeId(), finalStepDO.getAttempt()));
     }
 
     // ================================================================

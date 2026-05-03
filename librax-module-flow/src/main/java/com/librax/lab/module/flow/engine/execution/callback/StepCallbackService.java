@@ -10,6 +10,7 @@ import com.librax.lab.module.flow.engine.execution.scheduler.DagScheduler;
 import com.librax.lab.module.flow.engine.execution.scheduler.StepSubmitter;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;
+import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,7 @@ public class StepCallbackService {
                                    Map<String, Object> outputs,
                                    String errorCode,
                                    String errorMsg) {
+        ExecutionMdc.set(executionId, nodeId, 0);
         // 1. 校验执行实例
         PipelineExecutionDO execution = executionMapper
                 .selectByExecutionId(executionId);
