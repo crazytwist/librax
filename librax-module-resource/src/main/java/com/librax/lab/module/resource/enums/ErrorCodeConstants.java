@@ -22,5 +22,11 @@ public interface ErrorCodeConstants {
     ErrorCode STEP_RESOURCE_REQ_NOT_EXISTS =
             new ErrorCode(1_070_001_003, "步骤资源需求定义不存在");
 
+    ErrorCode RACK_INFO_NOT_EXISTS =
+            new ErrorCode(1_070_001_004, "库位的上级容器定义不存在");
+
+    ErrorCode SLOT_INFO_NOT_EXISTS =
+            new ErrorCode(1_070_001_005, "库位资源定义不存在");
+
 
 }

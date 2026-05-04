@@ -10,7 +10,7 @@ import com.librax.lab.framework.mybatis.core.dataobject.BaseDO;
 /**
  * 区域对共享资源的配额 DO
  *
- * @author 芋道源码
+ * @author 一南
  */
 @TableName("lab_zone_quota")
 @KeySequence("lab_zone_quota_seq") // 用于 Oracle、PostgreSQL、Kingbase、DB2、H2 数据库的主键自增。如果是 MySQL 等数据库，可不写。

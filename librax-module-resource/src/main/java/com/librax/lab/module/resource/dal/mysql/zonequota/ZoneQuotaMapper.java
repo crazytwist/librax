@@ -13,7 +13,7 @@ import com.librax.lab.module.resource.controller.admin.zonequota.vo.*;
 /**
  * 区域对共享资源的配额 Mapper
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Mapper
 public interface ZoneQuotaMapper extends BaseMapperX<ZoneQuotaDO> {

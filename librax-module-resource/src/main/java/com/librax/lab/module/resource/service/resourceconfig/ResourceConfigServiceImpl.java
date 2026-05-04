@@ -18,7 +18,7 @@ import static com.librax.lab.module.resource.enums.ErrorCodeConstants.*;
 /**
  * 资源配置表,运行时锁状态见Redis Service 实现类
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Service
 @Validated

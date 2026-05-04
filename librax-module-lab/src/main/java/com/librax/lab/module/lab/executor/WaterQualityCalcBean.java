@@ -17,7 +17,7 @@ public class WaterQualityCalcBean implements StepExecutor {
 
     @Override
     public StepTypeEnum supportType() {
-        return StepTypeEnum.COMPUTE;
+        return null;
     }
 
     @Override

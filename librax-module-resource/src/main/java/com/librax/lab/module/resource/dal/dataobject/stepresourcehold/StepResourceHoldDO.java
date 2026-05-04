@@ -12,7 +12,7 @@ import com.librax.lab.framework.mybatis.core.dataobject.BaseDO;
 /**
  * 步骤执行资源占用记录，released_at IS NULL 表示当前持有中 DO
  *
- * @author 芋道源码
+ * @author 一南
  */
 @TableName("pe_step_resource_hold")
 @KeySequence("pe_step_resource_hold_seq") // 用于 Oracle、PostgreSQL、Kingbase、DB2、H2 数据库的主键自增。如果是 MySQL 等数据库，可不写。

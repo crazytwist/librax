@@ -1,0 +1,46 @@
+package com.librax.lab.module.lab.dal.mysql.materialinstance;
+
+import java.util.*;
+
+import com.librax.lab.framework.common.pojo.PageResult;
+import com.librax.lab.framework.mybatis.core.query.LambdaQueryWrapperX;
+import com.librax.lab.framework.mybatis.core.mapper.BaseMapperX;
+import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
+import org.apache.ibatis.annotations.Mapper;
+import com.librax.lab.module.lab.controller.admin.materialinstance.vo.*;
+
+/**
+ * 物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理 Mapper
+ *
+ * @author 芋道源码
+ */
+@Mapper
+public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> {
+
+    default PageResult<MaterialInstanceDO> selectPage(MaterialInstancePageReqVO reqVO) {
+        return selectPage(reqVO, new LambdaQueryWrapperX<MaterialInstanceDO>()
+                .eqIfPresent(MaterialInstanceDO::getInstanceId, reqVO.getInstanceId())
+                .eqIfPresent(MaterialInstanceDO::getTypeCode, reqVO.getTypeCode())
+                .eqIfPresent(MaterialInstanceDO::getBarcode, reqVO.getBarcode())
+                .eqIfPresent(MaterialInstanceDO::getParentId, reqVO.getParentId())
+                .eqIfPresent(MaterialInstanceDO::getSlotIndex, reqVO.getSlotIndex())
+                .eqIfPresent(MaterialInstanceDO::getSlotId, reqVO.getSlotId())
+                .eqIfPresent(MaterialInstanceDO::getZoneCode, reqVO.getZoneCode())
+                .eqIfPresent(MaterialInstanceDO::getContentType, reqVO.getContentType())
+                .eqIfPresent(MaterialInstanceDO::getMaterialCode, reqVO.getMaterialCode())
+                .eqIfPresent(MaterialInstanceDO::getBatchNo, reqVO.getBatchNo())
+                .eqIfPresent(MaterialInstanceDO::getLotNo, reqVO.getLotNo())
+                .eqIfPresent(MaterialInstanceDO::getCurrentVolUl, reqVO.getCurrentVolUl())
+                .eqIfPresent(MaterialInstanceDO::getConcentration, reqVO.getConcentration())
+                .eqIfPresent(MaterialInstanceDO::getStatus, reqVO.getStatus())
+                .eqIfPresent(MaterialInstanceDO::getReceivedAt, reqVO.getReceivedAt())
+                .eqIfPresent(MaterialInstanceDO::getOpenedAt, reqVO.getOpenedAt())
+                .eqIfPresent(MaterialInstanceDO::getExpiredAt, reqVO.getExpiredAt())
+                .eqIfPresent(MaterialInstanceDO::getSourceExecutionId, reqVO.getSourceExecutionId())
+                .eqIfPresent(MaterialInstanceDO::getSourceNodeId, reqVO.getSourceNodeId())
+                .eqIfPresent(MaterialInstanceDO::getRemark, reqVO.getRemark())
+                .betweenIfPresent(MaterialInstanceDO::getCreateTime, reqVO.getCreateTime())
+                .orderByDesc(MaterialInstanceDO::getId));
+    }
+
+}

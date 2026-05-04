@@ -10,7 +10,7 @@ import com.librax.lab.framework.common.pojo.PageParam;
 /**
  * 区域对共享资源的配额 Service 接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface ZoneQuotaService {
 

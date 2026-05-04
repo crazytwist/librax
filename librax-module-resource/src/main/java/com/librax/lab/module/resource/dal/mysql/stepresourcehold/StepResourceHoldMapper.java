@@ -14,7 +14,7 @@ import com.librax.lab.module.resource.controller.admin.stepresourcehold.vo.*;
 /**
  * 步骤执行资源占用记录，released_at IS NULL 表示当前持有中 Mapper
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Mapper
 public interface StepResourceHoldMapper extends BaseMapperX<StepResourceHoldDO> {

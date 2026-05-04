@@ -10,7 +10,7 @@ import com.librax.lab.framework.common.pojo.PageParam;
 /**
  * 资源配置表,运行时锁状态见Redis Service 接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface ResourceConfigService {
 

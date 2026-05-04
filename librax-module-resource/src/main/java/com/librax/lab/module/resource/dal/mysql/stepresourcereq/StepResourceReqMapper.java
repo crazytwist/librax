@@ -12,7 +12,7 @@ import com.librax.lab.module.resource.controller.admin.stepresourcereq.vo.*;
 /**
  * 步骤资源需求定义，一个步骤节点可配多行（一步多资源） Mapper
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Mapper
 public interface StepResourceReqMapper extends BaseMapperX<StepResourceReqDO> {

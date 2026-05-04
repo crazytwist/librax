@@ -14,7 +14,7 @@ import com.librax.lab.module.resource.controller.admin.resourceconfig.vo.*;
 /**
  * 资源配置表,运行时锁状态见Redis Mapper
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Mapper
 public interface ResourceConfigMapper extends BaseMapperX<ResourceConfigDO> {

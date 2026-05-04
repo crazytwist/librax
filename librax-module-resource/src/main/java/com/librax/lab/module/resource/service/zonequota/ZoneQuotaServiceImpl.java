@@ -23,7 +23,7 @@ import static com.librax.lab.module.resource.enums.ErrorCodeConstants.*;
 /**
  * 区域对共享资源的配额 Service 实现类
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Service
 @Validated

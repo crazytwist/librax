@@ -37,5 +37,22 @@ public interface ErrorCodeConstants {
             new ErrorCode(1_050_002_003, "设备解析规则不存在");
 
 
+    // ── 物料信息 ──────────────────────────────────────────────────────
+    ErrorCode CONTAINER_TYPE_NOT_EXISTS =
+            new ErrorCode(1_050_002_000, "容器类型定义不存在");
+
+    ErrorCode MATERIAL_INSTANCE_NOT_EXISTS =
+            new ErrorCode(1_050_002_001, "物料实例不存在");
+
+    ErrorCode MATERIAL_DEF_NOT_EXISTS =
+            new ErrorCode(1_050_002_003, "内容物定义不存在");
+
+    ErrorCode MATERIAL_CHECK_RULE_NOT_EXISTS =
+            new ErrorCode(1_050_002_001, "步骤物料前置检查规则不存在");
+
+    ErrorCode MATERIAL_CONSUMPTION_NOT_EXISTS =
+            new ErrorCode(1_050_002_003, "步骤物料消耗记录不存在");
+
+
 }
 

@@ -23,7 +23,7 @@ import static com.librax.lab.module.resource.enums.ErrorCodeConstants.*;
 /**
  * 步骤执行资源占用记录，released_at IS NULL 表示当前持有中 Service 实现类
  *
- * @author 芋道源码
+ * @author 一南
  */
 @Service
 @Validated

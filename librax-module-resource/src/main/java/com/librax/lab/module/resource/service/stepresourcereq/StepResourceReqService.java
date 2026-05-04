@@ -10,7 +10,7 @@ import com.librax.lab.framework.common.pojo.PageParam;
 /**
  * 步骤资源需求定义，一个步骤节点可配多行（一步多资源） Service 接口
  *
- * @author 芋道源码
+ * @author 一南
  */
 public interface StepResourceReqService {
 
