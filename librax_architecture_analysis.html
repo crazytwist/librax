@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Librax 全模块架构分析与规划</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --bg2: #13161e;
+    --bg3: #1a1f2b;
+    --border: #252b3a;
+    --border2: #2e3650;
+    --text: #c8d0e0;
+    --text-dim: #6b7591;
+    --text-bright: #e8edf8;
+    --blue: #4a9eff;
+    --blue-dim: #1e3a5f;
+    --teal: #2dd4bf;
+    --teal-dim: #0f3330;
+    --amber: #f59e0b;
+    --amber-dim: #3d2a00;
+    --coral: #f87171;
+    --coral-dim: #3d1515;
+    --purple: #a78bfa;
+    --purple-dim: #2d1f5e;
+    --green: #4ade80;
+    --green-dim: #0f2f1a;
+    --pink: #f472b6;
+    --pink-dim: #4a1942;
+    --mono: 'IBM Plex Mono', monospace;
+    --serif: 'Noto Serif SC', serif;
+    --sans: 'Inter', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 48px 64px 40px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 300px; height: 300px;
+    background: radial-gradient(circle, rgba(74,158,255,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .header-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--blue);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .header-title {
+    font-family: var(--serif);
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--text-bright);
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+  .header-sub {
+    color: var(--text-dim);
+    font-size: 15px;
+    max-width: 720px;
+  }
+  .header-meta {
+    display: flex;
+    gap: 12px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+  .meta-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    color: var(--text-dim);
+  }
+  .meta-pill.blue { border-color: var(--blue-dim); color: var(--blue); background: rgba(74,158,255,0.05); }
+  .meta-pill.teal { border-color: var(--teal-dim); color: var(--teal); background: rgba(45,212,191,0.05); }
+  .meta-pill.amber { border-color: var(--amber-dim); color: var(--amber); background: rgba(245,158,11,0.05); }
+  .meta-pill.coral { border-color: var(--coral-dim); color: var(--coral); background: rgba(248,113,113,0.05); }
+  .meta-pill.purple { border-color: var(--purple-dim); color: var(--purple); background: rgba(167,139,250,0.05); }
+
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 48px 80px; }
+
+  .section { margin-top: 64px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 32px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--blue);
+    background: var(--blue-dim);
+    padding: 3px 10px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+  }
+  .section-title {
+    font-family: var(--serif);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text-bright);
+  }
+
+  .prose { max-width: 900px; }
+  .prose p { margin-bottom: 16px; color: var(--text); line-height: 1.8; }
+  .prose strong { color: var(--text-bright); font-weight: 600; }
+  .prose em { color: var(--amber); font-style: normal; }
+
+  .card-grid {
+    display: grid;
+    gap: 16px;
+    margin-top: 24px;
+  }
+  .card-grid.col2 { grid-template-columns: 1fr 1fr; }
+  .card-grid.col3 { grid-template-columns: 1fr 1fr 1fr; }
+  .card-grid.col4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+  .card-grid.col5 { grid-template-columns: 1fr 1fr 1fr 1fr 1fr; }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 24px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--border2); }
+  .card.blue { border-left: 3px solid var(--blue); }
+  .card.teal { border-left: 3px solid var(--teal); }
+  .card.amber { border-left: 3px solid var(--amber); }
+  .card.coral { border-left: 3px solid var(--coral); }
+  .card.purple { border-left: 3px solid var(--purple); }
+  .card.green { border-left: 3px solid var(--green); }
+  .card.pink { border-left: 3px solid var(--pink); }
+
+  .card-title {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-bright);
+    margin-bottom: 8px;
+    letter-spacing: 0.5px;
+  }
+  .card-sub {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+    font-family: var(--mono);
+  }
+  .card p { font-size: 13px; color: var(--text); line-height: 1.7; }
+  .card ul { font-size: 13px; color: var(--text); line-height: 1.8; padding-left: 18px; }
+  .card li { margin-bottom: 4px; }
+
+  .flow {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 28px;
+    margin-top: 24px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    line-height: 2;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .flow .step { color: var(--text-bright); }
+  .flow .arrow { color: var(--text-dim); }
+  .flow .branch { color: var(--teal); }
+  .flow .note { color: var(--text-dim); font-style: italic; }
+  .flow .highlight { color: var(--amber); }
+  .flow .new { color: var(--blue); }
+  .flow .mod-blue { color: var(--blue); }
+  .flow .mod-teal { color: var(--teal); }
+  .flow .mod-amber { color: var(--amber); }
+  .flow .mod-coral { color: var(--coral); }
+  .flow .mod-purple { color: var(--purple); }
+  .flow .mod-green { color: var(--green); }
+  .flow .mod-pink { color: var(--pink); }
+
+  .arch-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 20px;
+    font-size: 13px;
+  }
+  .arch-table th {
+    text-align: left;
+    padding: 10px 16px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    background: var(--bg3);
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase;
+  }
+  .arch-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    line-height: 1.6;
+  }
+  .arch-table tr:hover td { background: var(--bg2); }
+  .arch-table .mono { font-family: var(--mono); font-size: 11px; color: var(--text-bright); }
+
+  .insight {
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    border-left: 3px solid var(--blue);
+    border-radius: 6px;
+    padding: 20px 24px;
+    margin: 20px 0;
+  }
+  .insight.warn { border-left-color: var(--amber); }
+  .insight.danger { border-left-color: var(--coral); }
+  .insight.good { border-left-color: var(--green); }
+  .insight-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--blue);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .insight.warn .insight-label { color: var(--amber); }
+  .insight.danger .insight-label { color: var(--coral); }
+  .insight.good .insight-label { color: var(--green); }
+  .insight p { font-size: 13px; color: var(--text); line-height: 1.7; }
+
+  .layer-stack { display: flex; flex-direction: column; gap: 3px; margin-top: 24px; }
+  .layer {
+    display: flex;
+    align-items: stretch;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    min-height: 56px;
+  }
+  .layer-label {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    padding: 12px 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    white-space: nowrap;
+    min-width: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .layer-label.api { background: var(--blue-dim); color: var(--blue); }
+  .layer-label.service { background: var(--purple-dim); color: var(--purple); }
+  .layer-label.engine { background: var(--teal-dim); color: var(--teal); }
+  .layer-label.resource { background: var(--amber-dim); color: var(--amber); }
+  .layer-label.spi { background: var(--green-dim); color: var(--green); }
+  .layer-label.infra { background: var(--coral-dim); color: var(--coral); }
+  .layer-label.lab { background: var(--pink-dim); color: var(--pink); }
+
+  .layer-body {
+    flex: 1;
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .layer-chip {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 4px;
+    background: var(--bg3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .layer-chip.blue { border-color: var(--blue-dim); color: var(--blue); }
+  .layer-chip.teal { border-color: var(--teal-dim); color: var(--teal); }
+  .layer-chip.amber { border-color: var(--amber-dim); color: var(--amber); }
+  .layer-chip.coral { border-color: var(--coral-dim); color: var(--coral); }
+  .layer-chip.purple { border-color: var(--purple-dim); color: var(--purple); }
+  .layer-chip.green { border-color: var(--green-dim); color: var(--green); }
+  .layer-chip.pink { border-color: var(--pink-dim); color: var(--pink); }
+
+  .divider {
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border), transparent);
+    margin: 48px 0;
+  }
+
+  /* Dependency diagram */
+  .dep-diagram {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 32px;
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .dep-row {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    justify-content: center;
+  }
+  .dep-box {
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 20px;
+    border-radius: 6px;
+    border: 2px solid;
+    text-align: center;
+    min-width: 140px;
+  }
+  .dep-box.blue { border-color: var(--blue); color: var(--blue); background: rgba(74,158,255,0.05); }
+  .dep-box.teal { border-color: var(--teal); color: var(--teal); background: rgba(45,212,191,0.05); }
+  .dep-box.amber { border-color: var(--amber); color: var(--amber); background: rgba(245,158,11,0.05); }
+  .dep-box.coral { border-color: var(--coral); color: var(--coral); background: rgba(248,113,113,0.05); }
+  .dep-box.purple { border-color: var(--purple); color: var(--purple); background: rgba(167,139,250,0.05); }
+  .dep-box.green { border-color: var(--green); color: var(--green); background: rgba(74,222,128,0.05); }
+  .dep-box.pink { border-color: var(--pink); color: var(--pink); background: rgba(244,114,182,0.05); }
+  .dep-arrow {
+    font-family: var(--mono);
+    font-size: 18px;
+    color: var(--text-dim);
+  }
+  .dep-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    text-align: center;
+    letter-spacing: 1px;
+  }
+
+  @media (max-width: 768px) {
+    .header { padding: 32px 24px; }
+    .container { padding: 0 24px 60px; }
+    .card-grid.col2, .card-grid.col3, .card-grid.col4, .card-grid.col5 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════ HEADER ══════════════ -->
+<div class="header">
+  <div class="header-label">Librax Lab · 全模块架构分析 v1.0</div>
+  <div class="header-title">Librax 系统全景架构<br>模块拆解 · 依赖分析 · 演进建议</div>
+  <div class="header-sub">对 Flow、Task、Lab、Resource、Device 五大核心业务模块的完整架构拆解，涵盖模块职责、依赖关系、数据流向、设计亮点与改进建议。</div>
+  <div class="header-meta">
+    <span class="meta-pill blue">Flow · DAG 引擎</span>
+    <span class="meta-pill purple">Task · 任务路由</span>
+    <span class="meta-pill coral">Device · 设备网关</span>
+    <span class="meta-pill amber">Resource · 资源调度</span>
+    <span class="meta-pill teal">Lab · 样本管理</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ══════════════ 1. 系统全景 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">01</span>
+    <h2 class="section-title">系统全景 · 一句话理解</h2>
+  </div>
+
+  <div class="prose">
+    <p>Librax 是一套 <strong>实验室自动化流程编排平台</strong>。它的核心使命是：接收一份实验流程定义（DAG 图），按拓扑顺序并行调度执行每个步骤，步骤执行前抢占物理设备资源，执行时通过设备网关下发指令，执行后收集样本检测结果——<em>从「定义一个实验」到「实验自动完成并出报告」的全链路闭环</em>。</p>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">核心架构哲学</div>
+    <p><strong>五模块各司其职，通过 API 层和 Spring Event 解耦：</strong>Flow 只管「谁先谁后」，Resource 只管「资源够不够」，Device 只管「怎么跟设备通信」，Task 只管「异步任务排队执行」，Lab 只管「样本状态和结果」。任何模块的内部重构不影响其他模块。</p>
+  </div>
+
+  <div class="card-grid col5" style="margin-top:24px">
+    <div class="card blue">
+      <div class="card-title">Flow</div>
+      <div class="card-sub">流程引擎 · 大脑</div>
+      <p>DAG 调度、状态机、异常处理。决定「下一步做什么」。</p>
+    </div>
+    <div class="card purple">
+      <div class="card-title">Task</div>
+      <div class="card-sub">任务路由 · 手臂</div>
+      <p>将步骤转化为具体任务，队列化执行，回调结果。</p>
+    </div>
+    <div class="card coral">
+      <div class="card-title">Device</div>
+      <div class="card-sub">设备网关 · 手指</div>
+      <p>多协议驱动，指令下发，状态监控，心跳管理。</p>
+    </div>
+    <div class="card amber">
+      <div class="card-title">Resource</div>
+      <div class="card-sub">资源调度 · 门卫</div>
+      <p>设备抢占、区域配额、Redis 锁、防死锁。</p>
+    </div>
+    <div class="card teal">
+      <div class="card-title">Lab</div>
+      <div class="card-sub">样本管理 · 记录员</div>
+      <p>样本生命周期、结果采集、溯源追踪。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 2. 模块依赖 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">02</span>
+    <h2 class="section-title">模块依赖关系图</h2>
+  </div>
+
+  <div class="prose">
+    <p>通过 <strong>API 模块（flow-api、device-api）</strong>实现反向依赖隔离。实现模块之间不直接依赖，而是通过接口契约通信。这是整个架构中最值得肯定的设计决策之一。</p>
+  </div>
+
+  <div class="flow">
+<span class="note">                        ┌─────────────────────────────────────────────┐</span>
+<span class="note">                        │            Maven 依赖关系图                  │</span>
+<span class="note">                        └─────────────────────────────────────────────┘</span>
+
+<span class="mod-blue">                               ┌──────────────┐</span>
+<span class="mod-blue">                               │  flow-api    │</span>
+<span class="mod-blue">                               │  (SPI 契约)   │</span>
+<span class="mod-blue">                               └──────┬───────┘</span>
+<span class="arrow">               ┌──────────┬──────────┼──────────┬──────────┐</span>
+<span class="arrow">               ▼          ▼          ▼          ▼          ▼</span>
+<span class="mod-blue">          ┌────────┐</span> <span class="mod-purple">┌────────┐</span> <span class="mod-amber">┌──────────┐</span> <span class="mod-coral">┌────────┐</span> <span class="mod-teal">┌────────┐</span>
+<span class="mod-blue">          │  flow  │</span> <span class="mod-purple">│  task  │</span> <span class="mod-amber">│ resource │</span> <span class="mod-coral">│ device │</span> <span class="mod-teal">│  lab   │</span>
+<span class="mod-blue">          │ (引擎)  │</span> <span class="mod-purple">│ (队列)  │</span> <span class="mod-amber">│  (锁)    │</span> <span class="mod-coral">│ (网关)  │</span> <span class="mod-teal">│ (样本)  │</span>
+<span class="mod-blue">          └────────┘</span> <span class="mod-purple">└───┬────┘</span> <span class="mod-amber">└────┬─────┘</span> <span class="mod-coral">└───┬────┘</span> <span class="mod-teal">└───┬────┘</span>
+<span class="arrow">                         │           │            │          │</span>
+<span class="mod-purple">                         │           │            ▼          │</span>
+<span class="mod-purple">                         │           │     </span><span class="mod-coral">┌────────────┐</span><span class="mod-purple">   │</span>
+<span class="mod-purple">                         │           ├────▶│ device-api │   │</span>
+<span class="mod-purple">                         │           │     </span><span class="mod-coral">└────────────┘</span><span class="mod-purple">   │</span>
+<span class="mod-purple">                         │           │                      │</span>
+<span class="mod-purple">                         ▼           │                      │</span>
+<span class="mod-teal">                    ┌────────┐       │                      │</span>
+<span class="mod-purple">                    │  lab   │◀──────┼──────────────────────┘</span>
+<span class="mod-teal">                    └────────┘       │</span>
+<span class="note">                                     │</span>
+<span class="note">               所有模块均依赖 → </span><span class="mod-coral">┌────────┐</span>
+<span class="note">                               </span><span class="mod-coral">│ infra  │</span>
+<span class="note">                               </span><span class="mod-coral">└────────┘</span>
+</div>
+
+  <div class="insight warn">
+    <div class="insight-label">依赖问题发现</div>
+    <p><strong>task → lab 存在直接依赖</strong>，这打破了模块间通过 API 层隔离的设计原则。task 模块应该只依赖 flow-api，不应直接依赖 lab。同样，<strong>lab → flow（实现模块）</strong>的依赖也不够优雅，应改为依赖 flow-api。详见后文建议。</p>
+  </div>
+</div>
+
+<!-- ══════════════ 3. 分层架构 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">03</span>
+    <h2 class="section-title">垂直分层 · 全模块视角</h2>
+  </div>
+
+  <div class="layer-stack">
+
+    <div class="layer">
+      <div class="layer-label api">HTTP</div>
+      <div class="layer-body">
+        <span class="layer-chip blue">PipelineExecutionController</span>
+        <span class="layer-chip blue">StepCallbackController</span>
+        <span class="layer-chip purple">TaskController</span>
+        <span class="layer-chip purple">TaskCallbackController</span>
+        <span class="layer-chip coral">DeviceInfoController</span>
+        <span class="layer-chip amber">ResourceAdminController</span>
+        <span class="layer-chip green">SampleInfoController</span>
+        <span class="layer-chip green">SampleResultController</span>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label service">SERVICE</div>
+      <div class="layer-body">
+        <span class="layer-chip blue">PipelineExecutionService</span>
+        <span class="layer-chip blue">ExecutionStateMachine</span>
+        <span class="layer-chip blue">ExecutionContextManager</span>
+        <span class="layer-chip purple">TaskService</span>
+        <span class="layer-chip purple">TaskCallbackDispatcher</span>
+        <span class="layer-chip coral">DeviceGatewayImpl</span>
+        <span class="layer-chip green">SampleLifecycleService</span>
+        <span class="layer-chip green">SampleResultHandleService</span>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label engine">ENGINE</div>
+      <div class="layer-body">
+        <span class="layer-chip blue">DagScheduler</span>
+        <span class="layer-chip blue">StepSubmitter</span>
+        <span class="layer-chip blue">StepStateMachine</span>
+        <span class="layer-chip blue">ExceptionCoordinator</span>
+        <span class="layer-chip blue">TimeoutWatchdog</span>
+        <span class="layer-chip blue">PipelineGraphCache</span>
+        <span class="layer-chip purple">TaskRouter</span>
+        <span class="layer-chip purple">TaskExecutorFactory</span>
+        <span class="layer-chip coral">DeviceDriverFactory</span>
+        <span class="layer-chip coral">DeviceStateCache</span>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label resource">RESOURCE</div>
+      <div class="layer-body">
+        <span class="layer-chip amber">ResourcePool (SPI)</span>
+        <span class="layer-chip amber">ResourcePoolImpl</span>
+        <span class="layer-chip amber">ResourceSelector</span>
+        <span class="layer-chip amber">RedisResourceLock</span>
+        <span style="font-size:11px;color:var(--text-dim);margin-left:8px">Redis Hash + Zone Quota + Holder Index</span>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label spi">SPI</div>
+      <div class="layer-body">
+        <span class="layer-chip blue">DispatchSpi</span>
+        <span class="layer-chip blue">StepExecutor</span>
+        <span class="layer-chip blue">ResourcePool</span>
+        <span class="layer-chip blue">StepStateApi</span>
+        <span class="layer-chip coral">DeviceQueryApi</span>
+        <span class="layer-chip coral">DeviceDriver</span>
+        <span class="layer-chip green">PipelineStartHook</span>
+        <span style="font-size:11px;color:var(--text-dim);margin-left:8px">接口层 = 解耦边界</span>
+      </div>
+    </div>
+
+    <div class="layer">
+      <div class="layer-label infra">INFRA</div>
+      <div class="layer-body">
+        <span class="layer-chip">MySQL (状态持久化)</span>
+        <span class="layer-chip">Redis (上下文 + 锁 + 设备状态)</span>
+        <span class="layer-chip">ThreadPool (步骤并发)</span>
+        <span class="layer-chip">ScheduledExecutor (超时扫描)</span>
+        <span class="layer-chip">Spring Event (模块通信)</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════ 4. 各模块详解 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">04</span>
+    <h2 class="section-title">各模块职责详解</h2>
+  </div>
+
+  <!-- Flow Module -->
+  <h3 style="font-family:var(--serif);font-size:18px;color:var(--blue);margin-bottom:16px;margin-top:32px">A. Flow 模块 — 流程引擎（大脑）</h3>
+
+  <div class="prose">
+    <p>Flow 是整个系统的 <strong>中枢调度器</strong>。它解决的问题是：给定一个 DAG 流程定义，按拓扑序并行调度执行所有步骤，管理每个步骤和整条流程的状态转换，处理异常/重试/补偿/超时。</p>
+  </div>
+
+  <div class="card-grid col2">
+    <div class="card blue">
+      <div class="card-title">核心引擎组件</div>
+      <ul>
+        <li><strong>DagScheduler</strong> — 拓扑调度，找就绪节点并行提交</li>
+        <li><strong>StepSubmitter</strong> — 步骤提交：资源申请 → tryStart → dispatch</li>
+        <li><strong>StepStateMachine</strong> — 步骤级乐观锁状态机 (CAS)</li>
+        <li><strong>ExecutionStateMachine</strong> — 流程级状态机</li>
+        <li><strong>PipelineGraphBuilder/Cache</strong> — DAG 构建与版本缓存</li>
+        <li><strong>ExceptionCoordinator</strong> — 责任链异常处理</li>
+        <li><strong>TimeoutWatchdog</strong> — 超时扫描 (每10s)</li>
+      </ul>
+    </div>
+    <div class="card blue">
+      <div class="card-title">设计亮点</div>
+      <ul>
+        <li><strong>事件驱动</strong>：步骤完成触发下一轮调度，无轮询</li>
+        <li><strong>乐观锁 tryStart</strong>：并发安全，冲突时自动放弃</li>
+        <li><strong>Redis + DB 双层上下文</strong>：热写冷备</li>
+        <li><strong>版本隔离图缓存</strong>：运行中执行不受定义修改影响</li>
+        <li><strong>SPI 分发</strong>：DIRECT / QUEUED 双轨，调度器不感知执行细节</li>
+        <li><strong>重试即新行</strong>：attempt 计数器，完整审计追踪</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="divider" style="margin:32px 0"></div>
+
+  <!-- Task Module -->
+  <h3 style="font-family:var(--serif);font-size:18px;color:var(--purple);margin-bottom:16px">B. Task 模块 — 任务路由（手臂）</h3>
+
+  <div class="prose">
+    <p>Task 是 Flow 到外部执行系统的 <strong>协议适配层</strong>。它实现了 DispatchSpi 的 QUEUED 模式，将流程步骤转化为可排队、可路由、可回调的异步任务。支持 AGV、仪器、手动操作、计算等多种任务类型。</p>
+  </div>
+
+  <div class="card-grid col2">
+    <div class="card purple">
+      <div class="card-title">核心组件</div>
+      <ul>
+        <li><strong>QueuedDispatchSpi</strong> — 实现 DispatchSpi，Flow 步骤 → Task 记录</li>
+        <li><strong>TaskRouter</strong> — 按任务类型路由到不同队列和并发配置</li>
+        <li><strong>TaskExecutorFactory</strong> — 动态注册/获取各类型执行器</li>
+        <li><strong>AgvTaskExecutor</strong> — AGV 物流调度</li>
+        <li><strong>InstrumentTaskExecutor</strong> — 仪器指令模拟/执行</li>
+        <li><strong>ManualTaskExecutor</strong> — 人工操作待办</li>
+        <li><strong>TaskCallbackDispatcher</strong> — 统一回调：幂等检查 + CAS 状态更新</li>
+      </ul>
+    </div>
+    <div class="card purple">
+      <div class="card-title">设计亮点</div>
+      <ul>
+        <li><strong>非阻塞执行</strong>：所有 TaskExecutor 都是 fire-and-forget</li>
+        <li><strong>统一回调入口</strong>：外部系统（AGV、人工审批）统一回调接口</li>
+        <li><strong>可配置并发</strong>：每种任务类型独立队列和并发度</li>
+        <li><strong>幂等保证</strong>：回调时 CAS 防重复处理</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="divider" style="margin:32px 0"></div>
+
+  <!-- Device Module -->
+  <h3 style="font-family:var(--serif);font-size:18px;color:var(--coral);margin-bottom:16px">C. Device 模块 — 设备网关（手指）</h3>
+
+  <div class="prose">
+    <p>Device 是与 <strong>物理设备通信的最后一公里</strong>。它封装了多种通信协议（TCP/HTTP/SERIAL/SDK/MOCK），提供统一的「发送指令 → 等待回调」接口，并负责设备心跳监控和健康管理。</p>
+  </div>
+
+  <div class="card-grid col2">
+    <div class="card coral">
+      <div class="card-title">核心组件</div>
+      <ul>
+        <li><strong>DeviceGateway / DeviceGatewayImpl</strong> — 统一设备通信入口</li>
+        <li><strong>DeviceDriver (SPI)</strong> — 协议驱动抽象</li>
+        <li><strong>DeviceDriverFactory</strong> — 按协议类型路由驱动</li>
+        <li><strong>DeviceSelector</strong> — 空闲设备选择 + 负载均衡</li>
+        <li><strong>DeviceStateCache</strong> — Redis 双向索引设备状态</li>
+        <li><strong>InstrumentStepExecutor</strong> — 实现 StepExecutor，桥接 Flow → Device</li>
+        <li><strong>DeviceQueryApi (SPI)</strong> — 对外暴露设备健康查询</li>
+      </ul>
+    </div>
+    <div class="card coral">
+      <div class="card-title">设计亮点</div>
+      <ul>
+        <li><strong>多协议抽象</strong>：TCP / HTTP / SERIAL / SDK / MOCK 统一 DeviceDriver</li>
+        <li><strong>命令模板化</strong>：参数占位符 ${param}，运行时渲染</li>
+        <li><strong>双向索引</strong>：device→execution 和 execution+node→device 的 O(1) 反查</li>
+        <li><strong>健康分级</strong>：心跳 + 健康等级 + 可用性综合判断</li>
+        <li><strong>轮询/Webhook 双模式</strong>：适配不同设备的异步结果获取</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="divider" style="margin:32px 0"></div>
+
+  <!-- Resource Module -->
+  <h3 style="font-family:var(--serif);font-size:18px;color:var(--amber);margin-bottom:16px">D. Resource 模块 — 资源调度（门卫）</h3>
+
+  <div class="prose">
+    <p>Resource 解决的是 <strong>物理设备的独占与共享管理</strong>。每个步骤执行前必须抢占到所需设备资源，资源不足时等待下轮调度，不报失败。通过 Redis 锁实现毫秒级竞争，DB 记录审计追踪。</p>
+  </div>
+
+  <div class="card-grid col3">
+    <div class="card amber">
+      <div class="card-title">EXCLUSIVE 独占</div>
+      <p>本区固定设备，同时只能一个步骤使用。Redis Hash putIfAbsent 原子抢占。</p>
+    </div>
+    <div class="card amber">
+      <div class="card-title">SHARED 共享</div>
+      <p>全局移动设备（如 AGV），跨区调度。Zone Quota 配额防止单区垄断。</p>
+    </div>
+    <div class="card amber">
+      <div class="card-title">三道防线</div>
+      <p>正常释放 + 超时释放 + 宕机恢复释放。资源永远不会泄漏。</p>
+    </div>
+  </div>
+
+  <div class="divider" style="margin:32px 0"></div>
+
+  <!-- Lab Module -->
+  <h3 style="font-family:var(--serif);font-size:18px;color:var(--teal);margin-bottom:16px">E. Lab 模块 — 样本管理（记录员）</h3>
+
+  <div class="prose">
+    <p>Lab 是面向 <strong>实验室业务的领域模块</strong>。它管理样本从注册到出结果的完整生命周期，通过 Hook 和 Event Listener 与 Flow 引擎集成，实现「流程驱动样本状态变更」。</p>
+  </div>
+
+  <div class="card-grid col2">
+    <div class="card teal">
+      <div class="card-title">核心组件</div>
+      <ul>
+        <li><strong>SampleLifecycleService</strong> — 样本状态机 (REGISTERED → LOADED → IN_PROCESS → COMPLETED)</li>
+        <li><strong>SampleBindHook</strong> — 流程启动前绑定样本到 INSTRUMENT 步骤</li>
+        <li><strong>SampleFlowIntegrationListener</strong> — 监听流程事件，驱动样本状态</li>
+        <li><strong>SampleResultHandleService</strong> — 解析设备输出为检测结果</li>
+        <li><strong>SampleTraceService</strong> — 样本轨迹溯源</li>
+        <li><strong>SampleRelationService</strong> — 样本分拆父子关系</li>
+      </ul>
+    </div>
+    <div class="card teal">
+      <div class="card-title">集成模式</div>
+      <ul>
+        <li><strong>Hook 前置绑定</strong>：PipelineStartHook，流程启动前绑样本</li>
+        <li><strong>Event 后置驱动</strong>：@EventListener 异步监听流程事件</li>
+        <li><strong>完全被动</strong>：Lab 不主动调度，只响应 Flow 事件</li>
+        <li><strong>结果解析</strong>：步骤成功后自动提取检测数据</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 5. 数据流 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">05</span>
+    <h2 class="section-title">端到端数据流</h2>
+  </div>
+
+  <div class="flow">
+<span class="note">┌─────────────────────────────────────────────────────────────────────────────────┐</span>
+<span class="note">│                      一次实验流程的完整生命周期                                   │</span>
+<span class="note">└─────────────────────────────────────────────────────────────────────────────────┘</span>
+
+<span class="mod-blue"> ① 用户提交实验流程</span>
+<span class="step">    POST /pipeline/{key}/start</span>
+<span class="arrow">     │</span>
+<span class="arrow">     ▼</span>
+<span class="mod-blue"> ② Flow: PipelineExecutionService.start()</span>
+<span class="arrow">     ├─ [事务] 创建 pe_pipeline_execution + 全部 pe_step_execution(PENDING)</span>
+<span class="arrow">     ├─ [Hook] </span><span class="mod-teal">SampleBindHook：绑定样本到 INSTRUMENT 步骤</span>
+<span class="arrow">     └─ [事务后] DagScheduler.schedule(executionId)</span>
+<span class="arrow">                  │</span>
+<span class="arrow">                  ▼</span>
+<span class="mod-blue"> ③ Flow: DagScheduler.doSchedule()</span>
+<span class="arrow">     ├─ 扫描所有步骤状态，找 PENDING + 依赖全满足的就绪节点</span>
+<span class="arrow">     └─ forEach(readyNode) → StepSubmitter.submit()</span>
+<span class="arrow">                                │</span>
+<span class="arrow">                                ▼</span>
+<span class="mod-amber"> ④ Resource: 资源抢占（如果 resource_enabled=true）</span>
+<span class="arrow">     ├─ ResourceSelector.select() → 候选设备列表</span>
+<span class="arrow">     ├─ </span><span class="mod-coral">DeviceQueryApi.getHealth() → 过滤不健康设备</span>
+<span class="arrow">     ├─ RedisResourceLock.tryLock() → 原子抢占</span>
+<span class="arrow">     ├─ 失败 → return（等下轮调度，不改状态）</span>
+<span class="arrow">     └─ 成功 → 写 pe_step_resource_hold，继续</span>
+<span class="arrow">                  │</span>
+<span class="arrow">                  ▼</span>
+<span class="mod-blue"> ⑤ Flow: StepStateMachine.tryStart() (CAS: PENDING→RUNNING)</span>
+<span class="arrow">     ├─ 失败 → rollbackResource() → return</span>
+<span class="arrow">     └─ 成功 → DispatchSpi.dispatch()</span>
+<span class="arrow">                  │</span>
+<span class="arrow">          ┌───────┴───────┐</span>
+<span class="arrow">          ▼               ▼</span>
+<span class="mod-purple"> ⑥a QUEUED 模式           </span><span class="mod-coral">⑥b DIRECT 模式</span>
+<span class="mod-purple">  Task: QueuedDispatchSpi   </span><span class="mod-coral">Device: InstrumentStepExecutor</span>
+<span class="mod-purple">   ├─ 创建 lab_task 记录      </span><span class="mod-coral"> ├─ DeviceGateway.send()</span>
+<span class="mod-purple">   ├─ TaskRouter 路由到队列    </span><span class="mod-coral"> ├─ DeviceDriver 下发指令</span>
+<span class="mod-purple">   └─ TaskExecutor 异步执行    </span><span class="mod-coral"> └─ 等待设备回调</span>
+<span class="arrow">          │               │</span>
+<span class="arrow">          └───────┬───────┘</span>
+<span class="arrow">                  ▼</span>
+<span class="mod-blue"> ⑦ 回调：DagScheduler.onStepComplete()</span>
+<span class="arrow">     ├─ 成功 → StepSuccessHandler</span>
+<span class="arrow">     │         ├─ 写上下文到 Redis + DB</span>
+<span class="arrow">     │         ├─ </span><span class="mod-amber">releaseIfHeld(STEP_COMPLETE) → 释放资源</span>
+<span class="arrow">     │         ├─ </span><span class="mod-teal">Event → SampleFlowIntegrationListener → 保存检测结果</span>
+<span class="arrow">     │         └─ doSchedule() → 触发下一轮调度</span>
+<span class="arrow">     └─ 失败 → StepFailureHandler → ExceptionCoordinator</span>
+<span class="arrow">               ├─ RetryHandler → 延迟重试（新 attempt）</span>
+<span class="arrow">               ├─ CompensationHandler → 触发补偿步骤</span>
+<span class="arrow">               └─ AlertHandler → 告警 + </span><span class="mod-amber">releaseIfHeld(STEP_DEAD)</span>
+<span class="arrow">                  │</span>
+<span class="arrow">                  ▼</span>
+<span class="mod-blue"> ⑧ 所有步骤完成 → ExecutionStateMachine → RUNNING→SUCCESS</span>
+<span class="mod-teal">     └─ Event → SampleLifecycleService → 样本结算 (COMPLETED)</span>
+</div>
+</div>
+
+<!-- ══════════════ 6. 设计评价 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">06</span>
+    <h2 class="section-title">设计评价 · 亮点与隐患</h2>
+  </div>
+
+  <div class="card-grid col2">
+    <div class="card green">
+      <div class="card-title" style="color:var(--green)">设计亮点</div>
+      <ul>
+        <li><strong>SPI 解耦做得好：</strong>flow-api 和 device-api 是真正的接口契约层，不携带实现依赖</li>
+        <li><strong>乐观锁替代分布式锁：</strong>冲突概率低的场景用 CAS，避免了 Redisson 续期、死锁等复杂性</li>
+        <li><strong>Redis + DB 双层：</strong>上下文热写冷备、资源锁运行时+审计分离，两个都是正确的折中</li>
+        <li><strong>资源三道防线：</strong>正常/超时/宕机三层释放机制，设计完备</li>
+        <li><strong>Lab 模块完全被动：</strong>只通过 Hook 和 Event 响应 Flow，不反向依赖调度逻辑</li>
+        <li><strong>设备多协议抽象：</strong>DeviceDriver SPI 让新协议接入只需一个实现类</li>
+        <li><strong>sort_order 防死锁：</strong>定义层解决运行时问题，零开销</li>
+      </ul>
+    </div>
+    <div class="card coral">
+      <div class="card-title" style="color:var(--coral)">潜在风险</div>
+      <ul>
+        <li><strong>task → lab 耦合：</strong>Task 直接 Maven 依赖 Lab 模块，应通过事件或 lab-api 隔离</li>
+        <li><strong>lab → flow 实现依赖：</strong>Lab 依赖 flow 实现而非 flow-api，增加了耦合面</li>
+        <li><strong>单点 Redis：</strong>资源锁和上下文都依赖 Redis，Redis 故障影响全链路</li>
+        <li><strong>无分布式调度器：</strong>DagScheduler 是单进程内的，多实例部署时需要考虑协调</li>
+        <li><strong>图缓存无淘汰：</strong>ConcurrentHashMap 无 TTL/LRU，长期运行可能 OOM</li>
+        <li><strong>超时扫描依赖 DB：</strong>每 10s 全表扫 RUNNING 步骤，数据量大时性能堪忧</li>
+        <li><strong>缺乏流程级资源预检：</strong>每步独立抢占，可能出现流程执行到一半因持续抢不到资源而"饿死"</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ 7. 改进建议 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">07</span>
+    <h2 class="section-title">架构改进建议</h2>
+  </div>
+
+  <!-- 建议1 -->
+  <div class="card amber" style="margin-bottom:16px">
+    <div class="card-title">建议 1：修复模块依赖 — 抽取 lab-api</div>
+    <div class="card-sub">优先级：高 · 工作量：中</div>
+    <p><strong>问题：</strong>task 直接依赖 lab 实现模块，lab 直接依赖 flow 实现模块。这两处都打破了 API 层隔离原则。</p><br>
+    <p><strong>方案：</strong></p>
+    <ul>
+      <li>新建 <code>librax-module-lab-api</code>，将 Lab 对外暴露的接口（如样本查询、样本绑定）提取到此</li>
+      <li>task 改为依赖 lab-api 而非 lab</li>
+      <li>lab 改为依赖 flow-api 而非 flow，通过 Spring Event 接收流程事件（目前已经部分通过 @EventListener 实现）</li>
+    </ul>
+  </div>
+
+  <!-- 建议2 -->
+  <div class="card amber" style="margin-bottom:16px">
+    <div class="card-title">建议 2：图缓存加淘汰策略</div>
+    <div class="card-sub">优先级：高 · 工作量：低</div>
+    <p><strong>问题：</strong>PipelineGraphCache 用 ConcurrentHashMap 无 TTL/大小限制，长期运行且流程版本多时会 OOM。</p><br>
+    <p><strong>方案：</strong>替换为 Caffeine Cache，设置 maximumSize + expireAfterAccess。正在运行的执行会定期访问保持热，结束后自然淘汰。成本极低，收益确定。</p>
+  </div>
+
+  <!-- 建议3 -->
+  <div class="card amber" style="margin-bottom:16px">
+    <div class="card-title">建议 3：超时扫描优化 — 索引 + 分片</div>
+    <div class="card-sub">优先级：中 · 工作量：低</div>
+    <p><strong>问题：</strong>TimeoutWatchdog 每 10s 扫全部 RUNNING 步骤，随着并发执行增多会成为 DB 热点。</p><br>
+    <p><strong>方案：</strong></p>
+    <ul>
+      <li>pe_step_execution 添加 <code>deadline_at</code> 字段（started_at + timeout_ms 预计算），建联合索引 <code>(status, deadline_at)</code></li>
+      <li>扫描改为 <code>WHERE status='RUNNING' AND deadline_at < now()</code>，精确命中超时步骤</li>
+      <li>多实例部署时按 executionId hash 分片扫描</li>
+    </ul>
+  </div>
+
+  <!-- 建议4 -->
+  <div class="card amber" style="margin-bottom:16px">
+    <div class="card-title">建议 4：资源预检机制 — 防流程"饿死"</div>
+    <div class="card-sub">优先级：中 · 工作量：中</div>
+    <p><strong>问题：</strong>当前资源申请是步骤级的，不足则等待。如果一个长流程中某步骤持续抢不到资源，流程会无限等待（"饿死"）。</p><br>
+    <p><strong>方案：</strong></p>
+    <ul>
+      <li>流程启动时做一次 <strong>资源预检</strong>（不抢占，只检查资源是否存在且配置正确）</li>
+      <li>增加步骤级 <code>resource_wait_timeout</code>：等待超过阈值进入异常处理链</li>
+      <li>可选：引入资源预留（reservation）机制，启动时批量预留，步骤执行时 confirm</li>
+    </ul>
+  </div>
+
+  <!-- 建议5 -->
+  <div class="card amber" style="margin-bottom:16px">
+    <div class="card-title">建议 5：Redis 高可用</div>
+    <div class="card-sub">优先级：中 · 工作量：高</div>
+    <p><strong>问题：</strong>资源锁、设备状态、执行上下文全部依赖 Redis。单点 Redis 故障 = 全链路故障。</p><br>
+    <p><strong>方案：</strong></p>
+    <ul>
+      <li>生产环境使用 Redis Sentinel 或 Redis Cluster</li>
+      <li>资源锁操作增加降级策略：Redis 不可用时临时走 DB 行锁（性能下降但不中断）</li>
+      <li>上下文 Redis 故障时自动从 DB 恢复（已有 RecoveryScanner 基础）</li>
+    </ul>
+  </div>
+
+  <!-- 建议6 -->
+  <div class="card amber" style="margin-bottom:16px">
+    <div class="card-title">建议 6：调度器多实例协调</div>
+    <div class="card-sub">优先级：低（当前单实例足够） · 工作量：高</div>
+    <p><strong>问题：</strong>DagScheduler 是进程内调度，多实例部署时同一个 executionId 可能被多台机器同时调度。虽然 CAS tryStart 保证了安全性，但会产生大量无效竞争。</p><br>
+    <p><strong>方案：</strong></p>
+    <ul>
+      <li>短期：executionId 一致性 hash 到固定实例处理（Redis 分片锁）</li>
+      <li>长期：引入轻量级 leader election（基于 Redis 或 DB），每个 executionId 只有一个 leader 调度</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ══════════════ 8. 演进路线图 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">08</span>
+    <h2 class="section-title">建议演进路线图</h2>
+  </div>
+
+  <table class="arch-table">
+    <tr>
+      <th>阶段</th>
+      <th>目标</th>
+      <th>关键动作</th>
+      <th>预期收益</th>
+    </tr>
+    <tr>
+      <td><strong>Phase 1<br>稳固基础</strong></td>
+      <td>消除已知隐患</td>
+      <td>
+        1. 图缓存改 Caffeine（1天）<br>
+        2. 超时扫描加 deadline_at 索引（1天）<br>
+        3. 抽取 lab-api 修复依赖（3天）
+      </td>
+      <td>消除 OOM 风险，降低 DB 负载，模块可独立部署</td>
+    </tr>
+    <tr>
+      <td><strong>Phase 2<br>完善资源</strong></td>
+      <td>资源调度生产就绪</td>
+      <td>
+        1. 资源预检 + wait_timeout<br>
+        2. Redis Sentinel / Cluster<br>
+        3. 资源锁 DB 降级策略
+      </td>
+      <td>防饿死、防 Redis 单点、资源管理闭环</td>
+    </tr>
+    <tr>
+      <td><strong>Phase 3<br>可观测性</strong></td>
+      <td>全链路可观测</td>
+      <td>
+        1. 执行链路 traceId 串联（Flow→Task→Device→Lab）<br>
+        2. 资源占用仪表盘（基于 pe_step_resource_hold）<br>
+        3. 步骤执行耗时热力图
+      </td>
+      <td>问题定位从小时级到分钟级</td>
+    </tr>
+    <tr>
+      <td><strong>Phase 4<br>弹性扩展</strong></td>
+      <td>多实例水平扩展</td>
+      <td>
+        1. 调度器分片 / leader election<br>
+        2. 步骤执行 Worker 池化<br>
+        3. 独立部署 Task Worker 节点
+      </td>
+      <td>吞吐量线性扩展，故障隔离</td>
+    </tr>
+  </table>
+</div>
+
+<!-- ══════════════ 9. 模块职责速查 ══════════════ -->
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">09</span>
+    <h2 class="section-title">模块职责速查表</h2>
+  </div>
+
+  <table class="arch-table">
+    <tr>
+      <th>模块</th>
+      <th>角色</th>
+      <th>核心接口</th>
+      <th>数据表前缀</th>
+      <th>Redis 用途</th>
+    </tr>
+    <tr>
+      <td><strong style="color:var(--blue)">flow</strong></td>
+      <td>调度中枢</td>
+      <td class="mono">DispatchSpi, StepExecutor, ResourcePool, StepStateApi</td>
+      <td class="mono">pd_, pe_</td>
+      <td>执行上下文热存储</td>
+    </tr>
+    <tr>
+      <td><strong style="color:var(--purple)">task</strong></td>
+      <td>任务路由</td>
+      <td class="mono">QueuedDispatchSpi (impl), TaskExecutor</td>
+      <td class="mono">lab_task, lab_task_event</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td><strong style="color:var(--coral)">device</strong></td>
+      <td>设备网关</td>
+      <td class="mono">DeviceDriver, DeviceQueryApi, DeviceGateway</td>
+      <td class="mono">device_info, device_command, device_codec</td>
+      <td>设备状态双向索引</td>
+    </tr>
+    <tr>
+      <td><strong style="color:var(--amber)">resource</strong></td>
+      <td>资源门卫</td>
+      <td class="mono">ResourcePool (impl), ResourceSelector, RedisResourceLock</td>
+      <td class="mono">lab_resource_config, lab_zone_quota, pe_step_resource_hold</td>
+      <td>资源锁 + 配额计数 + 持有者索引</td>
+    </tr>
+    <tr>
+      <td><strong style="color:var(--teal)">lab</strong></td>
+      <td>样本管理</td>
+      <td class="mono">PipelineStartHook, @EventListener</td>
+      <td class="mono">sample_info, sample_step, sample_result, sample_event</td>
+      <td>—</td>
+    </tr>
+  </table>
+</div>
+
+<div class="divider"></div>
+
+<div style="text-align:center;padding:20px 0;font-family:var(--mono);font-size:11px;color:var(--text-dim)">
+  Librax Lab · 全模块架构分析 v1.0 · 2026-05-02 · Generated by Claude
+</div>
+
+</div>
+</body>
+</html>
