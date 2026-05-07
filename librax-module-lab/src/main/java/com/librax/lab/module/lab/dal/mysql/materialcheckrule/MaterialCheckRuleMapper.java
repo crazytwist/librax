@@ -17,6 +17,12 @@ import com.librax.lab.module.lab.controller.admin.materialcheckrule.vo.*;
 @Mapper
 public interface MaterialCheckRuleMapper extends BaseMapperX<MaterialCheckRuleDO> {
 
+    default List<MaterialCheckRuleDO> selectByPipelineStepId(Long pipelineStepId) {
+        return selectList(new LambdaQueryWrapperX<MaterialCheckRuleDO>()
+                .eq(MaterialCheckRuleDO::getPipelineStepId, pipelineStepId)
+                .orderByAsc(MaterialCheckRuleDO::getSortOrder));
+    }
+
     default PageResult<MaterialCheckRuleDO> selectPage(MaterialCheckRulePageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<MaterialCheckRuleDO>()
                 .eqIfPresent(MaterialCheckRuleDO::getPipelineStepId, reqVO.getPipelineStepId())

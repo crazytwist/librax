@@ -17,6 +17,13 @@ import com.librax.lab.module.flow.controller.admin.executioneventlog.vo.*;
 @Mapper
 public interface ExecutionEventLogMapper extends BaseMapperX<ExecutionEventLogDO> {
 
+    default List<ExecutionEventLogDO> selectByExecutionId(String executionId) {
+        return selectList(new LambdaQueryWrapperX<ExecutionEventLogDO>()
+                .eq(ExecutionEventLogDO::getExecutionId, executionId)
+                .orderByAsc(ExecutionEventLogDO::getOccurredAt)
+                .orderByAsc(ExecutionEventLogDO::getId));
+    }
+
     default PageResult<ExecutionEventLogDO> selectPage(ExecutionEventLogPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<ExecutionEventLogDO>()
                 .eqIfPresent(ExecutionEventLogDO::getExecutionId, reqVO.getExecutionId())

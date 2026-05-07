@@ -4,10 +4,12 @@ import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.engine.execution.context.ExecutionContextManager;
 import com.librax.lab.module.flow.engine.execution.context.OutputMappingResolver;
+import com.librax.lab.module.flow.api.material.MaterialConsumedEvent;
 import com.librax.lab.module.flow.api.model.StepResult;
 import com.librax.lab.module.flow.engine.execution.statemachine.StepStateMachine;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
@@ -24,6 +26,7 @@ public class StepSuccessHandler {
     private final ExecutionContextManager contextManager;
     private final OutputMappingResolver outputMappingResolver;
     private final StepSubmitter stepSubmitter;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 处理步骤成功
@@ -45,7 +48,15 @@ public class StepSuccessHandler {
         // 3. ★ 释放资源（有则释放，无则跳过）
         stepSubmitter.releaseIfHeld(executionId, node.getNodeId(), attempt, "STEP_COMPLETE");
 
-        // 4. 触发下一轮调度
+        // 4. 发布物料消耗事件（lab 模块监听，执行库存扣减）
+        if (node.getPipelineStepId() != null) {
+            eventPublisher.publishEvent(new MaterialConsumedEvent(
+                    this, executionId, node.getNodeId(), attempt,
+                    node.getPipelineStepId(), node.getZoneCode(),
+                    result.getOutputs()));
+        }
+
+        // 5. 触发下一轮调度
         scheduleTrigger.run();
         return true;
     }

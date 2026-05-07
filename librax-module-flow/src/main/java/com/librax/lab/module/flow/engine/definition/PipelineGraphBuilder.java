@@ -157,6 +157,7 @@ public class PipelineGraphBuilder {
 
         return StepNode.builder()
                 // ── 节点身份 ──────────────────────────────────────────
+                .pipelineStepId(ps.getId())
                 .nodeId(ps.getNodeId())
                 .stepKey(ps.getStepKey())
                 .name(sd.getName())

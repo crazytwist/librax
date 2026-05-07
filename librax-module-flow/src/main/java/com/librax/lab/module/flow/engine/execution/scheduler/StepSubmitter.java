@@ -5,6 +5,9 @@ import com.librax.lab.module.flow.api.dispatch.DispatchSpi;
 import com.librax.lab.module.flow.api.dispatch.StepDispatchContext;
 import com.librax.lab.module.flow.api.enums.StepTypeEnum;
 import com.librax.lab.module.flow.api.executor.StepExecutor;
+import com.librax.lab.module.flow.api.material.MaterialCheckRequest;
+import com.librax.lab.module.flow.api.material.MaterialCheckResult;
+import com.librax.lab.module.flow.api.material.MaterialCheckSpi;
 import com.librax.lab.module.flow.api.model.StepResult;
 import com.librax.lab.module.flow.api.resource.AcquireRequest;
 import com.librax.lab.module.flow.api.resource.AcquireResult;
@@ -42,6 +45,7 @@ public class StepSubmitter {
     private final Executor stepExecutorPool;
     private final DispatchSpiFactory dispatchSpiFactory;
     private final ResourcePool resourcePool;
+    private final MaterialCheckSpi materialCheckSpi;
 
     /**
      * 资源等待默认超时时间：5分钟。
@@ -74,6 +78,26 @@ public class StepSubmitter {
 
         // 2. 提前解析入参（后续 tryStart 写 snapshot + buildContext 两处复用，不重复解析）
         Map<String, Object> inputParams = resolveInputParams(executionId, node);
+
+        // 2.5 物料核验（物料不足直接 fail，不进资源调度）
+        if (node.getPipelineStepId() != null) {
+            MaterialCheckResult checkResult = materialCheckSpi.check(
+                    MaterialCheckRequest.builder()
+                            .pipelineStepId(node.getPipelineStepId())
+                            .executionId(executionId)
+                            .nodeId(node.getNodeId())
+                            .zoneCode(node.getZoneCode())
+                            .build());
+            if (!checkResult.isPassed()) {
+                String reasons = String.join("; ", checkResult.getFailReasons());
+                log.warn("[StepSubmitter] 物料核验不通过 executionId={} nodeId={} reasons={}",
+                        executionId, node.getNodeId(), reasons);
+                dagCallback.onStepComplete(executionId, graph, node.getNodeId(),
+                        stepDO.getAttempt(),
+                        StepResult.fail("MATERIAL_CHECK_FAILED", "物料不足: " + reasons));
+                return;
+            }
+        }
 
         // 3. 申请资源（用 resource_enabled 开关控制）
         String resourceId = null;

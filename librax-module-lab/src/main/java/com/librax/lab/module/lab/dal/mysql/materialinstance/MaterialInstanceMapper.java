@@ -17,6 +17,23 @@ import com.librax.lab.module.lab.controller.admin.materialinstance.vo.*;
 @Mapper
 public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> {
 
+    /**
+     * 按物料编码 + 内容类型 + 区域查找可用实例
+     * 条件：status=AVAILABLE, 未过期
+     */
+    default List<MaterialInstanceDO> selectAvailable(String materialCode,
+                                                      String contentType,
+                                                      String zoneCode) {
+        return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>()
+                .eqIfPresent(MaterialInstanceDO::getMaterialCode, materialCode)
+                .eqIfPresent(MaterialInstanceDO::getContentType, contentType)
+                .eqIfPresent(MaterialInstanceDO::getZoneCode, zoneCode)
+                .eq(MaterialInstanceDO::getStatus, "AVAILABLE")
+                .and(w -> w.isNull(MaterialInstanceDO::getExpiredAt)
+                        .or()
+                        .ge(MaterialInstanceDO::getExpiredAt, java.time.LocalDate.now())));
+    }
+
     default PageResult<MaterialInstanceDO> selectPage(MaterialInstancePageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<MaterialInstanceDO>()
                 .eqIfPresent(MaterialInstanceDO::getInstanceId, reqVO.getInstanceId())

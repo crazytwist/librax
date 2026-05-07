@@ -17,6 +17,11 @@ import com.librax.lab.module.resource.controller.admin.slotinfo.vo.*;
 @Mapper
 public interface SlotInfoMapper extends BaseMapperX<SlotInfoDO> {
 
+    default SlotInfoDO selectBySlotId(String slotId) {
+        return selectOne(new LambdaQueryWrapperX<SlotInfoDO>()
+                .eq(SlotInfoDO::getSlotId, slotId));
+    }
+
     default PageResult<SlotInfoDO> selectPage(SlotInfoPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<SlotInfoDO>()
                 .eqIfPresent(SlotInfoDO::getSlotId, reqVO.getSlotId())

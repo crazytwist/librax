@@ -15,6 +15,10 @@ public class StepNode {
 
     // ---- 节点身份 ----
     /**
+     * pd_pipeline_step.id，用于关联物料检查规则等按步骤配置的表
+     */
+    private Long pipelineStepId;
+    /**
      * 节点 ID，流程内唯一，来自 pd_pipeline_step.node_id
      */
     private String nodeId;
