@@ -5,6 +5,7 @@ public enum WaitingForEnum {
     MANUAL_APPROVE,    // 等人工审批
     EXTERNAL_EVENT,    // 等外部事件
     TIMER,             // 等定时触发
-    TASK               // 等任务回调
+    TASK,              // 等任务回调
+    CHILD_EXECUTION    // 等待子流程唤醒
 }
 

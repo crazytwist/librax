@@ -3,6 +3,7 @@ package com.librax.lab.module.flow.dal.mysql.stepexecution;
 import java.time.LocalDateTime;
 import java.util.*;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.librax.lab.framework.common.pojo.PageResult;
 import com.librax.lab.framework.mybatis.core.query.LambdaQueryWrapperX;
@@ -93,5 +94,22 @@ public interface StepExecutionMapper extends BaseMapperX<StepExecutionDO> {
                 .set(StepExecutionDO::getStatus, StepStatusEnum.RUNNING.name())
                 .set(StepExecutionDO::getStartedAt, startedAt)
                 .set(StepExecutionDO::getInputSnapshot, inputSnapshot));  // ★
+    }
+
+    default StepExecutionDO selectByCallbackToken(String callbackToken) {
+        return selectOne(new LambdaQueryWrapper<StepExecutionDO>()
+                .eq(StepExecutionDO::getCallbackToken, callbackToken)
+                .eq(StepExecutionDO::getStatus, StepStatusEnum.WAITING.name())
+                .last("LIMIT 1"));
+    }
+
+    default int updateCallbackToken(String executionId, String nodeId,
+                                    int attempt, String newToken) {
+        return update(null, new LambdaUpdateWrapper<StepExecutionDO>()
+                .eq(StepExecutionDO::getExecutionId, executionId)
+                .eq(StepExecutionDO::getNodeId,      nodeId)
+                .eq(StepExecutionDO::getAttempt,     attempt)
+                .set(StepExecutionDO::getCallbackToken, newToken)
+                .set(StepExecutionDO::getUpdateTime,    LocalDateTime.now()));
     }
 }

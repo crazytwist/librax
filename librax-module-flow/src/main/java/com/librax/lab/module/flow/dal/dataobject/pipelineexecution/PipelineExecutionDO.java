@@ -62,6 +62,10 @@ public class PipelineExecutionDO extends BaseDO {
      */
     private String parentExecutionId;
     /**
+     * 父执行 ID，parentCallbackToken 父级回调认证
+     */
+    private String parentCallbackToken;
+    /**
      * 单独运行的节点 ID，trigger_type=STANDALONE 时填写
      */
     private String standaloneNodeId;

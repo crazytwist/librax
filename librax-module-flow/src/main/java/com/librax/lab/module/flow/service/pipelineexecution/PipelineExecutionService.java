@@ -84,6 +84,22 @@ public interface PipelineExecutionService {
                  String zoneCode);
 
     /**
+     * 启动一条流程
+     *
+     * @param pipelineKey         流程唯一标识，如 water_quality_test
+     * @param pipelineVersion     流程版本号，传 null 时自动使用最新 ACTIVE 版本
+     * @param inputParams         外部传入的初始参数，节点可通过 ${input.xxx} 引用，如 sampleId
+     * @param parentExecutionId   父流程ID
+     * @param parentCallbackToken 父流程回调认证
+     * @return 执行实例唯一ID（UUID），可用于后续查询进度
+     */
+    String startChild(String pipelineKey,
+                      Integer pipelineVersion,
+                      String parentExecutionId,
+                      String parentCallbackToken,
+                      Map<String, Object> inputParams);
+
+    /**
      * 暂停正在执行的流程
      * <p>已提交到线程池的节点会执行完当前步骤，不会强制中断
      *

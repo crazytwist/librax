@@ -174,6 +174,59 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         return executionId;
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public String startChild(String pipelineKey,
+                             Integer pipelineVersion,
+                             String parentExecutionId,
+                             String parentCallbackToken,
+                             Map<String, Object> inputParams) {
+
+        PipelineGraph graph = graphCache.get(pipelineKey, pipelineVersion);
+
+        String executionId = UUID.randomUUID().toString().replace("-", "");
+
+        // 创建子流程执行记录，记录父流程信息
+        PipelineExecutionDO record = new PipelineExecutionDO();
+        record.setExecutionId(executionId);
+        record.setPipelineKey(graph.getPipelineKey());
+        record.setPipelineVersion(graph.getVersion());
+        record.setStatus(ExecutionStatusEnum.PENDING.name());
+        record.setTriggerType("STANDALONE");
+        record.setParentExecutionId(parentExecutionId);          // ★ 父流程ID
+        record.setParentCallbackToken(parentCallbackToken);      // ★ 父流程等待token
+        record.setInputParams(inputParams != null
+                ? JSON.toJSONString(inputParams) : null);
+        record.setRowVersion(0);
+        executionMapper.insert(record);
+
+        initStepExecutions(executionId, graph);
+
+        if (inputParams != null && !inputParams.isEmpty()) {
+            contextManager.putNodeOutput(executionId, CONTEXT_KEY_INPUT, inputParams);
+        }
+
+        for (PipelineStartHook hook : startHooks) {
+            hook.beforeSchedule(executionId, pipelineKey,
+                    graph.getVersion(), inputParams);
+        }
+
+        executionStateMachine.transition(
+                executionId, ExecutionStatusEnum.PENDING, ExecutionStatusEnum.RUNNING);
+
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        dagScheduler.schedule(executionId, pipelineKey, graph.getVersion());
+                    }
+                });
+
+        log.info("[ExecutionService] 子流程已启动 executionId={} parentExecutionId={} token={}",
+                executionId, parentExecutionId, parentCallbackToken);
+        return executionId;
+    }
+
     // ================================================================
     // pause / resume / cancel
     // ================================================================
