@@ -101,4 +101,15 @@ public class PipelineStepController {
                         BeanUtils.toBean(list, PipelineStepRespVO.class));
     }
 
+    @PostMapping("/save-batch")
+    @Operation(summary = "批量保存步骤（画布提交用）")
+    @PreAuthorize("@ss.hasPermission('flow:pipeline-step:create')")
+    public CommonResult<Boolean> saveBatch(
+            @RequestParam String pipelineKey,
+            @RequestParam Integer version,
+            @RequestBody List<PipelineStepSaveReqVO> steps) {
+        pipelineStepService.saveBatch(pipelineKey, version, steps);
+        return success(true);
+    }
+
 }

@@ -92,17 +92,18 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
+
         <dependency>
             <groupId>com.librax.boot</groupId>
             <artifactId>librax-module-flow-api</artifactId>
-            <version>2025.11-SNAPSHOT</version>
+            <version>${revision}</version>
             <scope>compile</scope>
         </dependency>
+
         <dependency>
             <groupId>com.librax.boot</groupId>
             <artifactId>librax-module-lab</artifactId>
-            <version>2025.11-SNAPSHOT</version>
-            <scope>compile</scope>
+            <version>${revision}</version>
         </dependency>
 
     </dependencies>

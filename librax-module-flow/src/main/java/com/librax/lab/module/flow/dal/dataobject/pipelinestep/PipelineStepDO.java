@@ -144,17 +144,14 @@ public class PipelineStepDO extends BaseDO {
      * 画布坐标，如 {"x": 200, "y": 150}，供可视化编辑器使用
      */
     private String uiPosition;
-
     /**
      * 是否启用资源
      */
     private Boolean resourceEnabled;
-
     /**
      * 所属区域编码
      */
     private String zoneCode;
-
     /**
      * 资源等待超时时间(ms)，步骤等待资源超过此值后触发失败，NULL 则用默认值
      */

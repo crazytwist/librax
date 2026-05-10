@@ -1,12 +1,14 @@
 package com.librax.lab.module.flow.service.pipelinestep;
 
 import cn.hutool.core.collection.CollUtil;
+import com.google.common.collect.Lists;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+
 import com.librax.lab.module.flow.controller.admin.pipelinestep.vo.*;
 import com.librax.lab.module.flow.dal.dataobject.pipelinestep.PipelineStepDO;
 import com.librax.lab.framework.common.pojo.PageResult;
@@ -60,10 +62,10 @@ public class PipelineStepServiceImpl implements PipelineStepService {
     }
 
     @Override
-        public void deletePipelineStepListByIds(List<Long> ids) {
+    public void deletePipelineStepListByIds(List<Long> ids) {
         // 删除
         pipelineStepMapper.deleteByIds(ids);
-        }
+    }
 
 
     private void validatePipelineStepExists(Long id) {
@@ -80,6 +82,17 @@ public class PipelineStepServiceImpl implements PipelineStepService {
     @Override
     public PageResult<PipelineStepDO> getPipelineStepPage(PipelineStepPageReqVO pageReqVO) {
         return pipelineStepMapper.selectPage(pageReqVO);
+    }
+
+    @Override
+    public void saveBatch(String pipelineKey, Integer version, List<PipelineStepSaveReqVO> steps) {
+        List<PipelineStepDO> stepDOS = Lists.newArrayList();
+        for (PipelineStepSaveReqVO saveReqVO : steps) {
+            saveReqVO.setPipelineKey(pipelineKey);
+            saveReqVO.setPipelineVersion(version);
+            stepDOS.add(BeanUtils.toBean(saveReqVO, PipelineStepDO.class));
+        }
+        pipelineStepMapper.insertBatch(stepDOS);
     }
 
 }

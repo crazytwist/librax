@@ -3,7 +3,7 @@ package com.librax.lab.module.flow.controller.app;
 import com.librax.lab.framework.common.pojo.CommonResult;
 import com.librax.lab.module.flow.controller.app.vo.ApproveReqVO;
 import com.librax.lab.module.flow.controller.app.vo.StepCallbackReqVO;
-import com.librax.lab.module.flow.engine.execution.callback.CallbackResult;
+import com.librax.lab.module.flow.api.callback.CallbackResult;
 import com.librax.lab.module.flow.engine.execution.callback.StepCallbackService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

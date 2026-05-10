@@ -1,6 +1,7 @@
 package com.librax.lab.module.flow.engine.execution.callback;
 
 import com.alibaba.fastjson.JSON;
+import com.librax.lab.module.flow.api.callback.StepCallbackSpi;
 import com.librax.lab.module.flow.api.enums.WaitingForEnum;
 import com.librax.lab.module.flow.api.resource.ResourcePool;
 import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecutionDO;
@@ -12,6 +13,7 @@ import com.librax.lab.module.flow.engine.execution.scheduler.DagScheduler;
 import com.librax.lab.module.flow.engine.execution.scheduler.StepSubmitter;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;
+import com.librax.lab.module.flow.api.callback.CallbackResult;
 import com.librax.lab.module.flow.service.pipelineexecution.PipelineExecutionService;
 import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +29,7 @@ import static cn.hutool.core.map.MapUtil.getInt;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class StepCallbackService {
+public class StepCallbackService implements StepCallbackSpi {
 
     private final PipelineExecutionMapper executionMapper;
     private final StepExecutionMapper stepMapper;
@@ -49,6 +51,7 @@ public class StepCallbackService {
      * @param errorMsg      错误信息（失败时）
      * @return 推进结果
      */
+    @Override
     public CallbackResult callback(String executionId,
                                    String nodeId,
                                    String callbackToken,
@@ -136,10 +139,10 @@ public class StepCallbackService {
      * 不需要知道父流程的 executionId 和 nodeId，token 唯一定位
      */
     public CallbackResult callbackByToken(String callbackToken,
-                                          boolean success,
-                                          Map<String, Object> outputs,
-                                          String errorCode,
-                                          String errorMsg) {
+                                                                                  boolean success,
+                                                                                  Map<String, Object> outputs,
+                                                                                  String errorCode,
+                                                                                  String errorMsg) {
         // 通过 token 查找 WAITING 状态的步骤
         StepExecutionDO stepDO = stepMapper.selectByCallbackToken(callbackToken);
         if (stepDO == null) {

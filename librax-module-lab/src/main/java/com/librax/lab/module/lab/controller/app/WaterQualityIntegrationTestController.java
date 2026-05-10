@@ -1,7 +1,7 @@
 package com.librax.lab.module.lab.controller.app;
 
 import com.librax.lab.framework.common.pojo.CommonResult;
-import com.librax.lab.module.flow.engine.execution.callback.CallbackResult;
+import com.librax.lab.module.flow.api.callback.CallbackResult;
 import com.librax.lab.module.flow.engine.execution.callback.StepCallbackService;
 import com.librax.lab.module.flow.service.pipelineexecution.PipelineExecutionService;
 import com.librax.lab.module.lab.service.sample.*;

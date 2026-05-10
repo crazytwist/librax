@@ -2,7 +2,9 @@ package com.librax.lab.module.device.controller.admin.devicecommand.vo;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
+
 import java.util.*;
+
 import jakarta.validation.constraints.*;
 
 @Schema(description = "管理后台 - 设备指令配置表，定义每种设备支持的指令及报文模板 [lab_device_]新增/修改 Request VO")
@@ -53,5 +55,8 @@ public class DeviceCommandSaveReqVO {
 
     @Schema(description = "备注", example = "你猜")
     private String remark;
+
+    @Schema(description = "Mock协议返回数据，MockDeviceDriver 用此字段生成回调")
+    private String mockOutput;
 
 }

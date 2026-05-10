@@ -1,6 +1,7 @@
 package com.librax.lab.module.flow.service.pipelinestep;
 
 import java.util.*;
+
 import jakarta.validation.*;
 import com.librax.lab.module.flow.controller.admin.pipelinestep.vo.*;
 import com.librax.lab.module.flow.dal.dataobject.pipelinestep.PipelineStepDO;
@@ -37,10 +38,10 @@ public interface PipelineStepService {
     void deletePipelineStep(Long id);
 
     /**
-    * 批量删除流程步骤关联表，定义节点编排关系、参数配置与补偿策略 [pd_]
-    *
-    * @param ids 编号
-    */
+     * 批量删除流程步骤关联表，定义节点编排关系、参数配置与补偿策略 [pd_]
+     *
+     * @param ids 编号
+     */
     void deletePipelineStepListByIds(List<Long> ids);
 
     /**
@@ -59,4 +60,12 @@ public interface PipelineStepService {
      */
     PageResult<PipelineStepDO> getPipelineStepPage(PipelineStepPageReqVO pageReqVO);
 
+    /**
+     * 批量保存
+     *
+     * @param pipelineKey 流程key
+     * @param version     版本号
+     * @param steps       步骤定义
+     */
+    void saveBatch(String pipelineKey, Integer version, List<PipelineStepSaveReqVO> steps);
 }

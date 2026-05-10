@@ -29,6 +29,7 @@
             <artifactId>librax-module-infra</artifactId>
             <version>${revision}</version>
         </dependency>
+
         <dependency>
             <groupId>com.librax.boot</groupId>
             <artifactId>librax-module-flow</artifactId>

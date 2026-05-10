@@ -10,7 +10,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
-import java.util.UUID;
 
 import static com.librax.lab.module.flow.api.scheduler.SchedulerConstants.CONTEXT_KEY_RESOURCE_ID;
 
@@ -45,16 +44,13 @@ public class InstrumentStepExecutor implements StepExecutor {
 
         // 调设备网关发指令（非阻塞）
         // 设备完成后通过 CallbackDispatcher 回调 StepCallbackService 推进 DAG
-
-//        String taskId = deviceGateway.sendCommand(
-//                deviceType,
-//                commandCode,
-//                ctx.getInputParams(),
-//                ctx.getExecutionId(),
-//                ctx.getNodeId(),
-//                ctx.getCallbackToken());   // ← 透传给设备
-
-        String taskId = UUID.randomUUID().toString();
+        String taskId = deviceGateway.sendCommand(
+                deviceType,
+                commandCode,
+                ctx.getInputParams(),
+                ctx.getExecutionId(),
+                ctx.getNodeId(),
+                ctx.getCallbackToken());
 
         // 返回 WAITING,等设备回调
         // _callbackToken 已由 StepStateMachine.tryStart 生成并写入 pe_step_execution.callback_token

@@ -7,5 +7,6 @@ public enum StepTypeEnum {
     CONDITION,      // 条件分支，Aviator 表达式求值
     WAIT,           // 等待，固定时长或外部信号
     NOTIFY,         // 通知，异步发送
-    SAMPLE_SPLIT    // 样本拆分
+    SAMPLE_SPLIT,   // 样本拆分
+    MANUAL          // 人工处理
 }

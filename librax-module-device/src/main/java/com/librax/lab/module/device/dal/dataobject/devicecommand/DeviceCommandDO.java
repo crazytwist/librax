@@ -1,5 +1,6 @@
 package com.librax.lab.module.device.dal.dataobject.devicecommand;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.*;
 import java.util.*;
 import java.time.LocalDateTime;
@@ -75,6 +76,10 @@ public class DeviceCommandDO extends BaseDO {
      * 最大轮询次数
      */
     private Integer pollMaxTimes;
+    /**
+     * Mock协议返回数据，MockDeviceDriver 用此字段生成回调
+     */
+    private String mockOutput;
     /**
      * 备注
      */

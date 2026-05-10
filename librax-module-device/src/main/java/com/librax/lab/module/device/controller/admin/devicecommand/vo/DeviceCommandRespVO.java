@@ -64,6 +64,9 @@ public class DeviceCommandRespVO {
     @ExcelProperty("最大轮询次数")
     private Integer pollMaxTimes;
 
+    @Schema(description = "Mock协议返回数据，MockDeviceDriver 用此字段生成回调")
+    private String mockOutput;
+
     @Schema(description = "备注", example = "你猜")
     @ExcelProperty("备注")
     private String remark;
