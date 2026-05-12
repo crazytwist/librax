@@ -17,7 +17,7 @@ import java.util.Map;
 @Slf4j
 @Tag(name = "流程步骤回调")
 @RestController
-@RequestMapping("/app-api/flow/callback")
+@RequestMapping("flow/callback")
 @RequiredArgsConstructor
 public class StepCallbackController {
 

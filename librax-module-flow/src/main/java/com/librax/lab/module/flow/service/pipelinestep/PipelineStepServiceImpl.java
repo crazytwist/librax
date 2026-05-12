@@ -2,6 +2,7 @@ package com.librax.lab.module.flow.service.pipelinestep;
 
 import cn.hutool.core.collection.CollUtil;
 import com.google.common.collect.Lists;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -27,6 +28,7 @@ import static com.librax.lab.module.flow.enums.ErrorCodeConstants.*;
  *
  * @author 一南
  */
+@Slf4j
 @Service
 @Validated
 public class PipelineStepServiceImpl implements PipelineStepService {
@@ -86,6 +88,8 @@ public class PipelineStepServiceImpl implements PipelineStepService {
 
     @Override
     public void saveBatch(String pipelineKey, Integer version, List<PipelineStepSaveReqVO> steps) {
+        int i = pipelineStepMapper.deleteByPipelineKeyAndVersion(pipelineKey, version);
+        log.info("删除旧数据条数:{}", i);
         List<PipelineStepDO> stepDOS = Lists.newArrayList();
         for (PipelineStepSaveReqVO saveReqVO : steps) {
             saveReqVO.setPipelineKey(pipelineKey);

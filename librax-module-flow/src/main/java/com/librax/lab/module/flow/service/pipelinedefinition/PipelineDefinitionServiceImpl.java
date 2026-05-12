@@ -1,6 +1,7 @@
 package com.librax.lab.module.flow.service.pipelinedefinition;
 
 import cn.hutool.core.collection.CollUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -81,6 +82,27 @@ public class PipelineDefinitionServiceImpl implements PipelineDefinitionService 
     @Override
     public PageResult<PipelineDefinitionDO> getPipelineDefinitionPage(PipelineDefinitionPageReqVO pageReqVO) {
         return pipelineDefinitionMapper.selectPage(pageReqVO);
+    }
+
+    @Override
+    public boolean existsByKeyAndVersion(String pipelineKey, Integer version) {
+        return pipelineDefinitionMapper.selectOne(
+                new LambdaQueryWrapper<PipelineDefinitionDO>()
+                        .eq(PipelineDefinitionDO::getPipelineKey, pipelineKey)
+                        .eq(PipelineDefinitionDO::getVersion, version)
+        ) != null;
+    }
+
+    @Override
+    public void createDraft(String pipelineKey, Integer version) {
+        PipelineDefinitionDO def = new PipelineDefinitionDO();
+        def.setPipelineKey(pipelineKey);
+        def.setVersion(version);
+        def.setName(pipelineKey);
+        def.setStatus("DRAFT");
+        def.setDefaultTimeoutMs(3_600_000L);
+        def.setFailStrategy("FAIL_PIPELINE");
+        pipelineDefinitionMapper.insert(def);
     }
 
 }

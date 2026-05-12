@@ -21,7 +21,7 @@ import static com.librax.lab.framework.common.pojo.CommonResult.success;
 @Slf4j
 @Tag(name = "设备回调")
 @RestController
-@RequestMapping("/app-api/device/callback")
+@RequestMapping("device/callback")
 @Validated
 @RequiredArgsConstructor
 public class DeviceCallbackController {

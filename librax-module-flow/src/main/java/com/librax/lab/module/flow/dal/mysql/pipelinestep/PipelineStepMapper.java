@@ -2,6 +2,7 @@ package com.librax.lab.module.flow.dal.mysql.pipelinestep;
 
 import java.util.*;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.librax.lab.framework.common.pojo.PageResult;
 import com.librax.lab.framework.mybatis.core.query.LambdaQueryWrapperX;
 import com.librax.lab.framework.mybatis.core.mapper.BaseMapperX;
@@ -33,4 +34,9 @@ public interface PipelineStepMapper extends BaseMapperX<PipelineStepDO> {
                 .orderByDesc(PipelineStepDO::getId));
     }
 
+    default int deleteByPipelineKeyAndVersion(String pipelineKey, Integer version) {
+        return delete(new LambdaQueryWrapper<PipelineStepDO>()
+                .eq(PipelineStepDO::getPipelineKey, pipelineKey)
+                .eq(PipelineStepDO::getPipelineVersion, version));
+    }
 }

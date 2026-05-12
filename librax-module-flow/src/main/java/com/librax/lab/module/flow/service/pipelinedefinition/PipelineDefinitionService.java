@@ -59,4 +59,9 @@ public interface PipelineDefinitionService {
      */
     PageResult<PipelineDefinitionDO> getPipelineDefinitionPage(PipelineDefinitionPageReqVO pageReqVO);
 
+
+    boolean existsByKeyAndVersion(String pipelineKey, Integer version);
+
+
+    void createDraft(String pipelineKey, Integer version);
 }

@@ -1,4 +1,4 @@
-package com.librax.lab.module.flow.controller.app;
+package com.librax.lab.module.flow.controller.admin;
 
 import com.librax.lab.framework.common.pojo.CommonResult;
 import com.librax.lab.module.flow.controller.app.vo.PipelineStartReqVO;

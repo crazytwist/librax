@@ -17,21 +17,23 @@
         <module>librax-module-infra</module>
         <module>librax-module-resource</module>
         <module>librax-module-flow</module>
-        <!--        <module>librax-module-member</module>-->
-        <module>librax-module-bpm</module>
+
+
         <module>librax-module-lab</module>
         <module>librax-module-flow-api</module>
         <module>librax-module-device</module>
         <module>librax-module-task</module>
         <module>librax-module-device-api</module>
+        <!--        <module>librax-module-bpm</module>-->
+        <!--        <module>librax-module-ai</module>-->
+        <!--        <module>librax-module-member</module>-->
         <!--        <module>librax-module-report</module>-->
-<!--        <module>librax-module-mp</module>-->
-<!--        <module>librax-module-pay</module>-->
-<!--        <module>librax-module-mall</module>-->
-<!--        <module>librax-module-crm</module>-->
-<!--        <module>librax-module-erp</module>-->
-<!--        <module>librax-module-ai</module>-->
-<!--        <module>librax-module-iot</module>-->
+        <!--        <module>librax-module-mp</module>-->
+        <!--        <module>librax-module-pay</module>-->
+        <!--        <module>librax-module-mall</module>-->
+        <!--        <module>librax-module-crm</module>-->
+        <!--        <module>librax-module-erp</module>-->
+        <!--        <module>librax-module-iot</module>-->
     </modules>
 
     <name>${project.artifactId}</name>
