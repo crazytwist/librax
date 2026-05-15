@@ -1,10 +1,13 @@
 package com.librax.lab.module.flow.dal.dataobject.pipelinedefinition;
 
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.*;
+
 import java.util.*;
 import java.time.LocalDateTime;
 import java.time.LocalDateTime;
 import java.time.LocalDateTime;
+
 import com.baomidou.mybatisplus.annotation.*;
 import com.librax.lab.framework.mybatis.core.dataobject.BaseDO;
 
@@ -13,7 +16,7 @@ import com.librax.lab.framework.mybatis.core.dataobject.BaseDO;
  *
  * @author 一南
  */
-@TableName("pd_pipeline_definition")
+@TableName(value = "pd_pipeline_definition", autoResultMap = true)
 @KeySequence("pd_pipeline_definition_seq") // 用于 Oracle、PostgreSQL、Kingbase、DB2、H2 数据库的主键自增。如果是 MySQL 等数据库，可不写。
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -72,6 +75,13 @@ public class PipelineDefinitionDO extends BaseDO {
      * 发布时间，status=ACTIVE 时填写
      */
     private LocalDateTime publishedAt;
-
-
+    /**
+     * 样本模式
+     */
+    private String sampleMode = "REQUIRED";
+    /**
+     * 触发样本绑定的节点ID列表
+     */
+    @TableField(value = "sample_bind_nodes", typeHandler = JacksonTypeHandler.class)
+    private List<String> sampleBindNodes;
 }

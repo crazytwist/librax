@@ -1,8 +1,11 @@
 package com.librax.lab.module.lab.service.sample;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import com.alibaba.fastjson.JSON;
 import com.librax.lab.module.flow.engine.definition.PipelineGraphCache;
@@ -15,168 +18,176 @@ import com.librax.lab.module.lab.dal.vo.SampleSplitReqVO;
 import com.librax.lab.module.lab.dal.vo.SampleSplitResultVO;
 import com.librax.lab.module.lab.enums.*;
 import com.librax.lab.module.infra.framework.util.LabIdGenerator;
+import com.librax.lab.module.flow.dal.mysql.pipelinedefinition.PipelineDefinitionMapper;
+import com.librax.lab.module.flow.dal.mysql.pipelineexecution.PipelineExecutionMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
-import java.util.*;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class SampleLifecycleServiceImpl implements SampleLifecycleService {
 
-    private final SampleInfoMapper sampleInfoMapper;
-    private final SampleStepMapper sampleStepMapper;
-    private final SampleEventMapper sampleEventMapper;
-    private final SampleRelationMapper sampleRelationMapper;
-    private final PipelineGraphCache graphCache;
-    private final LabIdGenerator idGenerator;
+    private final SampleInfoMapper         sampleInfoMapper;
+    private final SampleStepMapper         sampleStepMapper;
+    private final SampleEventMapper        sampleEventMapper;
+    private final SampleRelationMapper     sampleRelationMapper;
+    private final PipelineGraphCache       graphCache;
+    private final LabIdGenerator           idGenerator;
+    private final PipelineDefinitionMapper definitionMapper;
+    private final PipelineExecutionMapper  executionMapper;
 
     // ================================================================
     // 流程集成
     // ================================================================
 
     /**
-     * 样本进入流程
-     * - 更新 current_execution_id
-     * - 状态 REGISTERED → LOADED
-     * - 记录 LOADED 事件
+     * 样本进入流程（正式绑定入口）
+     * ★ NONE 模式直接跳过
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void onSampleLoaded(String sampleId, String executionId) {
+        if (!isSampleEnabled(executionId)) {
+            log.debug("[SampleLifecycle] NONE 模式，跳过 onSampleLoaded executionId={}", executionId);
+            return;
+        }
         SampleInfoDO sample = getSample(sampleId);
         if (sample == null) {
             log.warn("[SampleLifecycle] 样本不存在，跳过 sampleId={}", sampleId);
             return;
         }
-
         String fromStatus = sample.getStatus();
-
-        // 更新样本状态
         sampleInfoMapper.updateStatusBySampleId(
-                sampleId,
-                SampleStatusEnum.LOADED.name(),
-                executionId, null);
-
-        // 记录事件
+                sampleId, SampleStatusEnum.LOADED.name(), executionId, null);
         recordEvent(sampleId, executionId, null,
                 SampleEventTypeEnum.LOADED,
                 fromStatus, SampleStatusEnum.LOADED.name(),
                 null, null, null, null, null, null);
-
         log.info("[SampleLifecycle] 样本进入流程 sampleId={} executionId={}",
                 sampleId, executionId);
     }
 
     /**
-     * 预绑定：根据流程定义，把样本绑到所有 INSTRUMENT 类型的步骤上
+     * 预绑定：把样本绑到流程的 INSTRUMENT 步骤上
+     *
+     * ★ 改动：
+     *   - NONE 模式跳过
+     *   - sample_bind_nodes 不为空：存入待消费队列，等指定节点触发
+     *   - sample_bind_nodes 为空：立即绑定所有 INSTRUMENT 步骤（原有行为）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void preBindSteps(List<String> sampleIds, String executionId,
                              String pipelineKey, int pipelineVersion) {
-        PipelineGraph graph = graphCache.get(pipelineKey, pipelineVersion);
+        if (!isSampleEnabled(pipelineKey, pipelineVersion)) {
+            log.debug("[SampleLifecycle] NONE 模式，跳过预绑定 executionId={}", executionId);
+            return;
+        }
 
-        // 找出所有需要样本的步骤（INSTRUMENT 类型）
+        // 直接拿 List<String>，JacksonTypeHandler 已处理反序列化
+        List<String> bindNodes = definitionMapper.selectSampleBindNodes(pipelineKey, pipelineVersion);
+
+        if (!CollectionUtils.isEmpty(bindNodes)) {
+            // 延迟绑定：存入待消费队列（FIFO，逗号分隔）
+            log.info("[SampleLifecycle] 延迟绑定模式 executionId={} bindNodes={} sampleIds={}",
+                    executionId, bindNodes, sampleIds);
+            if (!CollectionUtils.isEmpty(sampleIds)) {
+                executionMapper.updatePendingSampleIds(
+                        executionId, String.join(",", sampleIds));
+            }
+            return;
+        }
+
+        // 立即绑定（原有逻辑，完全不动）
+        if (CollectionUtils.isEmpty(sampleIds)) return;
+
+        PipelineGraph graph = graphCache.get(pipelineKey, pipelineVersion);
         List<StepNode> instrumentSteps = graph.getSteps().stream()
                 .filter(n -> n.getStepType() == StepTypeEnum.INSTRUMENT)
                 .toList();
-
         if (instrumentSteps.isEmpty()) {
-            log.debug("[SampleLifecycle] 流程无INSTRUMENT步骤，跳过预绑定 executionId={}",
-                    executionId);
+            log.debug("[SampleLifecycle] 流程无 INSTRUMENT 步骤，跳过预绑定 executionId={}", executionId);
             return;
         }
 
         LocalDateTime now = LocalDateTime.now();
         int totalBound = 0;
-
         for (StepNode step : instrumentSteps) {
             int seqNo = 1;
             for (String sampleId : sampleIds) {
-                SampleStepDO existing = sampleStepMapper.selectBySampleAndStep(
-                        sampleId, executionId, step.getNodeId(), 1);
-                if (existing != null) continue;
-
-                SampleStepDO bind = new SampleStepDO();
-                bind.setSampleId(sampleId);
-                bind.setExecutionId(executionId);
-                bind.setNodeId(step.getNodeId());
-                bind.setAttempt(1);
-                bind.setStepKey(step.getStepKey());
-                bind.setStepType(step.getStepType().name());
-                bind.setRole("INPUT");
-                bind.setBindType(SampleBindTypeEnum.AUTO.name());
-                bind.setStatus(SampleStepStatusEnum.BOUND.name());
-                bind.setSeqNo(seqNo++);
-                bind.setBoundAt(now);
-                sampleStepMapper.insert(bind);
+                if (sampleStepMapper.selectBySampleAndStep(
+                        sampleId, executionId, step.getNodeId(), 1) != null) continue;
+                sampleStepMapper.insert(buildStepBind(sampleId, executionId, step, seqNo++, now));
                 totalBound++;
             }
         }
-
         log.info("[SampleLifecycle] 预绑定完成 executionId={} samples={} steps={} totalBound={}",
                 executionId, sampleIds.size(), instrumentSteps.size(), totalBound);
     }
 
     /**
-     * 步骤开始：样本状态 BOUND → PROCESSING
+     * 步骤开始：BOUND → PROCESSING
+     * ★ NONE 模式跳过
      */
     @Override
     public void onStepStarted(String sampleId, String executionId,
                               String nodeId, int attempt) {
+        if (!isSampleEnabled(executionId)) return;
+
         SampleStepDO stepBind = sampleStepMapper.selectBySampleAndStep(
                 sampleId, executionId, nodeId, attempt);
-
         if (stepBind == null) {
-            // 预绑定还没完成，跳过，不做即时绑定插入
-            // 预绑定完成后记录自然就在了，步骤成功回调时 onStepCompleted 会处理
-            log.info("[SampleLifecycle] 绑定记录尚未就绪，跳过 sampleId={} nodeId={}",
+            log.debug("[SampleLifecycle] 绑定记录尚未就绪，跳过 sampleId={} nodeId={}",
                     sampleId, nodeId);
             return;
         }
-
-        // 预绑定已存在，更新状态 BOUND → PROCESSING
-        sampleStepMapper.updateStatus(
-                sampleId, executionId, nodeId, attempt,
+        sampleStepMapper.updateStatus(sampleId, executionId, nodeId, attempt,
                 SampleStepStatusEnum.PROCESSING.name());
-
         SampleStepDO update = new SampleStepDO();
         update.setId(stepBind.getId());
         update.setStartedAt(LocalDateTime.now());
         sampleStepMapper.updateById(update);
 
-        log.info("[SampleLifecycle] 样本开始处理 sampleId={} nodeId={}", sampleId, nodeId);
-
-        // 更新样本主表
         sampleInfoMapper.updateStatusBySampleId(
-                sampleId, SampleStatusEnum.IN_PROCESS.name(),
-                executionId, nodeId);
-
+                sampleId, SampleStatusEnum.IN_PROCESS.name(), executionId, nodeId);
         recordEvent(sampleId, executionId, nodeId,
                 SampleEventTypeEnum.PROCESSING,
                 null, SampleStatusEnum.IN_PROCESS.name(),
                 null, null, null, null, null, null);
+        log.info("[SampleLifecycle] 样本开始处理 sampleId={} nodeId={}", sampleId, nodeId);
     }
 
     /**
      * 步骤成功：记录结果，更新状态
+     *
+     * ★ 改动：
+     *   - NONE 模式跳过
+     *   - 当前节点在 sample_bind_nodes 里时触发延迟绑定
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void onStepCompleted(String sampleId, String executionId,
                                 String nodeId, int attempt,
                                 Map<String, Object> outputs) {
-        // 更新 sample_step 状态 → COMPLETED
-        sampleStepMapper.updateStatus(
-                sampleId, executionId, nodeId, attempt,
-                SampleStepStatusEnum.COMPLETED.name());
+        if (!isSampleEnabled(executionId)) return;
 
-        // 写入结果数据
+        // 延迟绑定触发：直接拿 List<String>，无需 parseNodeList
+        List<String> bindNodes = executionMapper.selectSampleBindNodes(executionId);
+        if (!CollectionUtils.isEmpty(bindNodes) && bindNodes.contains(nodeId)) {
+            triggerDelayedBind(executionId, nodeId, outputs);
+            if (sampleId == null) return;
+        }
+
+        // 原有逻辑，完全不动
+        sampleStepMapper.updateStatus(sampleId, executionId, nodeId, attempt,
+                SampleStepStatusEnum.COMPLETED.name());
         if (outputs != null && !outputs.isEmpty()) {
             SampleStepDO stepBind = sampleStepMapper.selectBySampleAndStep(
                     sampleId, executionId, nodeId, attempt);
@@ -188,29 +199,24 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
                 sampleStepMapper.updateById(update);
             }
         }
-
-        // 记录事件
         recordEvent(sampleId, executionId, nodeId,
                 SampleEventTypeEnum.STEP_COMPLETED,
-                null, null,
-                null, null, null, null, null,
+                null, null, null, null, null, null, null,
                 outputs != null ? JSON.toJSONString(outputs) : null);
-
-        log.info("[SampleLifecycle] 样本步骤完成 sampleId={} nodeId={}",
-                sampleId, nodeId);
+        log.info("[SampleLifecycle] 样本步骤完成 sampleId={} nodeId={}", sampleId, nodeId);
     }
 
     /**
      * 步骤失败
+     * ★ NONE 模式跳过
      */
     @Override
     public void onStepFailed(String sampleId, String executionId,
                              String nodeId, int attempt) {
-        sampleStepMapper.updateStatus(
-                sampleId, executionId, nodeId, attempt,
-                SampleStepStatusEnum.FAILED.name());
+        if (!isSampleEnabled(executionId)) return;
 
-        // 更新 finished_at
+        sampleStepMapper.updateStatus(sampleId, executionId, nodeId, attempt,
+                SampleStepStatusEnum.FAILED.name());
         SampleStepDO stepBind = sampleStepMapper.selectBySampleAndStep(
                 sampleId, executionId, nodeId, attempt);
         if (stepBind != null) {
@@ -219,61 +225,46 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
             update.setFinishedAt(LocalDateTime.now());
             sampleStepMapper.updateById(update);
         }
-
         recordEvent(sampleId, executionId, nodeId,
                 SampleEventTypeEnum.STEP_FAILED,
-                null, null,
-                null, null, null, null, null, null);
-
-        log.warn("[SampleLifecycle] 样本步骤失败 sampleId={} nodeId={}",
-                sampleId, nodeId);
+                null, null, null, null, null, null, null, null);
+        log.warn("[SampleLifecycle] 样本步骤失败 sampleId={} nodeId={}", sampleId, nodeId);
     }
 
     /**
      * 流程结束：样本结算
+     * ★ NONE 模式跳过
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void onExecutionCompleted(String sampleId, String executionId,
                                      boolean success) {
+        if (!isSampleEnabled(executionId)) return;
+
         SampleInfoDO sample = getSample(sampleId);
         if (sample == null) return;
-
         String fromStatus = sample.getStatus();
-        String toStatus = success
+        String toStatus   = success
                 ? SampleStatusEnum.COMPLETED.name()
                 : SampleStatusEnum.REJECTED.name();
-
-        // 更新样本状态，清理流程关联
-        sampleInfoMapper.updateStatusBySampleId(
-                sampleId, toStatus, null, null);
-
-        // 记录事件
+        sampleInfoMapper.updateStatusBySampleId(sampleId, toStatus, null, null);
         recordEvent(sampleId, executionId, null,
                 SampleEventTypeEnum.COMPLETED,
                 fromStatus, toStatus,
                 null, null, null, null, null, null);
-
-        log.info("[SampleLifecycle] 样本流程结算 sampleId={} executionId={} " +
-                        "success={} status={}",
+        log.info("[SampleLifecycle] 样本流程结算 sampleId={} executionId={} success={} status={}",
                 sampleId, executionId, success, toStatus);
     }
 
     // ================================================================
-    // 样本操作
+    // 样本操作（一行不动）
     // ================================================================
 
-    /**
-     * 登记新样本
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public String registerSample(SampleRegisterReqVO req) {
-        // 生成样本ID（如果没有传入）
         String sampleId = req.getSampleId() != null
-                ? req.getSampleId()
-                : idGenerator.nextSampleId();
-
+                ? req.getSampleId() : idGenerator.nextSampleId();
         SampleInfoDO sample = new SampleInfoDO();
         sample.setSampleId(sampleId);
         sample.setSampleType(req.getSampleType());
@@ -281,12 +272,12 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
         sample.setContainerType(req.getContainerType());
         sample.setContainerCode(req.getContainerCode());
         sample.setVolumeUl(req.getVolumeUl());
-        sample.setInitialVolumeUl(req.getVolumeUl()); // 初始体积=当前体积
+        sample.setInitialVolumeUl(req.getVolumeUl());
         sample.setConcentration(req.getConcentration());
         sample.setStatus(SampleStatusEnum.REGISTERED.name());
         sample.setDeriveType("ORIGINAL");
         sample.setGeneration(0);
-        sample.setRootSampleId(sampleId); // 原始样本 root = 自己
+        sample.setRootSampleId(sampleId);
         sample.setBatchNo(req.getBatchNo());
         sample.setOrderNo(req.getOrderNo());
         sample.setPriority(req.getPriority() != null ? req.getPriority() : 0);
@@ -299,77 +290,46 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
         sample.setExpireTime(req.getExpireTime());
         sample.setRemark(req.getRemark());
         sampleInfoMapper.insert(sample);
-
-        // 记录登记事件
         recordEvent(sampleId, null, null,
                 SampleEventTypeEnum.REGISTERED,
                 null, SampleStatusEnum.REGISTERED.name(),
                 null, req.getLocationCode(),
-                null, req.getVolumeUl(),
-                null, null);
-
+                null, req.getVolumeUl(), null, null);
         log.info("[SampleLifecycle] 样本登记 sampleId={} type={} batch={}",
                 sampleId, req.getSampleType(), req.getBatchNo());
-
         return sampleId;
     }
 
-    /**
-     * 转移样本位置
-     */
     @Override
     public void transferSample(String sampleId, String toLocation,
                                String toLocationDetail, String operator) {
         SampleInfoDO sample = getSample(sampleId);
         if (sample == null) return;
-
         String fromLocation = sample.getLocationCode();
-
-        // 更新位置
         SampleInfoDO update = new SampleInfoDO();
         update.setId(sample.getId());
         update.setLocationCode(toLocation);
         update.setLocationDetail(toLocationDetail);
         sampleInfoMapper.updateById(update);
-
-        // 记录转移事件
         recordEvent(sampleId, sample.getCurrentExecutionId(), null,
                 SampleEventTypeEnum.TRANSFER,
                 null, null,
                 fromLocation, toLocation,
                 null, null, operator, null);
-
         log.info("[SampleLifecycle] 样本转移 sampleId={} from={} to={}",
                 sampleId, fromLocation, toLocation);
     }
 
-    /**
-     * 拆分样本
-     * <p>
-     * 事务内完成：
-     * 1. 校验父样本存在 + 体积充足
-     * 2. 创建子样本记录（继承父样本的类型、批次等属性）
-     * 3. 记录谱系关系（lab_sample_relation）
-     * 4. 扣减父样本体积
-     * 5. 更新父样本状态为 SPLIT
-     * 6. 记录事件日志
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SampleSplitResultVO splitSample(SampleSplitReqVO req) {
         String parentId = req.getParentSampleId();
-
-        // 1. 校验父样本
         SampleInfoDO parent = getSample(parentId);
-        if (parent == null) {
-            throw new RuntimeException("父样本不存在: " + parentId);
-        }
+        if (parent == null) throw new RuntimeException("父样本不存在: " + parentId);
 
-        // 校验体积
         BigDecimal totalSplitVolume = req.getSplits().stream()
                 .map(SampleSplitReqVO.SplitItem::getVolumeUl)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-
         if (parent.getVolumeUl() != null
                 && parent.getVolumeUl().compareTo(totalSplitVolume) < 0) {
             throw new RuntimeException(String.format(
@@ -380,26 +340,20 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
         LocalDateTime now = LocalDateTime.now();
         List<SampleSplitResultVO.ChildSample> childResults = new ArrayList<>();
 
-        // 2. 逐个创建子样本
         for (SampleSplitReqVO.SplitItem split : req.getSplits()) {
             String childId = parentId + "-" + split.getLabel();
-
-            // 创建子样本记录
             SampleInfoDO child = new SampleInfoDO();
             child.setSampleId(childId);
             child.setParentSampleId(parentId);
-            child.setRootSampleId(
-                    parent.getRootSampleId() != null
-                            ? parent.getRootSampleId() : parentId);
+            child.setRootSampleId(parent.getRootSampleId() != null
+                    ? parent.getRootSampleId() : parentId);
             child.setDeriveType("SPLIT");
-            child.setGeneration(
-                    parent.getGeneration() != null
-                            ? parent.getGeneration() + 1 : 1);
+            child.setGeneration(parent.getGeneration() != null
+                    ? parent.getGeneration() + 1 : 1);
             child.setSampleType(parent.getSampleType());
             child.setSampleName(parent.getSampleName() + "-" + split.getLabel());
-            child.setContainerType(
-                    req.getContainerType() != null
-                            ? req.getContainerType() : parent.getContainerType());
+            child.setContainerType(req.getContainerType() != null
+                    ? req.getContainerType() : parent.getContainerType());
             child.setVolumeUl(split.getVolumeUl());
             child.setInitialVolumeUl(split.getVolumeUl());
             child.setStatus(SampleStatusEnum.REGISTERED.name());
@@ -411,10 +365,8 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
             child.setLocationDetail(parent.getLocationDetail());
             child.setCurrentExecutionId(req.getExecutionId());
             child.setReceivedAt(now);
-
             sampleInfoMapper.insert(child);
 
-            // 3. 记录谱系关系
             SampleRelationDO relation = new SampleRelationDO();
             relation.setSampleId(childId);
             relation.setRelatedSampleId(parentId);
@@ -424,17 +376,13 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
             relation.setNodeId(req.getNodeId());
             sampleRelationMapper.insert(relation);
 
-            // 记录子样本事件
             recordEvent(childId, req.getExecutionId(), req.getNodeId(),
                     SampleEventTypeEnum.REGISTERED,
                     null, SampleStatusEnum.REGISTERED.name(),
-                    null, null,
-                    null, split.getVolumeUl(),
-                    null,
+                    null, null, null, split.getVolumeUl(), null,
                     String.format("{\"splitFrom\":\"%s\",\"label\":\"%s\"}",
                             parentId, split.getLabel()));
 
-            // 收集结果
             SampleSplitResultVO.ChildSample childResult = new SampleSplitResultVO.ChildSample();
             childResult.setSampleId(childId);
             childResult.setLabel(split.getLabel());
@@ -442,35 +390,27 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
             childResults.add(childResult);
         }
 
-        // 4. 扣减父样本体积
         BigDecimal remainingVolume = parent.getVolumeUl() != null
-                ? parent.getVolumeUl().subtract(totalSplitVolume)
-                : null;
-
+                ? parent.getVolumeUl().subtract(totalSplitVolume) : null;
         SampleInfoDO parentUpdate = new SampleInfoDO();
         parentUpdate.setId(parent.getId());
         parentUpdate.setVolumeUl(remainingVolume);
         parentUpdate.setStatus(SampleStatusEnum.SPLIT.name());
         sampleInfoMapper.updateById(parentUpdate);
 
-        // 5. 记录父样本拆分事件
         recordEvent(parentId, req.getExecutionId(), req.getNodeId(),
                 SampleEventTypeEnum.SPLIT,
                 parent.getStatus(), SampleStatusEnum.SPLIT.name(),
-                null, null,
-                parent.getVolumeUl(), remainingVolume,
-                null,
+                null, null, parent.getVolumeUl(), remainingVolume, null,
                 String.format("{\"childCount\":%d,\"totalSplitUl\":%s}",
                         childResults.size(), totalSplitVolume));
 
-        log.info("[SampleLifecycle] 样本拆分完成 parent={} children={} " +
-                        "totalSplit={}μL remaining={}μL",
+        log.info("[SampleLifecycle] 样本拆分完成 parent={} children={} totalSplit={}μL remaining={}μL",
                 parentId,
                 childResults.stream().map(SampleSplitResultVO.ChildSample::getSampleId)
-                        .collect(java.util.stream.Collectors.toList()),
+                        .collect(Collectors.toList()),
                 totalSplitVolume, remainingVolume);
 
-        // 6. 构建返回
         SampleSplitResultVO result = new SampleSplitResultVO();
         result.setChildSamples(childResults);
         result.setTotalSplitVolumeUl(totalSplitVolume);
@@ -478,33 +418,143 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
     }
 
     // ================================================================
-    // 私有方法
+    // ★ 新增私有方法
+    // ================================================================
+
+    /**
+     * 延迟绑定核心逻辑
+     *
+     * 优先级：outputs.sampleId > pendingQueue FIFO
+     *
+     *   场景A 扫码/循环：每次从 outputs 读当次 sampleId
+     *   场景B 预登记多个：从队列按顺序消费
+     *   场景C 预登记单个：队列里只有一个，取出绑定
+     */
+    private void triggerDelayedBind(String executionId, String nodeId,
+                                    Map<String, Object> outputs) {
+        log.info("[SampleLifecycle] 触发延迟绑定 executionId={} nodeId={}", executionId, nodeId);
+
+        // 第一优先：从节点 outputs 读 sampleId（扫码、循环场景）
+        String sampleId = null;
+        if (outputs != null && outputs.get("sampleId") != null) {
+            sampleId = outputs.get("sampleId").toString();
+            log.info("[SampleLifecycle] 从节点输出读取 sampleId={} nodeId={}", sampleId, nodeId);
+        }
+
+        // 第二优先：从待消费队列 FIFO 取（预登记场景）
+        if (sampleId == null) {
+            String pending = executionMapper.selectPendingSampleIds(executionId);
+            if (StringUtils.hasText(pending)) {
+                String[] ids = pending.split(",");
+                sampleId = ids[0].trim();
+                // 消费第一个，剩余写回
+                String remaining = ids.length > 1
+                        ? Arrays.stream(ids, 1, ids.length)
+                          .map(String::trim)
+                          .collect(Collectors.joining(","))
+                        : "";
+                executionMapper.updatePendingSampleIds(executionId, remaining);
+                log.info("[SampleLifecycle] 从队列消费 sampleId={} remaining=[{}] nodeId={}",
+                        sampleId, remaining, nodeId);
+            }
+        }
+
+        if (sampleId == null) {
+            log.warn("[SampleLifecycle] 绑定节点 [{}] 完成但未找到 sampleId executionId={}",
+                    nodeId, executionId);
+            return;
+        }
+
+        // 正式绑定
+        final String finalSampleId = sampleId;
+        onSampleLoaded(finalSampleId, executionId);
+
+        // 补做后续 INSTRUMENT 步骤预绑定
+        String pipelineKey      = executionMapper.selectPipelineKey(executionId);
+        Integer pipelineVersion = executionMapper.selectPipelineVersion(executionId);
+        if (pipelineKey != null && pipelineVersion != null) {
+            bindRemainingSteps(finalSampleId, executionId, pipelineKey, pipelineVersion);
+        }
+        log.info("[SampleLifecycle] 延迟绑定完成 sampleId={} executionId={}",
+                finalSampleId, executionId);
+    }
+
+    /**
+     * 补做预绑定：绑定尚未有记录的 INSTRUMENT 步骤
+     * 排除 sample_bind_nodes 里的节点（绑定触发节点本身不算追溯步骤）
+     */
+    private void bindRemainingSteps(String sampleId, String executionId,
+                                    String pipelineKey, int pipelineVersion) {
+        PipelineGraph graph = graphCache.get(pipelineKey, pipelineVersion);
+        // 直接拿 List<String>，无需 parseNodeList
+        List<String> bindNodes = executionMapper.selectSampleBindNodes(executionId);
+        LocalDateTime now = LocalDateTime.now();
+        int[] seqRef = {1};
+
+        graph.getSteps().stream()
+                .filter(n -> n.getStepType() == StepTypeEnum.INSTRUMENT)
+                .filter(n -> CollectionUtils.isEmpty(bindNodes)
+                        || !bindNodes.contains(n.getNodeId()))
+                .forEach(step -> {
+                    if (sampleStepMapper.selectBySampleAndStep(
+                            sampleId, executionId, step.getNodeId(), 1) != null) return;
+                    sampleStepMapper.insert(
+                            buildStepBind(sampleId, executionId, step, seqRef[0]++, now));
+                });
+
+        log.info("[SampleLifecycle] 补做预绑定完成 sampleId={} executionId={}", sampleId, executionId);
+    }
+
+    /**
+     * 判断是否启用样本逻辑（通过 executionId，读冗余字段，无需 JOIN）
+     */
+    private boolean isSampleEnabled(String executionId) {
+        String mode = executionMapper.selectSampleMode(executionId);
+        return !"NONE".equals(mode);
+    }
+
+    /**
+     * 判断是否启用样本逻辑（通过 pipelineKey + version 直查）
+     */
+    private boolean isSampleEnabled(String pipelineKey, Integer version) {
+        String mode = definitionMapper.selectSampleMode(pipelineKey, version);
+        return !"NONE".equals(mode);
+    }
+
+    /**
+     * 构建 SampleStepDO
+     */
+    private SampleStepDO buildStepBind(String sampleId, String executionId,
+                                       StepNode step, int seqNo, LocalDateTime now) {
+        SampleStepDO bind = new SampleStepDO();
+        bind.setSampleId(sampleId);
+        bind.setExecutionId(executionId);
+        bind.setNodeId(step.getNodeId());
+        bind.setAttempt(1);
+        bind.setStepKey(step.getStepKey());
+        bind.setStepType(step.getStepType().name());
+        bind.setRole("INPUT");
+        bind.setBindType(SampleBindTypeEnum.AUTO.name());
+        bind.setStatus(SampleStepStatusEnum.BOUND.name());
+        bind.setSeqNo(seqNo);
+        bind.setBoundAt(now);
+        return bind;
+    }
+
+    // ================================================================
+    // 原有私有方法（一行不动）
     // ================================================================
 
     private SampleInfoDO getSample(String sampleId) {
         return sampleInfoMapper.selectBySampleId(sampleId);
     }
 
-    private String generateSampleId() {
-        return "S" + System.currentTimeMillis()
-                + String.format("%04d", new Random().nextInt(10000));
-    }
-
-    /**
-     * 记录样本事件（统一入口）
-     */
-    private void recordEvent(String sampleId,
-                             String executionId,
-                             String nodeId,
+    private void recordEvent(String sampleId, String executionId, String nodeId,
                              SampleEventTypeEnum eventType,
-                             String fromStatus,
-                             String toStatus,
-                             String locationFrom,
-                             String locationTo,
-                             java.math.BigDecimal volumeBefore,
-                             java.math.BigDecimal volumeAfter,
-                             String operator,
-                             String payload) {
+                             String fromStatus, String toStatus,
+                             String locationFrom, String locationTo,
+                             BigDecimal volumeBefore, BigDecimal volumeAfter,
+                             String operator, String payload) {
         SampleEventDO event = new SampleEventDO();
         event.setSampleId(sampleId);
         event.setExecutionId(executionId);

@@ -1,11 +1,14 @@
 package com.librax.lab.module.flow.dal.dataobject.pipelineexecution;
 
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.*;
+
 import java.util.*;
 import java.time.LocalDateTime;
 import java.time.LocalDateTime;
 import java.time.LocalDateTime;
 import java.time.LocalDateTime;
+
 import com.baomidou.mybatisplus.annotation.*;
 import com.librax.lab.framework.mybatis.core.dataobject.BaseDO;
 
@@ -14,7 +17,7 @@ import com.librax.lab.framework.mybatis.core.dataobject.BaseDO;
  *
  * @author 一南
  */
-@TableName("pe_pipeline_execution")
+@TableName(value = "pe_pipeline_execution", autoResultMap = true)
 @KeySequence("pe_pipeline_execution_seq") // 用于 Oracle、PostgreSQL、Kingbase、DB2、H2 数据库的主键自增。如果是 MySQL 等数据库，可不写。
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -93,6 +96,19 @@ public class PipelineExecutionDO extends BaseDO {
      * 乐观锁，状态流转时 WHERE row_version=#{v} 防并发
      */
     private Integer rowVersion;
+    /**
+     * NONE=无样本 OPTIONAL=可选 REQUIRED=必须
+     */
+    private String sampleMode = "REQUIRED";
+    /**
+     * 触发样本绑定的节点ID列表
+     */
+    @TableField(value = "sample_bind_nodes", typeHandler = JacksonTypeHandler.class)
+    private List<String> sampleBindNodes;
+    /**
+     * 待消费的样本ID队列，逗号分隔，延迟绑定模式使用
+     */
+    private String pendingSampleIds;
 
 
 }
