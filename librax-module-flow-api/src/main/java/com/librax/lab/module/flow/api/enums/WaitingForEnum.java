@@ -6,6 +6,7 @@ public enum WaitingForEnum {
     EXTERNAL_EVENT,    // 等外部事件
     TIMER,             // 等定时触发
     TASK,              // 等任务回调
+    RESOURCE,          // 等待资源
     CHILD_EXECUTION    // 等待子流程唤醒
 }
 

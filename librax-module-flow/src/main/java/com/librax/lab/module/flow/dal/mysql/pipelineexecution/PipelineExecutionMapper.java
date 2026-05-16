@@ -130,4 +130,16 @@ public interface PipelineExecutionMapper extends BaseMapperX<PipelineExecutionDO
                         .eq(PipelineExecutionDO::getExecutionId, executionId));
         return exec != null ? exec.getPipelineVersion() : null;
     }
+
+    /**
+     * 查父执行 ID
+     * ResourcePool.tryInheritFromParent 往上遍历执行链时使用
+     */
+    default String selectParentExecutionId(String executionId) {
+        PipelineExecutionDO exec = selectOne(
+                new LambdaQueryWrapperX<PipelineExecutionDO>()
+                        .select(PipelineExecutionDO::getParentExecutionId)
+                        .eq(PipelineExecutionDO::getExecutionId, executionId));
+        return exec != null ? exec.getParentExecutionId() : null;
+    }
 }
