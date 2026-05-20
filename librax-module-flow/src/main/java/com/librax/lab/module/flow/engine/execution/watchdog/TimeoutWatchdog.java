@@ -12,6 +12,7 @@ import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.engine.execution.exception.ExceptionEngine;
 import com.librax.lab.module.flow.engine.execution.exception.FailureActionHelper;
 import com.librax.lab.module.flow.engine.execution.exception.FailureDecision;
+import com.librax.lab.module.flow.api.enums.StepTypeEnum;
 import com.librax.lab.module.flow.enums.ExecutionStatusEnum;
 import com.librax.lab.module.flow.enums.StepStatusEnum;
 import com.librax.lab.module.infra.mdc.ExecutionMdc;
@@ -53,21 +54,14 @@ public class TimeoutWatchdog {
     private final ExceptionEngine exceptionEngine;
     private final FailureActionHelper failureActionHelper;
 
-    /**
-     * 全局兜底超时（步骤和流程都没配 timeout 时使用）
-     */
-    private static final long DEFAULT_TIMEOUT_MS = 60_000L;
-
-    /**
-     * WAITING 状态的默认超时（设备回调如果长时间不来）
-     */
-    private static final long DEFAULT_WAITING_TIMEOUT_MS = 300_000L; // 5分钟
+    // 不再有全局兜底超时：步骤/流程三层（step → step_def → pipeline）均未配置 timeout_ms 时，
+    // resolveTimeoutMs 返回 null，扫描循环跳过该步骤，即"不设则永不超时"。
 
     // ================================================================
     // 步骤级超时扫描 — 每 10 秒
     // ================================================================
 
-    @Scheduled(fixedDelay = 10_0000, initialDelay = 30_0000)
+    @Scheduled(fixedDelay = 10_000, initialDelay = 30_000)
     public void scanStepTimeout() {
         // 查所有 RUNNING 状态的流程
         List<PipelineExecutionDO> runningExecutions = executionMapper
@@ -136,8 +130,16 @@ public class TimeoutWatchdog {
         for (StepExecutionDO step : activeSteps) {
             if (step.getStartedAt() == null) continue;
 
-            // 获取超时配置
-            long timeoutMs = resolveTimeoutMs(graph, step, execution);
+            // MANUAL/WAIT 步骤不设超时：人工审批由业务侧 deadline 控制，不由 Watchdog 强杀
+            StepNode node = graph.getStep(step.getNodeId());
+            if (node != null && (node.getStepType() == StepTypeEnum.MANUAL
+                    || node.getStepType() == StepTypeEnum.WAIT)) {
+                continue;
+            }
+
+            // 获取超时配置，null 表示未配置 → 跳过，永不超时
+            Long timeoutMs = resolveTimeoutMs(graph, step);
+            if (timeoutMs == null) continue;
 
             // 判断是否超时
             long elapsedMs = Duration.between(step.getStartedAt(), now).toMillis();
@@ -279,28 +281,16 @@ public class TimeoutWatchdog {
     /**
      * 获取步骤的超时时间（ms）
      * <p>
-     * 优先级：步骤级 > 流程级默认值 > 全局兜底
-     * WAITING 状态使用更长的默认超时（设备回调可能需要更多时间）
+     * 优先级：步骤级 > 步骤定义级 > 流程级（均在 GraphBuilder 构建时合并到 node.timeoutMs）
+     * <p>
+     * 返回 null 表示三层均未配置超时，调用方应跳过该步骤，即永不超时。
      */
-    private long resolveTimeoutMs(PipelineGraph graph,
-                                  StepExecutionDO step,
-                                  PipelineExecutionDO execution) {
-        // 1. 从流程图中取步骤级 timeout_ms
+    private Long resolveTimeoutMs(PipelineGraph graph, StepExecutionDO step) {
         StepNode node = graph.getStep(step.getNodeId());
         if (node != null && node.getTimeoutMs() != null && node.getTimeoutMs() > 0) {
             return node.getTimeoutMs();
         }
-
-        // 2. 流程级默认值
-        Long defaultTimeout = graph.getDefaultTimeoutMs();
-        if (defaultTimeout != null && defaultTimeout > 0) {
-            return defaultTimeout;
-        }
-
-        // 3. 全局兜底，WAITING 用更长的超时
-        if (StepStatusEnum.WAITING.name().equals(step.getStatus())) {
-            return DEFAULT_WAITING_TIMEOUT_MS;
-        }
-        return DEFAULT_TIMEOUT_MS;
+        // 三层均未配置，返回 null 表示不超时
+        return null;
     }
 }

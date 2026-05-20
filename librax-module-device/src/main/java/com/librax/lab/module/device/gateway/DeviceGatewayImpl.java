@@ -13,6 +13,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import com.librax.lab.framework.common.util.expression.ExpressionUtil;
+
 import java.util.Map;
 
 @Slf4j
@@ -77,17 +79,7 @@ public class DeviceGatewayImpl implements DeviceGateway {
         log.info("[DeviceGateway] 任务已取消 deviceId={} taskId={}", deviceId, taskId);
     }
 
-    /**
-     * 渲染模板：把 ${key} 替换为 params 中对应的值
-     */
     private String renderTemplate(String template, Map<String, Object> params) {
-        if (template == null || params == null) return template;
-        String result = template;
-        for (Map.Entry<String, Object> entry : params.entrySet()) {
-            result = result.replace(
-                    "${" + entry.getKey() + "}",
-                    entry.getValue() != null ? entry.getValue().toString() : "");
-        }
-        return result;
+        return ExpressionUtil.render(template, params);
     }
 }

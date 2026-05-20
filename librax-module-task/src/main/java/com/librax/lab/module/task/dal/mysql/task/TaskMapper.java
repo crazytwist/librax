@@ -90,6 +90,13 @@ public interface TaskMapper extends BaseMapperX<TaskDO> {
 
     // ── 状态流转 ──────────────────────────────────────────────────
 
+    /** 查所有已入队但尚未分配的 PENDING 任务，供队列等待超时扫描用 */
+    default List<TaskDO> selectPendingTasks() {
+        return selectList(new LambdaQueryWrapper<TaskDO>()
+                .eq(TaskDO::getStatus, TaskStatusEnum.PENDING.name())
+                .isNotNull(TaskDO::getQueuedAt));
+    }
+
     /** PENDING：记录入队时间 */
     default int updateQueued(String taskId) {
         return update(new LambdaUpdateWrapper<TaskDO>()

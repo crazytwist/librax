@@ -3,6 +3,7 @@ package com.librax.lab.module.device.job;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.alibaba.fastjson.JSONPath;
+import com.librax.lab.framework.common.util.expression.ExpressionUtil;
 import com.librax.lab.module.device.callback.DeviceCallbackHandler;
 import com.librax.lab.module.device.controller.vo.DeviceCallbackReqVO;
 import com.librax.lab.module.device.dal.dataobject.devicecommand.DeviceCommandDO;
@@ -14,9 +15,12 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 设备轮询调度器
@@ -77,7 +81,7 @@ public class DevicePollScheduler {
         if (baseUrl != null && baseUrl.endsWith("/")) {
             baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
         }
-        String pollUrl = baseUrl + pollPath.replace("${taskId}", taskId);
+        String pollUrl = baseUrl + ExpressionUtil.render(pollPath, Map.of("taskId", taskId));
 
         long intervalMs = device.getPollIntervalMs() != null ? device.getPollIntervalMs() : 3000L;
         int maxTimes = command.getPollMaxTimes() != null ? command.getPollMaxTimes() : 60;
@@ -154,8 +158,19 @@ public class DevicePollScheduler {
         }
     }
 
+    /** JSONPath 模式，用于从 doneExpr 中提取 $.xxx 路径 */
+    private static final Pattern JSON_PATH_PATTERN =
+            Pattern.compile("\\$\\.[a-zA-Z_][a-zA-Z0-9_.\\[\\]]*");
+
     /**
-     * 检查轮询结果是否表示完成
+     * 检查轮询结果是否表示完成。
+     *
+     * <p>支持两种表达式：
+     * <ul>
+     *   <li><b>纯 JSONPath</b>（无运算符）：{@code $.completed} — 走 JSONPath 布尔判断（兼容旧配置）
+     *   <li><b>带运算符的表达式</b>：{@code $.status == "DONE"}、{@code $.status >= 2}、
+     *       {@code $.status == 2 || $.status == 4} — 提取 JSONPath 值后交由 Aviator 引擎求值
+     * </ul>
      */
     private boolean isDone(String responseBody, String doneExpr) {
         if (doneExpr == null || doneExpr.isEmpty() || responseBody == null) {
@@ -165,24 +180,51 @@ public class DevicePollScheduler {
         try {
             Object document = JSON.parse(responseBody);
 
-            // 支持简单的 JSONPath == value 表达式，如 $.status == "DONE"
-            if (doneExpr.contains("==")) {
-                String[] parts = doneExpr.split("==", 2);
-                String jsonPath = parts[0].trim();
-                String expectedValue = parts[1].trim().replaceAll("[\"']", "");
-
-                Object actual = JSONPath.eval(document, jsonPath);
-                return expectedValue.equals(String.valueOf(actual));
+            // 提取所有 JSONPath 表达式
+            Map<String, Object> vars = new HashMap<>();
+            String expr = doneExpr;
+            Matcher m = JSON_PATH_PATTERN.matcher(doneExpr);
+            while (m.find()) {
+                String jsonPath = m.group();
+                String varName = toVarName(jsonPath);
+                Object value = JSONPath.eval(document, jsonPath);
+                vars.put(varName, value);
+                expr = expr.replace(jsonPath, varName);
             }
 
-            // 支持简单 boolean 类型的 JSONPath，如 $.completed
-            Object result = JSONPath.eval(document, doneExpr);
-            return Boolean.TRUE.equals(result) || "true".equalsIgnoreCase(String.valueOf(result));
+            // 无 JSONPath：直接当纯 Aviator 表达式求值
+            if (vars.isEmpty()) {
+                return ExpressionUtil.evalBool(doneExpr, vars);
+            }
+
+            // 纯 JSONPath（无运算符）：兼容旧行为，布尔判断
+            if (!hasOperator(doneExpr)) {
+                Object singleValue = vars.values().iterator().next();
+                return Boolean.TRUE.equals(singleValue)
+                        || "true".equalsIgnoreCase(String.valueOf(singleValue));
+            }
+
+            // JSONPath + 运算符：Aviator 求值
+            return ExpressionUtil.evalBool(expr, vars);
 
         } catch (Exception e) {
             log.debug("[DevicePollScheduler] 完成表达式评估失败: {}", e.getMessage());
             return false;
         }
+    }
+
+    /** $.status → status, $.data.code → data_code */
+    private static String toVarName(String jsonPath) {
+        return jsonPath.substring(2).replaceAll("[.\\[\\]]", "_").replaceAll("_+", "_");
+    }
+
+    /** 表达式是否包含比较/逻辑运算符 */
+    private static boolean hasOperator(String expr) {
+        for (int i = 0; i < expr.length(); i++) {
+            char c = expr.charAt(i);
+            if (c == '=' || c == '!' || c == '<' || c == '>' || c == '&' || c == '|') return true;
+        }
+        return false;
     }
 
     @PreDestroy

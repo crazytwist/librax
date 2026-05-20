@@ -175,8 +175,7 @@ public class PipelineGraphBuilder {
                 // ── 执行配置（优先级：pipeline_step > step_def > pipeline_def）──
                 .timeoutMs(coalesce(ps.getTimeoutMs(),
                         sd.getDefaultTimeoutMs(),
-                        pd.getDefaultTimeoutMs(),
-                        30_000L))
+                        pd.getDefaultTimeoutMs()))
                 .maxAttempts(coalesce(ps.getMaxAttempts(),
                         sd.getDefaultMaxAttempts(),
                         pd.getDefaultMaxAttempts(),

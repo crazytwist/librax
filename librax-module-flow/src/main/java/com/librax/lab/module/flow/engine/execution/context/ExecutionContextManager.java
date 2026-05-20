@@ -4,12 +4,10 @@ package com.librax.lab.module.flow.engine.execution.context;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
 import com.librax.lab.module.flow.dal.dataobject.executioncontext.ExecutionContextDO;
-import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecutionDO;
 import com.librax.lab.module.flow.dal.mysql.executioncontext.ExecutionContextMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -59,8 +57,14 @@ public class ExecutionContextManager {
 
         log.debug("[ContextManager] 写入上下文 executionId={} nodeId={}", executionId, nodeId);
 
-        // 2. 异步持久化到 DB（不阻塞调度主链路）
-        asyncPersistToDB(executionId, nodeId, outputJson);
+        // 2. 同步持久化到 DB（保证进程崩溃后可从 DB 恢复，Redis 已写成功则步骤不受影响）
+        try {
+            persistToDB(executionId, nodeId, outputJson);
+        } catch (Exception e) {
+            // DB 写失败不影响主链路（Redis 已写成功），但记录 ERROR 供监控告警
+            log.error("[ContextManager] DB 持久化失败 executionId={} nodeId={} error={}",
+                    executionId, nodeId, e.getMessage(), e);
+        }
     }
 
     // ----------------------------------------------------------------
@@ -88,7 +92,16 @@ public class ExecutionContextManager {
         // 2. Redis miss，从 DB 恢复（断点恢复场景）
         log.info("[ContextManager] Redis miss，从 DB 恢复 executionId={} nodeId={}",
                 executionId, nodeId);
-        return getNodeOutputFromDB(executionId, nodeId);
+        Map<String, Object> dbOutput = getNodeOutputFromDB(executionId, nodeId);
+
+        // 3. 回写 Redis，避免同一次恢复中对同一节点重复打 DB
+        if (!dbOutput.isEmpty()) {
+            redisTemplate.opsForHash().put(redisKey, nodeId, JSON.toJSONString(dbOutput));
+            redisTemplate.expire(redisKey, EXPIRE_HOURS, TimeUnit.HOURS);
+            log.info("[ContextManager] Redis 已回填 executionId={} nodeId={}", executionId, nodeId);
+        }
+
+        return dbOutput;
     }
 
     /**
@@ -115,7 +128,18 @@ public class ExecutionContextManager {
 
         // 2. Redis 全 miss，从 DB 重建
         log.info("[ContextManager] Redis 全 miss，从 DB 重建上下文 executionId={}", executionId);
-        return getAllOutputsFromDB(executionId);
+        Map<String, Map<String, Object>> dbOutputs = getAllOutputsFromDB(executionId);
+
+        // 3. 批量回写 Redis，恢复后续读取走缓存
+        if (!dbOutputs.isEmpty()) {
+            Map<String, String> redisHash = new HashMap<>();
+            dbOutputs.forEach((nId, output) -> redisHash.put(nId, JSON.toJSONString(output)));
+            redisTemplate.opsForHash().putAll(redisKey, redisHash);
+            redisTemplate.expire(redisKey, EXPIRE_HOURS, TimeUnit.HOURS);
+            log.info("[ContextManager] Redis 已批量回填 executionId={} nodeCount={}", executionId, dbOutputs.size());
+        }
+
+        return dbOutputs;
     }
 
     /**
@@ -187,34 +211,24 @@ public class ExecutionContextManager {
     }
 
     /**
-     * 异步持久化到 DB（追加写，不覆盖其他节点数据）
+     * 同步持久化到 DB（追加写，不覆盖其他节点数据）
+     * 调用方已做 try-catch，此处异常直接上抛
      */
-    @Async("labEventListenerExecutor")
-    protected void asyncPersistToDB(String executionId,
-                                    String nodeId,
-                                    String outputJson) {
-        try {
-            // 用 MySQL JSON_SET 追加写入，不覆盖其他 nodeId 的数据
-            // 如果记录不存在先插入，存在则 JSON_SET
-            ExecutionContextDO existing = contextMapper.selectByExecutionId(executionId);
-            if (existing == null) {
-                LocalDateTime now = LocalDateTime.now();
-                ExecutionContextDO record = new ExecutionContextDO();
-                record.setExecutionId(executionId);
-                record.setContextData(JSON.toJSONString(Map.of(nodeId, JSON.parseObject(outputJson))));
-                record.setCreator("SYSTEM");
-                record.setUpdater("SYSTEM");
-                record.setCreateTime(now);
-                record.setUpdateTime(now);
-                record.setDeleted(false);
-                contextMapper.insert(record);
-            } else {
-                // 追加：JSON_SET 写入当前节点数据
-                contextMapper.appendNodeOutput(executionId, nodeId, outputJson);
-            }
-        } catch (Exception e) {
-            log.error("[ContextManager] DB 持久化失败 executionId={} nodeId={} error={}",
-                    executionId, nodeId, e.getMessage());
+    private void persistToDB(String executionId, String nodeId, String outputJson) {
+        ExecutionContextDO existing = contextMapper.selectByExecutionId(executionId);
+        if (existing == null) {
+            LocalDateTime now = LocalDateTime.now();
+            ExecutionContextDO record = new ExecutionContextDO();
+            record.setExecutionId(executionId);
+            record.setContextData(JSON.toJSONString(Map.of(nodeId, JSON.parseObject(outputJson))));
+            record.setCreator("SYSTEM");
+            record.setUpdater("SYSTEM");
+            record.setCreateTime(now);
+            record.setUpdateTime(now);
+            record.setDeleted(false);
+            contextMapper.insert(record);
+        } else {
+            contextMapper.appendNodeOutput(executionId, nodeId, outputJson);
         }
     }
 

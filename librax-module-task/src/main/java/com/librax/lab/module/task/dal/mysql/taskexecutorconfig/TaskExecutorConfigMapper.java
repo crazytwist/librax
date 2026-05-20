@@ -2,6 +2,7 @@ package com.librax.lab.module.task.dal.mysql.taskexecutorconfig;
 
 import java.util.*;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.librax.lab.framework.common.pojo.PageResult;
 import com.librax.lab.framework.mybatis.core.query.LambdaQueryWrapperX;
 import com.librax.lab.framework.mybatis.core.mapper.BaseMapperX;
@@ -16,6 +17,11 @@ import com.librax.lab.module.task.controller.admin.taskexecutorconfig.vo.*;
  */
 @Mapper
 public interface TaskExecutorConfigMapper extends BaseMapperX<TaskExecutorConfigDO> {
+
+    default List<TaskExecutorConfigDO> selectAllEnabled() {
+        return selectList(new LambdaQueryWrapper<TaskExecutorConfigDO>()
+                .eq(TaskExecutorConfigDO::getEnabled, Boolean.TRUE));
+    }
 
     default PageResult<TaskExecutorConfigDO> selectPage(TaskExecutorConfigPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<TaskExecutorConfigDO>()

@@ -2,6 +2,7 @@ package com.librax.lab.module.device.driver;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.librax.lab.framework.common.util.expression.ExpressionUtil;
 import com.librax.lab.module.device.dal.dataobject.devicecommand.DeviceCommandDO;
 import com.librax.lab.module.device.dal.dataobject.deviceinfo.DeviceInfoDO;
 import com.librax.lab.module.device.exception.DeviceException;
@@ -13,6 +14,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -100,9 +102,9 @@ public class HttpDeviceDriver implements DeviceDriver {
         }
 
         String path = command.getHttpPath() != null ? command.getHttpPath() : "";
-        // 替换路径中的占位符
-        path = path.replace("${executionId}", executionId != null ? executionId : "")
-                .replace("${callbackToken}", callbackToken != null ? callbackToken : "");
+        path = ExpressionUtil.render(path,
+                Map.of("executionId", executionId != null ? executionId : "",
+                       "callbackToken", callbackToken != null ? callbackToken : ""));
 
         return baseUrl + path;
     }

@@ -4,11 +4,11 @@ import com.librax.lab.module.flow.api.dispatch.StepDispatchContext;
 import com.librax.lab.module.flow.api.executor.StepExecutor;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.api.model.StepResult;
+import com.librax.lab.framework.common.util.expression.ExpressionUtil;
 import com.librax.lab.module.flow.api.enums.StepTypeEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -108,13 +108,8 @@ public class NotifyStepExecutor implements StepExecutor {
     }
 
     private String renderTemplate(String template, Map<String, Object> vars) {
-        if (!StringUtils.hasText(template)) return "";
-        String result = template;
-        for (Map.Entry<String, Object> entry : vars.entrySet()) {
-            result = result.replace("${" + entry.getKey() + "}",
-                    entry.getValue() != null ? entry.getValue().toString() : "");
-        }
-        return result;
+        if (template == null || template.isEmpty()) return "";
+        return ExpressionUtil.render(template, vars);
     }
 
     private NotifyChannel findChannel(String type) {

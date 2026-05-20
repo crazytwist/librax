@@ -1,7 +1,7 @@
 
 package com.librax.lab.module.flow.engine.execution.executor;
 
-import com.googlecode.aviator.AviatorEvaluator;
+import com.librax.lab.framework.common.util.expression.ExpressionUtil;
 import com.librax.lab.module.flow.api.dispatch.StepDispatchContext;
 import com.librax.lab.module.flow.api.executor.StepExecutor;
 import com.librax.lab.module.flow.engine.definition.model.StepNode;
@@ -61,7 +61,7 @@ public class ConditionStepExecutor implements StepExecutor {
                 ctx.getExecutionId(), ctx.getNodeId(), expr, ctx.getInputParams());
 
         try {
-            Object evalResult = AviatorEvaluator.execute(expr, ctx.getInputParams());
+            Object evalResult = ExpressionUtil.eval(expr, ctx.getInputParams());
             String branchName = resolveBranchName(evalResult);
 
             log.info("[ConditionExecutor] 求值完成 executionId={} nodeId={} " +

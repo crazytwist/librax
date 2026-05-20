@@ -21,7 +21,6 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 断点恢复扫描器
@@ -97,11 +96,12 @@ public class RecoveryScanner {
 
         int resetCount = 0;
         for (StepExecutionDO step : runningSteps) {
-            int rows = resetToPending(step);
-            if (rows > 0) {
+            try {
+                recoverRunningStep(step);
                 resetCount++;
-                log.info("[RecoveryScanner] 步骤重置 RUNNING→PENDING executionId={} nodeId={} attempt={}",
-                        executionId, step.getNodeId(), step.getAttempt());
+            } catch (Exception e) {
+                log.error("[RecoveryScanner] 步骤恢复失败 executionId={} nodeId={}",
+                        executionId, step.getNodeId(), e);
             }
         }
 
@@ -140,21 +140,26 @@ public class RecoveryScanner {
     }
 
     private void recoverRunningStep(StepExecutionDO step) {
-        // 查有没有未释放的 hold 记录
-        String resourceId = resourcePool
-                .queryHeldResourceId(step.getExecutionId(), step.getNodeId(), step.getAttempt());
+        String executionId = step.getExecutionId();
+        String nodeId = step.getNodeId();
+        int attempt = step.getAttempt();
+
+        // 1. 释放宕机前未归还的设备资源
+        String resourceId = resourcePool.queryHeldResourceId(executionId, nodeId, attempt);
         if (StringUtils.isNotBlank(resourceId)) {
-            String holderKey = StepSubmitter.buildHolderKey(
-                    step.getExecutionId(), step.getNodeId(), step.getAttempt());
-            // 释放 Redis 锁 + 更新 hold 记录
+            String holderKey = StepSubmitter.buildHolderKey(executionId, nodeId, attempt);
             resourcePool.release(resourceId, holderKey);
-//            resourceHoldMapper.markReleased(step.getExecutionId(), step.getNodeId(),
-//                    step.getAttempt(), "RECOVERY", LocalDateTime.now());
-            log.info("[RecoveryScanner] 释放宕机遗留资源 nodeId={} resourceId={}",
-                    step.getNodeId(), resourceId);
+            resourcePool.markHoldReleased(executionId, nodeId, attempt, "RECOVERY");
+            log.info("[RecoveryScanner] 释放宕机遗留资源 executionId={} nodeId={} resourceId={}",
+                    executionId, nodeId, resourceId);
         }
-        // 原有重置逻辑
-        stepMapper.resetToPending(step.getExecutionId(), step.getNodeId());
+
+        // 2. CAS 重置状态 RUNNING → PENDING
+        int rows = resetToPending(step);
+        if (rows > 0) {
+            log.info("[RecoveryScanner] 步骤重置 RUNNING→PENDING executionId={} nodeId={} attempt={}",
+                    executionId, nodeId, attempt);
+        }
     }
 
 
