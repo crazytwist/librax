@@ -2,6 +2,7 @@ package com.librax.lab.module.device.service.deviceinfo;
 
 import com.librax.lab.module.device.controller.admin.deviceinfo.vo.DeviceInfoPageReqVO;
 import com.librax.lab.module.device.controller.admin.deviceinfo.vo.DeviceInfoSaveReqVO;
+import com.librax.lab.module.device.driver.DeviceHttpClientFactory;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -29,6 +30,9 @@ public class DeviceInfoServiceImpl implements DeviceInfoService {
     @Resource
     private DeviceInfoMapper deviceInfoMapper;
 
+    @Resource
+    private DeviceHttpClientFactory deviceHttpClientFactory;
+
     @Override
     public Long createDeviceInfo(DeviceInfoSaveReqVO createReqVO) {
         // 插入
@@ -46,6 +50,8 @@ public class DeviceInfoServiceImpl implements DeviceInfoService {
         // 更新
         DeviceInfoDO updateObj = BeanUtils.toBean(updateReqVO, DeviceInfoDO.class);
         deviceInfoMapper.updateById(updateObj);
+        // 设备配置变更后淘汰旧 HTTP 客户端，下次请求时按最新配置重建
+        deviceHttpClientFactory.invalidate(updateReqVO.getDeviceId());
     }
 
     @Override
@@ -72,6 +78,11 @@ public class DeviceInfoServiceImpl implements DeviceInfoService {
     @Override
     public DeviceInfoDO getDeviceInfo(Long id) {
         return deviceInfoMapper.selectById(id);
+    }
+
+    @Override
+    public DeviceInfoDO getByDeviceId(String deviceId) {
+        return deviceInfoMapper.selectByDeviceId(deviceId);
     }
 
     @Override

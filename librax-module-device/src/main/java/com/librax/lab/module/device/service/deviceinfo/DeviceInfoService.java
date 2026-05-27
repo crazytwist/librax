@@ -60,4 +60,12 @@ public interface DeviceInfoService {
      */
     PageResult<DeviceInfoDO> getDeviceInfoPage(DeviceInfoPageReqVO pageReqVO);
 
+    /**
+     * 按业务设备ID查询
+     *
+     * @param deviceId 设备业务ID，如 PH-METER-01
+     * @return 设备信息，不存在返回 null
+     */
+    DeviceInfoDO getByDeviceId(String deviceId);
+
 }

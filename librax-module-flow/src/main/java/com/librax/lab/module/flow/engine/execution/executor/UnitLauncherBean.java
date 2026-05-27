@@ -58,7 +58,7 @@ public class UnitLauncherBean implements StepExecutor {
 
     @Override
     public StepTypeEnum supportType() {
-        return null;
+        return StepTypeEnum.UNIT_LAUNCHER;
     }
 
     @Override

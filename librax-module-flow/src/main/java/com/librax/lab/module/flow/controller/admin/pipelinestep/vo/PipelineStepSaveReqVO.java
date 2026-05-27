@@ -24,6 +24,9 @@ public class PipelineStepSaveReqVO {
     @NotEmpty(message = "节点 ID，同一流程版本内唯一，小写+下划线，如 s_ph不能为空")
     private String nodeId;
 
+    @Schema(description = "步骤类型，覆盖 pd_step_definition.step_type。支持的值：INSTRUMENT | COMPUTE | CONDITION | WAIT | NOTIFY | SAMPLE_SPLIT | MANUAL | UNIT_LAUNCHER")
+    private String stepType;
+
     @Schema(description = "关联 pd_step_definition.step_key", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotEmpty(message = "关联 pd_step_definition.step_key不能为空")
     private String stepKey;

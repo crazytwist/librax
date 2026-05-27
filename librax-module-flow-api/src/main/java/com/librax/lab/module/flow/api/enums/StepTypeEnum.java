@@ -8,5 +8,6 @@ public enum StepTypeEnum {
     WAIT,           // 等待，固定时长或外部信号
     NOTIFY,         // 通知，异步发送
     SAMPLE_SPLIT,   // 样本拆分
-    MANUAL          // 人工处理
+    MANUAL,         // 人工处理
+    UNIT_LAUNCHER   // 执行单元启动器，启动子流程
 }

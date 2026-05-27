@@ -50,6 +50,12 @@ public class PipelineStepDO extends BaseDO {
      */
     private String taskType;
     /**
+     * 步骤类型，覆盖 pd_step_definition.step_type。
+     * 非空时 PipelineGraphBuilder 优先使用此值，否则回退到 StepDefinitionDO.stepType。
+     * 支持的值：INSTRUMENT | COMPUTE | CONDITION | WAIT | NOTIFY | SAMPLE_SPLIT | MANUAL | UNIT_LAUNCHER
+     */
+    private String stepType;
+    /**
      * 关联 pd_step_definition.step_key
      */
     private String stepKey;

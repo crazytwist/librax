@@ -161,8 +161,9 @@ public class PipelineGraphBuilder {
                 .nodeId(ps.getNodeId())
                 .stepKey(ps.getStepKey())
                 .name(sd.getName())
-                // 修正1：字段名对齐 StepNode，使用 stepType 而非 stepTypeEnum
-                .stepType(StepTypeEnum.valueOf(sd.getStepType()))
+                // 步骤类型：优先使用 pipeline_step 级别的覆盖，否则回退到 step_definition 的配置
+                .stepType(StepTypeEnum.valueOf(
+                        StringUtils.hasText(ps.getStepType()) ? ps.getStepType() : sd.getStepType()))
                 // 加入分发模式 直连 还是 队列
                 .dispatchMode(ps.getDispatchMode())
                 .taskType(ps.getTaskType())
