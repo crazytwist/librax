@@ -293,7 +293,7 @@ librax:
       topic: ${spring.application.name}-websocket # 消息发送的 Kafka Topic
       consumer-group: ${spring.application.name}-websocket-consumer # 消息发送的 Kafka Consumer Group
   swagger:
-    title: 芋道快速开发平台
+    title: 快速开发平台
     description: 提供管理后台、用户 App 的所有功能
     version: ${librax.info.version}
     url: ${librax.web.admin-ui.url}
@@ -368,6 +368,3 @@ librax:
 
 debug: false
 
-logging:
-  file:
-    name: /Users/yinan/workspace/logs/librax.log

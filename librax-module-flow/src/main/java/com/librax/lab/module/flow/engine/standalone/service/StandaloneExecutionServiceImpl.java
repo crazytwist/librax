@@ -84,11 +84,8 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
         if (!node.isRunnableStandalone()) {
             throw new RuntimeException("节点不支持单独运行: " + req.getNodeId());
         }
-
         // ★ zoneCode 从 inputParams 取，取不到则为 null
-        String zoneCode = req.getInputParams() != null
-                ? (String) req.getInputParams().get("zoneCode")
-                : null;
+        String zoneCode = req.getInputParams() != null ? (String) req.getInputParams().get("zoneCode") : null;
 
         log.info("[Standalone] 开始单独运行 pipelineKey={} version={} nodeId={} " +
                         "zoneCode={} triggeredBy={}",
@@ -112,7 +109,7 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
                 ExecutionStatusEnum.RUNNING);
 
         // 6. 执行节点
-        return executeTargetNode(executionId, graph, node, zoneCode);
+        return executeTargetNode(executionId, graph, node, zoneCode, req.getInputParams());
     }
 
     // ================================================================
@@ -194,7 +191,8 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
     private StandaloneRunResultVO executeTargetNode(String executionId,
                                                     PipelineGraph graph,
                                                     StepNode node,
-                                                    String zoneCode) {
+                                                    String zoneCode,
+                                                    Map<String, Object> reqInputParams) {
         // 查步骤记录取 callbackToken / attempt
         StepExecutionDO stepDO = stepMapper.selectByExecutionNodeAttempt(
                 executionId, node.getNodeId(), 1);
@@ -207,8 +205,11 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
                     executionId, "LOCK_FAILED", "步骤抢锁失败");
         }
 
-        // 2. 解析入参
+        // 2. 解析入参（inputMapping 解析结果优先，req.inputParams 作为补充）
         Map<String, Object> inputParams = resolveInputParams(executionId, node);
+        if (reqInputParams != null) {
+            reqInputParams.forEach(inputParams::putIfAbsent);
+        }
 
         // 3. ★ 组装 StepDispatchContext（新签名，不再传 StepNode）
         StepDispatchContext ctx = buildContext(
@@ -332,8 +333,8 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
             waitingInfo.putAll(result.getOutputs());
         }
         waitingInfo.put("_callbackToken", callbackToken);
-        waitingInfo.put("_waitingFor",    result.getWaitingFor().name());
-        waitingInfo.put("_waitingSince",  LocalDateTime.now().toString());
+        waitingInfo.put("_waitingFor", result.getWaitingFor().name());
+        waitingInfo.put("_waitingSince", LocalDateTime.now().toString());
         contextManager.putNodeOutput(
                 executionId, node.getNodeId() + "_waiting", waitingInfo);
 
@@ -358,8 +359,7 @@ public class StandaloneExecutionServiceImpl implements StandaloneExecutionServic
     // ================================================================
 
     private Map<String, Object> resolveInputParams(String executionId, StepNode node) {
-        Map<String, Object> inputParams = contextManager
-                .getNodeOutput(executionId, "input");
+        Map<String, Object> inputParams = contextManager.getNodeOutput(executionId, "input");
         Map<String, Object> mappedParams = contextManager.resolveInputMapping(
                 executionId, node.getInputMapping(), inputParams);
         Map<String, Object> merged = new HashMap<>(

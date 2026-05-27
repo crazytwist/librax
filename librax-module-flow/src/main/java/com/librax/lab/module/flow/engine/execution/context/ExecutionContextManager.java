@@ -13,8 +13,11 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -162,6 +165,32 @@ public class ExecutionContextManager {
             resolved.put(paramName, value);
         });
         return resolved;
+    }
+
+    /**
+     * 递归解析任意层级的 ${...} 表达式
+     * 支持 Map / List / String 的嵌套结构，用于 process_json 等深层参数场景
+     *
+     * @param executionId 执行实例ID
+     * @param value       待解析的值（String / Map / List / 其他基本类型）
+     * @param inputParams 流程初始参数
+     * @return 解析后的值，结构与输入保持一致
+     */
+    public Object resolveDeep(String executionId, Object value, Map<String, Object> inputParams) {
+        if (value instanceof String s) {
+            return resolveExpression(executionId, s, inputParams);
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            map.forEach((k, v) -> result.put((String) k, resolveDeep(executionId, v, inputParams)));
+            return result;
+        }
+        if (value instanceof List<?> list) {
+            return list.stream()
+                    .map(item -> resolveDeep(executionId, item, inputParams))
+                    .collect(Collectors.toList());
+        }
+        return value;
     }
 
     // ----------------------------------------------------------------

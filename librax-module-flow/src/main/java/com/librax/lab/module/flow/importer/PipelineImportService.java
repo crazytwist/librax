@@ -54,6 +54,24 @@ public class PipelineImportService {
         }
     }
 
+    /**
+     * 解析 YAML 文本内容（用于在线编辑器实时校验）
+     */
+    public List<PipelineImportResult> preview(String yamlContent) {
+        try {
+            return yamlParser.parse(yamlContent);
+        } catch (Exception e) {
+            log.error("[ImportService] YAML 文本解析异常", e);
+            return List.of(PipelineImportResult.builder()
+                    .importable(false)
+                    .errors(List.of(PipelineImportResult.ValidationIssue.builder()
+                            .level("ERROR")
+                            .message("YAML 解析失败: " + e.getMessage())
+                            .build()))
+                    .build());
+        }
+    }
+
     // ── confirm：批量写库 ─────────────────────────────────
 
     @Transactional(rollbackFor = Exception.class)

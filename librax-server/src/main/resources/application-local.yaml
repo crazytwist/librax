@@ -9,7 +9,6 @@ spring:
       - org.springframework.boot.autoconfigure.quartz.QuartzAutoConfiguration # 默认 local 环境，不开启 Quartz 的自动配置
       - org.springframework.ai.vectorstore.qdrant.autoconfigure.QdrantVectorStoreAutoConfiguration # 禁用 AI 模块的 Qdrant，手动创建
       - org.springframework.ai.vectorstore.milvus.autoconfigure.MilvusVectorStoreAutoConfiguration # 禁用 AI 模块的 Milvus，手动创建
-      - org.springframework.ai.vectorstore.qdrant.autoconfigure.QdrantVectorStoreAutoConfiguration
   # 数据源配置项
   datasource:
     druid: # Druid 【监控】相关的全局配置
@@ -222,7 +221,7 @@ wx:
 
 --- #################### 芋道相关配置 ####################
 
-# 芋道配置项，设置当前项目所有自定义的配置
+# 设置当前项目所有自定义的配置
 librax:
   captcha:
     enable: false # 本地环境，暂时关闭图片验证码，方便登录等接口的测试；
@@ -308,3 +307,7 @@ liteflow:
     #脚本表自定义过滤SQL
     scriptCustomSql:
   when-thread-pool-isolate: true
+
+logging:
+  file:
+    name: /Users/yinan/workspace/logs/librax.log

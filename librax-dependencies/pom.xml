@@ -13,6 +13,17 @@
     <description>基础 bom 文件，管理整个项目的依赖版本</description>
     <url>https://github.com/YunaiV/ruoyi-vue-pro</url>
 
+    <distributionManagement>
+        <repository>
+            <id>repo-rvnwk</id>
+            <url>https://packages.aliyun.com/68e7bfe3f3eec50950f5589b/maven/repo-rvnwk</url>
+        </repository>
+        <snapshotRepository>
+            <id>repo-rvnwk</id>
+            <url>https://packages.aliyun.com/68e7bfe3f3eec50950f5589b/maven/repo-rvnwk</url>
+        </snapshotRepository>
+    </distributionManagement>
+
     <properties>
         <revision>2025.11-SNAPSHOT</revision>
         <flatten-maven-plugin.version>1.7.2</flatten-maven-plugin.version>

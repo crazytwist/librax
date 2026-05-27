@@ -8,7 +8,9 @@ import com.librax.lab.module.flow.importer.PipelineImportResult.ValidationIssue;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -40,9 +42,17 @@ public class PipelineYamlParser {
     // ── 主入口：返回列表（单流程 size=1，多流程 size=N）────
 
     public List<PipelineImportResult> parse(InputStream yamlInput) {
+        return doParse(yamlInput);
+    }
+
+    public List<PipelineImportResult> parse(String yamlContent) {
+        return doParse(new ByteArrayInputStream(yamlContent.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private List<PipelineImportResult> doParse(InputStream input) {
         MultiPipelineYamlDef multi;
         try {
-            multi = YAML_MAPPER.readValue(yamlInput, MultiPipelineYamlDef.class);
+            multi = YAML_MAPPER.readValue(input, MultiPipelineYamlDef.class);
         } catch (Exception e) {
             log.warn("[YamlParser] YAML 格式错误: {}", e.getMessage());
             return List.of(PipelineImportResult.builder()

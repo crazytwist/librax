@@ -6,6 +6,7 @@ import com.librax.lab.module.flow.importer.PipelineImportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -48,6 +49,23 @@ public class PipelineImportController {
     public CommonResult<Boolean> confirm(@RequestBody ConfirmReqVO req) {
         importService.confirm(req.getResults());
         return success(true);
+    }
+
+    /**
+     * 在线 YAML 编辑器实时校验（接受 YAML 文本，不做文件上传）
+     */
+    @PostMapping("/validate")
+    @Operation(summary = "校验 YAML 文本内容，返回解析预览（不写库）")
+    @PreAuthorize("@ss.hasPermission('flow:pipeline:import')")
+    public CommonResult<List<PipelineImportResult>> validate(
+            @RequestBody YamlContentReqVO req) {
+        return success(importService.preview(req.getYamlContent()));
+    }
+
+    @Data
+    public static class YamlContentReqVO {
+        @NotBlank(message = "YAML 内容不能为空")
+        private String yamlContent;
     }
 
     @Data

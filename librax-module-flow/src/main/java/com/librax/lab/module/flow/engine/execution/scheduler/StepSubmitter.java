@@ -288,7 +288,10 @@ public class StepSubmitter {
                 executionId, node.getInputMapping(), inputParams);
         Map<String, Object> merged = new HashMap<>(node.getParams());
         if (mappedParams != null) merged.putAll(mappedParams);
-        return merged;
+        // 递归解析 merged 中任意层级的 ${...} 表达式（兼容 process_json 等嵌套结构）
+        @SuppressWarnings("unchecked")
+        Map<String, Object> resolved = (Map<String, Object>) contextManager.resolveDeep(executionId, merged, inputParams);
+        return resolved;
     }
 
     // ================================================================

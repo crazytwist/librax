@@ -7,6 +7,7 @@ spring:
   autoconfigure:
     # noinspection SpringBootApplicationYaml
     exclude:
+      - org.springframework.boot.autoconfigure.quartz.QuartzAutoConfiguration # 暂时关闭 Quartz，与 local 保持一致
       - org.springframework.ai.vectorstore.qdrant.autoconfigure.QdrantVectorStoreAutoConfiguration # 禁用 AI 模块的 Qdrant，手动创建
       - org.springframework.ai.vectorstore.milvus.autoconfigure.MilvusVectorStoreAutoConfiguration # 禁用 AI 模块的 Milvus，手动创建
   # 数据源配置项
@@ -47,52 +48,48 @@ spring:
       primary: master
       datasource:
         master:
-          url: jdbc:mysql://192.168.4.65:3306/librax-sz?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
+          # 连接服务器 docker 网络中的 mysql-local 容器
+          url: jdbc:mysql://mysql-local:3306/librax-sz?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true
           username: root
-          password: mysql123456
-        slave: # 模拟从库，可根据自己需要修改 # 模拟从库，可根据自己需要修改
+          password: root
+        slave:
           lazy: true # 开启懒加载，保证启动速度
-          url: jdbc:mysql://192.168.4.65:3306/librax-sz?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true # MySQL Connector/J 8.X 连接的示例
+          url: jdbc:mysql://mysql-local:3306/librax-sz?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true
           username: root
-          password: mysql123456
+          password: root
 
-  # Redis 配置。Redisson 默认的配置足够使用，一般不需要进行调优
+  # Redis 配置，连接服务器 docker 网络中的 redis-local 容器
   data:
     redis:
-      host: localhost # 地址
+      host: redis-local # 地址
       port: 6379 # 端口
       database: 0 # 数据库索引
-#    password: 123456 # 密码，建议生产环境开启
 
 --- #################### 定时任务相关配置 ####################
 
 # Quartz 配置项，对应 QuartzProperties 配置类
 spring:
   quartz:
-    auto-startup: true # 测试环境，需要开启 Job
+    auto-startup: false # 暂时关闭，与 local 保持一致
     scheduler-name: schedulerName # Scheduler 名字。默认为 schedulerName
     job-store-type: jdbc # Job 存储器类型。默认为 memory 表示内存，可选 jdbc 使用数据库。
     wait-for-jobs-to-complete-on-shutdown: true # 应用关闭时，是否等待定时任务执行完成。默认为 false ，建议设置为 true
-    properties: # 添加 Quartz Scheduler 附加属性，更多可以看 http://www.quartz-scheduler.org/documentation/2.4.0-SNAPSHOT/configuration.html 文档
+    properties: # 添加 Quartz Scheduler 附加属性
       org:
         quartz:
-          # Scheduler 相关配置
           scheduler:
             instanceName: schedulerName
             instanceId: AUTO # 自动生成 instance ID
-          # JobStore 相关配置
           jobStore:
-            # JobStore 实现类。可见博客：https://blog.csdn.net/weixin_42458219/article/details/122247162
             class: org.springframework.scheduling.quartz.LocalDataSourceJobStore
             isClustered: true # 是集群模式
             clusterCheckinInterval: 15000 # 集群检查频率，单位：毫秒。默认为 15000，即 15 秒
             misfireThreshold: 60000 # misfire 阀值，单位：毫秒。
-          # 线程池相关配置
           threadPool:
             threadCount: 25 # 线程池大小。默认为 10 。
             threadPriority: 5 # 线程优先级
             class: org.quartz.simpl.SimpleThreadPool # 线程池类型
-    jdbc: # 使用 JDBC 的 JobStore 的时候，JDBC 的配置
+    jdbc:
       initialize-schema: NEVER # 是否自动使用 SQL 初始化 Quartz 表结构。这里设置成 never ，我们手动创建表结构。
 
 --- #################### 消息队列相关 ####################
@@ -133,72 +130,77 @@ management:
 spring:
   boot:
     admin:
-      # Spring Boot Admin Client 客户端的相关配置
       client:
-        url: http://127.0.0.1:${server.port}/${spring.boot.admin.context-path} # 设置 Spring Boot Admin Server 地址
+        url: http://127.0.0.1:${server.port}/${spring.boot.admin.context-path}
         instance:
           service-host-type: IP # 注册实例时，优先使用 IP [IP, HOST_NAME, CANONICAL_HOST_NAME]
-      # Spring Boot Admin Server 服务端的相关配置
-      context-path: /admin # 配置 Spring
+      context-path: /admin
 
-# 日志文件配置
+# 日志文件配置：输出到容器内 /librax-server/logs/，挂载到宿主机 /opt/logs/，供 Promtail 采集
 logging:
   file:
-    name: ${user.home}/logs/${spring.application.name}.log # 日志文件名，全路径
+    name: /librax-server/logs/librax-server.log
+  level:
+    com.librax.lab.module.bpm.dal.mysql: info
+    com.librax.lab.module.infra.dal.mysql: info
+    com.librax.lab.module.system.dal.mysql: info
 
 --- #################### 微信公众号相关配置 ####################
-wx: # 参见 https://github.com/Wechat-Group/WxJava/blob/develop/spring-boot-starters/wx-java-mp-spring-boot-starter/README.md 文档
+wx:
   mp:
-    # 公众号配置(必填)
     app-id: wx041349c6f39b268b
     secret: 5abee519483bc9f8cb37ce280e814bd0
-    # 存储配置，解决 AccessToken 的跨节点的共享
     config-storage:
-      type: RedisTemplate # 采用 RedisTemplate 操作 Redis，会自动从 Spring 中获取
-      key-prefix: wx # Redis Key 的前缀
-      http-client-type: HttpClient # 采用 HttpClient 请求微信公众号平台
-  miniapp: # 小程序配置（必填），参见 https://github.com/Wechat-Group/WxJava/blob/develop/spring-boot-starters/wx-java-miniapp-spring-boot-starter/README.md 文档
+      type: RedisTemplate
+      key-prefix: wx
+      http-client-type: HttpClient
+  miniapp:
     appid: wx63c280fe3248a3e7
     secret: 6f270509224a7ae1296bbf1c8cb97aed
     config-storage:
-      type: RedisTemplate # 采用 RedisTemplate 操作 Redis，会自动从 Spring 中获取
-      key-prefix: wa # Redis Key 的前缀
-      http-client-type: HttpClient # 采用 HttpClient 请求微信公众号平台
+      type: RedisTemplate
+      key-prefix: wa
+      http-client-type: HttpClient
 
 --- #################### 芋道相关配置 ####################
 
-# 芋道配置项，设置当前项目所有自定义的配置
 librax:
+  captcha:
+    enable: false # dev 环境关闭图片验证码，方便接口测试
+  security:
+    mock-enable: false # dev 环境关闭 mock，走真实鉴权
   pay:
-    order-notify-url: http://yunai.natapp1.cc/admin-api/pay/notify/order # 支付渠道的【支付】回调地址
-    refund-notify-url: http://yunai.natapp1.cc/admin-api/pay/notify/refund # 支付渠道的【退款】回调地址
-    transfer-notify-url: https://yunai.natapp1.cc/admin-api/pay/notify/transfer # 支付渠道的【转账】回调地址
-  demo: false # 开启演示模式
-  tencent-lbs-key: TVDBZ-TDILD-4ON4B-PFDZA-RNLKH-VVF6E # QQ 地图的密钥 https://lbs.qq.com/service/staticV2/staticGuide/staticDoc
+    order-notify-url: http://yunai.natapp1.cc/admin-api/pay/notify/order
+    refund-notify-url: http://yunai.natapp1.cc/admin-api/pay/notify/refund
+    transfer-notify-url: https://yunai.natapp1.cc/admin-api/pay/notify/transfer
+  access-log:
+    enable: false
+  demo: false
+  tencent-lbs-key: TVDBZ-TDILD-4ON4B-PFDZA-RNLKH-VVF6E
 
 justauth:
   enabled: true
   type:
-    DINGTALK: # 钉钉
+    DINGTALK:
       client-id: dingvrnreaje3yqvzhxg
       client-secret: i8E6iZyDvZj51JIb0tYsYfVQYOks9Cq1lgryEjFRqC79P3iJcrxEwT6Qk2QvLrLI
       ignore-check-redirect-uri: true
-    WECHAT_ENTERPRISE: # 企业微信
+    WECHAT_ENTERPRISE:
       client-id: wwd411c69a39ad2e54
       client-secret: 1wTb7hYxnpT2TUbIeHGXGo7T0odav1ic10mLdyyATOw
       agent-id: 1000004
       ignore-check-redirect-uri: true
     # noinspection SpringBootApplicationYaml
-    WECHAT_MINI_PROGRAM: # 微信小程序
+    WECHAT_MINI_PROGRAM:
       client-id: ${wx.miniapp.appid}
       client-secret: ${wx.miniapp.secret}
       ignore-check-redirect-uri: true
-      ignore-check-state: true # 微信小程序，不会使用到 state，所以不进行校验
-    WECHAT_MP: # 微信公众号
+      ignore-check-state: true
+    WECHAT_MP:
       client-id: ${wx.mp.app-id}
       client-secret: ${wx.mp.secret}
       ignore-check-redirect-uri: true
-    ALIPAY: # 支付宝小程序
+    ALIPAY:
       client-id: xx
       client-secret: xx
       alipay-public-key: xx
@@ -206,5 +208,47 @@ justauth:
       ignore-check-state: true
   cache:
     type: REDIS
-    prefix: 'social_auth_state:' # 缓存前缀，目前只对 Redis 缓存生效，默认 JUSTAUTH::STATE::
-    timeout: 24h # 超时时长，目前只对 Redis 缓存生效，默认 3 分钟
+    prefix: 'social_auth_state:'
+    timeout: 24h
+
+debug: false
+
+
+liteflow:
+  rule-source-ext-data-map:
+    applicationName: librax
+    #是否开启SQL日志
+    sqlLogEnabled: false
+    #是否开启SQL数据轮询自动刷新机制 默认不开启
+    pollingEnabled: false
+    pollingIntervalSeconds: 60
+    pollingStartSeconds: 60
+    #以下是chain表的配置，这个一定得有
+    chainTableName: flow_chain
+    chainApplicationNameField: application_name
+    chainNameField: chain_name
+    elDataField: el_data
+    #以下是决策路由字段的配置，如果你没用到决策路由，可以不配置
+    routeField: route
+    namespaceField: namespace
+    #是否启用这条规则
+    chainEnableField: enable
+    #规则表自定义过滤SQL
+    chainCustomSql:
+    #以下是script表的配置，如果你没使用到脚本，下面可以不配置
+    scriptTableName: flow_script
+    scriptApplicationNameField: application_name
+    scriptIdField: script_id
+    scriptNameField: script_name
+    scriptDataField: script_data
+    scriptTypeField: script_type
+    scriptLanguageField: script_language
+    #是否启用这条脚本
+    scriptEnableField: enable
+    #脚本表自定义过滤SQL
+    scriptCustomSql:
+  when-thread-pool-isolate: true
+
+logging:
+  file:
+    name: /librax-server/logs/librax.log
