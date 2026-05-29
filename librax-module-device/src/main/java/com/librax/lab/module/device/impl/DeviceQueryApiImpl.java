@@ -5,7 +5,7 @@ import com.librax.lab.module.device.api.DeviceQueryApi;
 import com.librax.lab.module.device.api.enums.DeviceHealthStatusEnum;
 import com.librax.lab.module.device.dal.dataobject.deviceinfo.DeviceInfoDO;
 import com.librax.lab.module.device.dal.mysql.deviceinfo.DeviceInfoMapper;
-import com.librax.lab.module.device.enums.DeviceStatus;
+import com.librax.lab.module.device.enums.DeviceStatusEnum;
 import com.librax.lab.module.device.gateway.DeviceStateCache;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -41,9 +41,9 @@ public class DeviceQueryApiImpl implements DeviceQueryApi {
 
     @Override
     public DeviceHealthView getHealth(String deviceId) {
-        DeviceStatus status = stateCache.getStatus(deviceId);
+        DeviceStatusEnum status = stateCache.getStatus(deviceId);
 
-        // 映射 DeviceStatus → DeviceHealthStatusEnum
+        // 映射 DeviceStatusEnum → DeviceHealthStatusEnum
         DeviceHealthStatusEnum healthStatus;
         boolean online;
         switch (status) {

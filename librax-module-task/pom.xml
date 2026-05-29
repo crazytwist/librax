@@ -100,12 +100,6 @@
             <scope>compile</scope>
         </dependency>
 
-        <dependency>
-            <groupId>com.librax.boot</groupId>
-            <artifactId>librax-module-lab</artifactId>
-            <version>${revision}</version>
-        </dependency>
-
     </dependencies>
 
 </project>

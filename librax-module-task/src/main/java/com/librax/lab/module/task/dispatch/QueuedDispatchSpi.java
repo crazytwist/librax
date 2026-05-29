@@ -5,7 +5,6 @@ import com.librax.lab.module.flow.api.dispatch.DispatchSpi;
 import com.librax.lab.module.flow.api.dispatch.StepDispatchContext;
 import com.librax.lab.module.flow.api.enums.WaitingForEnum;
 import com.librax.lab.module.flow.api.statemachine.StepStateApi;
-import com.librax.lab.module.flow.engine.execution.statemachine.StepStateMachine;
 import com.librax.lab.module.infra.framework.util.LabIdGenerator;
 import com.librax.lab.module.task.dal.dataobject.task.TaskDO;
 import com.librax.lab.module.task.dal.mysql.task.TaskMapper;

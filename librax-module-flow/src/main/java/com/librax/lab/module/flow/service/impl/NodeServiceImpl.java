@@ -1,8 +1,8 @@
 package com.librax.lab.module.flow.service.impl;
 
 import com.librax.lab.module.flow.dal.NodeConfig;
-import com.librax.lab.module.flow.dal.NodeType;
 import com.librax.lab.module.flow.dal.RouteRule;
+import com.librax.lab.module.flow.enums.NodeTypeEnum;
 import com.librax.lab.module.flow.service.NodeService;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
@@ -30,11 +30,11 @@ public class NodeServiceImpl implements NodeService {
     @PostConstruct
     public void init() {
         // 初始化节点配置
-        nodeConfigMap.put("N1", new NodeConfig("N1", NodeType.VIRTUAL, Map.of(), false));
-        nodeConfigMap.put("N2", new NodeConfig("N2", NodeType.AUTO, Map.of("taskName", "计算温度"), false));
-        nodeConfigMap.put("N3", new NodeConfig("N3", NodeType.DISPATCH, Map.of("deviceType", "AGV"), false));
-        nodeConfigMap.put("N4", new NodeConfig("N4", NodeType.MANUAL, Map.of("taskName", "人工确认"), false));
-        nodeConfigMap.put("N5", new NodeConfig("N5", NodeType.END, Map.of(), true));
+        nodeConfigMap.put("N1", new NodeConfig("N1", NodeTypeEnum.VIRTUAL, Map.of(), false));
+        nodeConfigMap.put("N2", new NodeConfig("N2", NodeTypeEnum.AUTO, Map.of("taskName", "计算温度"), false));
+        nodeConfigMap.put("N3", new NodeConfig("N3", NodeTypeEnum.DISPATCH, Map.of("deviceType", "AGV"), false));
+        nodeConfigMap.put("N4", new NodeConfig("N4", NodeTypeEnum.MANUAL, Map.of("taskName", "人工确认"), false));
+        nodeConfigMap.put("N5", new NodeConfig("N5", NodeTypeEnum.END, Map.of(), true));
 
         // 初始化路由规则
         routeRules.add(new RouteRule("N1", "status == 'OK'", "N2"));

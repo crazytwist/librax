@@ -1,6 +1,6 @@
 package com.librax.lab.module.device.gateway;
 
-import com.librax.lab.module.device.enums.DeviceStatus;
+import com.librax.lab.module.device.enums.DeviceStatusEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -129,13 +129,13 @@ public class DeviceStateCache {
         return "IDLE".equals(status);
     }
 
-    public DeviceStatus getStatus(String deviceId) {
+    public DeviceStatusEnum getStatus(String deviceId) {
         Object status = redisTemplate.opsForHash().get(stateKey(deviceId), "status");
-        if (status == null) return DeviceStatus.OFFLINE;
+        if (status == null) return DeviceStatusEnum.OFFLINE;
         try {
-            return DeviceStatus.valueOf((String) status);
+            return DeviceStatusEnum.valueOf((String) status);
         } catch (IllegalArgumentException e) {
-            return DeviceStatus.OFFLINE;
+            return DeviceStatusEnum.OFFLINE;
         }
     }
 

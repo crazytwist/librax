@@ -7,7 +7,7 @@ import com.librax.lab.module.device.dal.mysql.devicecommand.DeviceCommandMapper;
 import com.librax.lab.module.device.dal.mysql.deviceinfo.DeviceInfoMapper;
 import com.librax.lab.module.device.driver.DeviceDriver;
 import com.librax.lab.module.device.driver.DeviceDriverFactory;
-import com.librax.lab.module.device.enums.DeviceStatus;
+import com.librax.lab.module.device.enums.DeviceStatusEnum;
 import com.librax.lab.module.device.exception.DeviceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -65,7 +65,7 @@ public class DeviceGatewayImpl implements DeviceGateway {
     }
 
     @Override
-    public DeviceStatus getStatus(String deviceId) {
+    public DeviceStatusEnum getStatus(String deviceId) {
         return stateCache.getStatus(deviceId);
     }
 

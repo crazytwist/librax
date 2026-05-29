@@ -1,7 +1,7 @@
 package com.librax.lab.module.device.gateway;
 
 
-import com.librax.lab.module.device.enums.DeviceStatus;
+import com.librax.lab.module.device.enums.DeviceStatusEnum;
 
 import java.util.Map;
 
@@ -28,7 +28,7 @@ public interface DeviceGateway {
     /**
      * 查询设备状态（心跳/健康检查）
      */
-    DeviceStatus getStatus(String deviceId);
+    DeviceStatusEnum getStatus(String deviceId);
 
     /**
      * 主动取消任务（步骤超时时调用）

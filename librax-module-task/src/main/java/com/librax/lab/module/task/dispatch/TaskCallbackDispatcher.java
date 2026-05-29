@@ -3,7 +3,6 @@ package com.librax.lab.module.task.dispatch;
 import com.alibaba.fastjson.JSON;
 import com.librax.lab.module.flow.api.event.TaskCompletedEvent;
 import com.librax.lab.module.flow.api.resource.ResourcePool;
-import com.librax.lab.module.flow.engine.execution.scheduler.StepSubmitter;
 import com.librax.lab.module.task.dal.dataobject.task.TaskDO;
 import com.librax.lab.module.task.dal.mysql.task.TaskMapper;
 import com.librax.lab.module.task.enums.TaskStatusEnum;
@@ -103,8 +102,7 @@ public class TaskCallbackDispatcher {
         eventPublisher.publish(task.getTaskId(), toStatus, currentStatus, toStatus, payload);
 
         // 释放该步骤持有的所有资源(QUEUED 路径)
-        String holderKey = StepSubmitter.buildHolderKey(
-                task.getExecutionId(), task.getNodeId(), task.getAttempt());
+        String holderKey = task.getExecutionId() + ":" + task.getNodeId() + ":" + task.getAttempt();
         int released = resourcePool.releaseByHolder(holderKey);
         if (released > 0) {
             log.info("[TaskCallbackDispatcher] 释放资源 holder={} count={}", holderKey, released);

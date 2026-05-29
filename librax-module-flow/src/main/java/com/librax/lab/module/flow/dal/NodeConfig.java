@@ -1,5 +1,6 @@
 package com.librax.lab.module.flow.dal;
 
+import com.librax.lab.module.flow.enums.NodeTypeEnum;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -15,7 +16,7 @@ public class NodeConfig {
     private String nodeId;
 
     /** 节点类型 */
-    private NodeType type;
+    private NodeTypeEnum type;
 
     /** 节点业务参数 */
     private Map<String, Object> params;

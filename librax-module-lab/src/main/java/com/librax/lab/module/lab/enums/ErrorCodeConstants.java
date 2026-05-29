@@ -3,7 +3,7 @@ package com.librax.lab.module.lab.enums;
 import com.librax.lab.framework.common.exception.ErrorCode;
 
 /**
- * Resource 错误码枚举类
+ * Lab 错误码枚举类
  * <p>
  * lab 系统，使用 1_050_001_000 段
  */
@@ -26,32 +26,21 @@ public interface ErrorCodeConstants {
             new ErrorCode(1_050_001_004, "样本结果不存在");
 
 
-    // ── 设备信息 ──────────────────────────────────────────────────────
-    ErrorCode DEVICE_INFO_NOT_EXISTS =
-            new ErrorCode(1_050_002_000, "设备定义不存在");
-
-    ErrorCode DEVICE_COMMAND_NOT_EXISTS =
-            new ErrorCode(1_050_002_001, "设备命令不存在");
-
-    ErrorCode DEVICE_CODEC_NOT_EXISTS =
-            new ErrorCode(1_050_002_003, "设备解析规则不存在");
-
-
     // ── 物料信息 ──────────────────────────────────────────────────────
     ErrorCode CONTAINER_TYPE_NOT_EXISTS =
-            new ErrorCode(1_050_002_000, "容器类型定义不存在");
+            new ErrorCode(1_050_001_005, "容器类型定义不存在");
 
     ErrorCode MATERIAL_INSTANCE_NOT_EXISTS =
-            new ErrorCode(1_050_002_001, "物料实例不存在");
+            new ErrorCode(1_050_001_006, "物料实例不存在");
 
     ErrorCode MATERIAL_DEF_NOT_EXISTS =
-            new ErrorCode(1_050_002_003, "内容物定义不存在");
+            new ErrorCode(1_050_001_007, "内容物定义不存在");
 
     ErrorCode MATERIAL_CHECK_RULE_NOT_EXISTS =
-            new ErrorCode(1_050_002_001, "步骤物料前置检查规则不存在");
+            new ErrorCode(1_050_001_008, "步骤物料前置检查规则不存在");
 
     ErrorCode MATERIAL_CONSUMPTION_NOT_EXISTS =
-            new ErrorCode(1_050_002_003, "步骤物料消耗记录不存在");
+            new ErrorCode(1_050_001_009, "步骤物料消耗记录不存在");
 
 
 }
