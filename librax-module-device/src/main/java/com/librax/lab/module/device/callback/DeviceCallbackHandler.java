@@ -1,10 +1,12 @@
 package com.librax.lab.module.device.callback;
 
 import com.librax.lab.module.device.codec.CodecExecutor;
-import com.librax.lab.module.device.controller.vo.DeviceCallbackReqVO;
+import com.librax.lab.module.device.controller.app.vo.DeviceCallbackReqVO;
 import com.librax.lab.module.device.dal.dataobject.devicecommand.DeviceCommandDO;
 import com.librax.lab.module.device.dal.mysql.devicecommand.DeviceCommandMapper;
 import com.librax.lab.module.device.gateway.DeviceStateCache;
+import com.librax.lab.module.device.service.devicedirectexec.DeviceDirectExecService;
+import com.librax.lab.module.device.service.devicedirectexec.DeviceDirectExecServiceImpl;
 import com.librax.lab.module.flow.api.callback.CallbackResult;
 import com.librax.lab.module.flow.api.callback.StepCallbackSpi;
 import lombok.RequiredArgsConstructor;
@@ -25,10 +27,11 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DeviceCallbackHandler {
 
-    private final StepCallbackSpi stepCallbackSpi;
-    private final DeviceStateCache stateCache;
-    private final DeviceCommandMapper commandMapper;
-    private final CodecExecutor codecExecutor;
+    private final StepCallbackSpi        stepCallbackSpi;
+    private final DeviceStateCache       stateCache;
+    private final DeviceCommandMapper    commandMapper;
+    private final CodecExecutor          codecExecutor;
+    private final DeviceDirectExecService directExecService;
 
     /**
      * 处理设备回调
@@ -40,6 +43,12 @@ public class DeviceCallbackHandler {
     public void handle(String executionId, String nodeId, DeviceCallbackReqVO req) {
         log.info("[DeviceCallback] 收到回调 executionId={} nodeId={} success={}",
                 executionId, nodeId, req.isSuccess());
+
+        // 直接执行回调：de- 前缀表示来自 DeviceDirectExec，不需要推进流程 DAG
+        if (executionId.startsWith(DeviceDirectExecServiceImpl.EXEC_ID_PREFIX)) {
+            handleDirectExec(executionId, nodeId, req);
+            return;
+        }
 
         // 1. 释放设备（通过反向索引 O(1) 找到 deviceId 并标记 IDLE）
         stateCache.markIdleByExecutionNode(executionId, nodeId);
@@ -95,5 +104,31 @@ public class DeviceCallbackHandler {
 
         // 情况2：设备已经返回结构化数据
         return req.getData() != null ? req.getData() : Map.of();
+    }
+
+    /**
+     * 处理直接执行回调（executionId 以 de- 开头）
+     *
+     * <p>此路径是兜底路由：当设备使用通用端点 /{executionId}/{nodeId} 且 executionId 以 de- 开头时触发。
+     * 专用端点 /{execId}/direct 已在 DeviceCallbackController 中独立处理（含 token 校验和设备释放），
+     * 本方法仅处理通过通用路由进来的情况，同样执行释放 + 写结果。
+     */
+    private void handleDirectExec(String execId, String nodeId, DeviceCallbackReqVO req) {
+        log.info("[DeviceCallback] 直接执行回调（通用路由）execId={} success={}", execId, req.isSuccess());
+
+        // 1. 释放设备
+        stateCache.markIdleByExecutionNode(execId, nodeId);
+
+        // 2. 解析输出
+        Map<String, Object> outputs = resolveOutputs(req);
+
+        // 3. 更新 Redis 执行记录
+        directExecService.onCallback(
+                execId,
+                req.isSuccess(),
+                outputs,
+                req.getErrorCode(),
+                req.getErrorMsg(),
+                req.getRawResponse());
     }
 }

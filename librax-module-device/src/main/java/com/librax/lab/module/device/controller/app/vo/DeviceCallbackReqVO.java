@@ -1,4 +1,4 @@
-package com.librax.lab.module.device.controller.vo;
+package com.librax.lab.module.device.controller.app.vo;
 
 
 import lombok.Data;

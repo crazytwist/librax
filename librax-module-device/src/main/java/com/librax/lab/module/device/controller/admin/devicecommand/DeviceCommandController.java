@@ -1,8 +1,11 @@
 package com.librax.lab.module.device.controller.admin.devicecommand;
 
+import com.librax.lab.module.device.controller.admin.devicecommand.vo.DeviceCommandExecuteReqVO;
+import com.librax.lab.module.device.controller.admin.devicecommand.vo.DeviceCommandExecuteRespVO;
 import com.librax.lab.module.device.controller.admin.devicecommand.vo.DeviceCommandPageReqVO;
 import com.librax.lab.module.device.controller.admin.devicecommand.vo.DeviceCommandRespVO;
 import com.librax.lab.module.device.controller.admin.devicecommand.vo.DeviceCommandSaveReqVO;
+import com.librax.lab.module.device.service.devicedirectexec.DeviceDirectExecService;
 import org.springframework.web.bind.annotation.*;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -38,6 +41,9 @@ public class DeviceCommandController {
 
     @Resource
     private DeviceCommandService deviceCommandService;
+
+    @Resource
+    private DeviceDirectExecService deviceDirectExecService;
 
     @PostMapping("/create")
     @Operation(summary = "创建设备指令配置表，定义每种设备支持的指令及报文模板 [lab_device_]")
@@ -87,6 +93,33 @@ public class DeviceCommandController {
     public CommonResult<PageResult<DeviceCommandRespVO>> getDeviceCommandPage(@Valid DeviceCommandPageReqVO pageReqVO) {
         PageResult<DeviceCommandDO> pageResult = deviceCommandService.getDeviceCommandPage(pageReqVO);
         return success(BeanUtils.toBean(pageResult, DeviceCommandRespVO.class));
+    }
+
+    // ----------------------------------------------------------------
+    //  设备指令直接执行
+    // ----------------------------------------------------------------
+
+    @PostMapping("/execute")
+    @Operation(summary = "直接执行设备指令",
+            description = "不依赖流水线，直接触发设备执行指定指令。" +
+                    "接口立即返回 execId，设备完成后可通过 /execute/result 轮询结果。" +
+                    "适用于设备联调、运维操作、人工干预等场景。")
+    @PreAuthorize("@ss.hasPermission('lab:device-command:execute')")
+    @ApiAccessLog(operateType = OTHER)
+    public CommonResult<DeviceCommandExecuteRespVO> executeDeviceCommand(
+            @Valid @RequestBody DeviceCommandExecuteReqVO reqVO) {
+        return success(deviceDirectExecService.execute(reqVO));
+    }
+
+    @GetMapping("/execute/result")
+    @Operation(summary = "查询设备指令执行结果",
+            description = "通过 execute 接口返回的 execId 轮询执行状态与结果。" +
+                    "执行记录最长保留 2 小时，超时后返回 NOT_FOUND。")
+    @Parameter(name = "execId", description = "执行ID（由 /execute 接口返回）", required = true, example = "de-a1b2c3d4")
+    @PreAuthorize("@ss.hasPermission('lab:device-command:execute')")
+    public CommonResult<DeviceCommandExecuteRespVO> getDeviceCommandExecuteResult(
+            @RequestParam("execId") String execId) {
+        return success(deviceDirectExecService.getResult(execId));
     }
 
     @GetMapping("/export-excel")

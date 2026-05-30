@@ -144,6 +144,15 @@ public class DeviceStateCache {
         return taskId != null ? (String) taskId : null;
     }
 
+    /**
+     * 通过反向索引查询设备ID（只读，不释放）
+     * <p>
+     * 供直接执行场景在 {@code sendCommand} 后回查实际分配的 deviceId。
+     */
+    public String getDeviceIdByExecutionNode(String executionId, String nodeId) {
+        return redisTemplate.opsForValue().get(execKey(executionId, nodeId));
+    }
+
     // ----------------------------------------------------------------
     // Key 工具
     // ----------------------------------------------------------------

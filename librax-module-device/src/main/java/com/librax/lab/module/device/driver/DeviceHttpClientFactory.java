@@ -69,15 +69,23 @@ public class DeviceHttpClientFactory {
         long connectMs = device.getConnectTimeoutMs() != null ? device.getConnectTimeoutMs() : 5_000L;
         long readMs    = device.getReadTimeoutMs()    != null ? device.getReadTimeoutMs()    : 30_000L;
 
+        // TOKEN 类型：从 authConfig 读取初始 token，拦截器与刷新器共享 TokenHolder
+        TokenHolder tokenHolder = null;
+        if ("TOKEN".equals(device.getAuthType()) && device.getAuthConfig() != null) {
+            JSONObject config = JSON.parseObject(device.getAuthConfig());
+            String initialToken = config.getString("token");
+            tokenHolder = new TokenHolder(initialToken);
+        }
+
         OkHttpClient.Builder builder = new OkHttpClient.Builder()
                 .connectTimeout(connectMs, TimeUnit.MILLISECONDS)
                 .readTimeout(readMs, TimeUnit.MILLISECONDS)
                 .writeTimeout(readMs, TimeUnit.MILLISECONDS)
-                .addInterceptor(new DeviceAuthInterceptor(device));
+                .addInterceptor(new DeviceAuthInterceptor(device, tokenHolder));
 
         // TOKEN 类型额外配置 401 自动刷新
         if ("TOKEN".equals(device.getAuthType())) {
-            builder.authenticator(new DeviceTokenAuthenticator(device));
+            builder.authenticator(new DeviceTokenAuthenticator(device, tokenHolder));
         }
 
         log.info("[DeviceHttpClientFactory] 构建客户端 deviceId={} authType={} connectTimeout={}ms readTimeout={}ms",
@@ -86,18 +94,43 @@ public class DeviceHttpClientFactory {
     }
 
     // ================================================================
+    // 内部类：Token 持有者（拦截器与刷新器共享）
+    // ================================================================
+
+    /**
+     * 线程安全的 token 持有者，供同一设备的拦截器和刷新器共享。
+     */
+    static class TokenHolder {
+        /** 当前有效 token，volatile 保证可见性 */
+        volatile String token;
+
+        TokenHolder(String initial) {
+            this.token = initial != null ? initial : "";
+        }
+
+        boolean isEmpty() {
+            return token == null || token.isBlank();
+        }
+    }
+
+    // ================================================================
     // 内部类：认证拦截器
     // ================================================================
 
     /**
      * 每个出站请求前注入认证头，支持 BASIC / TOKEN / HMAC。
+     * TOKEN 类型与 {@link DeviceTokenAuthenticator} 共享同一个 {@link TokenHolder}，
+     * 首次发请求若 token 为空则自动调用登录接口获取。
      */
     static class DeviceAuthInterceptor implements Interceptor {
 
         private final DeviceInfoDO device;
+        /** TOKEN 模式下持有当前 token；BASIC/HMAC 时为 null */
+        private final TokenHolder tokenHolder;
 
-        DeviceAuthInterceptor(DeviceInfoDO device) {
-            this.device = device;
+        DeviceAuthInterceptor(DeviceInfoDO device, TokenHolder tokenHolder) {
+            this.device      = device;
+            this.tokenHolder = tokenHolder;
         }
 
         @NotNull
@@ -138,13 +171,91 @@ public class DeviceHttpClientFactory {
             builder.header("Authorization", "Basic " + credential);
         }
 
+        /**
+         * TOKEN 模式：优先使用 TokenHolder 中的内存 token，
+         * 若为空则同步调用登录接口获取（懒加载）。
+         */
         private void applyToken(Request.Builder builder, JSONObject config) {
-            String token      = config.getString("token");
+            // 懒加载：首次发请求时若 token 为空则主动登录
+            if (tokenHolder != null && tokenHolder.isEmpty()) {
+                String tokenUrl   = config.getString("tokenUrl");
+                Object loginBody  = config.get("loginBody");
+                String tokenField = config.getString("tokenField");
+                if (tokenUrl != null && !tokenUrl.isBlank()) {
+                    String fetched = fetchToken(tokenUrl, loginBody, tokenField);
+                    if (fetched != null) {
+                        tokenHolder.token = fetched;
+                        log.info("[DeviceAuthInterceptor] 首次登录成功，获取 token deviceId={}", device.getDeviceId());
+                    } else {
+                        log.warn("[DeviceAuthInterceptor] 首次登录失败 deviceId={}", device.getDeviceId());
+                    }
+                }
+            }
+
+            String token      = tokenHolder != null && !tokenHolder.isEmpty()
+                                ? tokenHolder.token
+                                : config.getString("token");
             String headerName = config.getString("headerName");
             String prefix     = config.getString("prefix");
             if (headerName == null || headerName.isBlank()) headerName = "Authorization";
             if (prefix == null) prefix = "Bearer ";
-            builder.header(headerName, prefix + token);
+            if (token != null && !token.isBlank()) {
+                builder.header(headerName, prefix + token);
+            }
+        }
+
+        /**
+         * 调用外部登录接口获取 token，支持 JSON body POST。
+         *
+         * @param tokenUrl  登录 URL，例如 http://api.example.com/auth/login
+         * @param loginBody 请求体 JSON 字符串，例如 {"username":"x","password":"y"}
+         * @param tokenField 响应 JSON 中 token 的字段名，默认 access_token
+         * @return token 字符串，失败返回 null
+         */
+        static String fetchToken(String tokenUrl, Object loginBodyRaw, String tokenField) {
+            if (tokenField == null || tokenField.isBlank()) tokenField = "access_token";
+            OkHttpClient plain = new OkHttpClient();
+            // loginBody 支持 JSON 对象或字符串两种格式
+            String body;
+            if (loginBodyRaw == null) {
+                body = "{}";
+            } else if (loginBodyRaw instanceof String s) {
+                body = s.isBlank() ? "{}" : s;
+            } else {
+                body = JSON.toJSONString(loginBodyRaw);
+            }
+            RequestBody requestBody = RequestBody.create(body, MediaType.parse("application/json; charset=utf-8"));
+            Request request = new Request.Builder().url(tokenUrl).post(requestBody).build();
+            try (Response response = plain.newCall(request).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    log.warn("[DeviceAuth] 登录请求失败 status={} url={}", response.code(), tokenUrl);
+                    return null;
+                }
+                String respStr = response.body().string();
+                JSONObject respJson = JSON.parseObject(respStr);
+                // 支持点号路径，如 data.accessToken
+                String token = getByPath(respJson, tokenField);
+                if (token == null || token.isBlank()) {
+                    log.warn("[DeviceAuth] 响应中未找到 token 字段={} url={} body={}", tokenField, tokenUrl, respStr);
+                }
+                return token;
+            } catch (Exception e) {
+                log.warn("[DeviceAuth] 登录请求异常 url={} error={}", tokenUrl, e.getMessage());
+                return null;
+            }
+        }
+
+        /**
+         * 按点号路径从 JSON 中取值，如 "data.accessToken"。
+         */
+        private static String getByPath(JSONObject json, String path) {
+            String[] keys = path.split("\\.");
+            Object current = json;
+            for (String key : keys) {
+                if (!(current instanceof JSONObject obj)) return null;
+                current = obj.get(key);
+            }
+            return current != null ? current.toString() : null;
         }
 
         /**
@@ -196,20 +307,19 @@ public class DeviceHttpClientFactory {
     // ================================================================
 
     /**
-     * 收到 401 时自动刷新 token 并重试。
+     * 收到 401 时自动重新登录刷新 token 并重试请求。
      *
-     * <p>authConfig 中需包含 {@code tokenUrl} 字段才会尝试刷新；
+     * <p>authConfig 中需包含 {@code tokenUrl} + {@code loginBody} 才能自动刷新；
      * 若未配置或刷新失败则直接放弃（返回 null），避免无限重试。
-     *
-     * <p>扩展点：在 {@link #doRefreshToken} 中实现具体的刷新协议
-     * （OAuth2 client_credentials、自定义登录接口等）。
      */
     static class DeviceTokenAuthenticator implements Authenticator {
 
         private final DeviceInfoDO device;
+        private final TokenHolder  tokenHolder;
 
-        DeviceTokenAuthenticator(DeviceInfoDO device) {
-            this.device = device;
+        DeviceTokenAuthenticator(DeviceInfoDO device, TokenHolder tokenHolder) {
+            this.device      = device;
+            this.tokenHolder = tokenHolder;
         }
 
         @Override
@@ -221,52 +331,42 @@ public class DeviceHttpClientFactory {
                 return null;
             }
 
-            String tokenUrl = parseTokenUrl();
-            if (tokenUrl == null) {
+            String authConfig = device.getAuthConfig();
+            if (authConfig == null || authConfig.isBlank()) return null;
+            JSONObject config = JSON.parseObject(authConfig);
+
+            String tokenUrl   = config.getString("tokenUrl");
+            Object loginBody  = config.get("loginBody");
+            String tokenField = config.getString("tokenField");
+            if (tokenUrl == null || tokenUrl.isBlank()) {
                 log.warn("[DeviceTokenAuthenticator] authConfig 未配置 tokenUrl，无法自动刷新 deviceId={}",
                         device.getDeviceId());
                 return null;
             }
 
-            String newToken = doRefreshToken(tokenUrl);
+            // 重新登录获取新 token
+            log.info("[DeviceTokenAuthenticator] 收到 401，重新登录获取 token tokenUrl={} deviceId={}",
+                    tokenUrl, device.getDeviceId());
+            String newToken = DeviceAuthInterceptor.fetchToken(tokenUrl, loginBody, tokenField);
             if (newToken == null) {
+                log.warn("[DeviceTokenAuthenticator] 重新登录失败 deviceId={}", device.getDeviceId());
                 return null;
             }
 
-            JSONObject config = JSON.parseObject(device.getAuthConfig());
+            // 更新共享 token，下次请求拦截器直接使用新 token
+            if (tokenHolder != null) {
+                tokenHolder.token = newToken;
+            }
+
             String headerName = config.getString("headerName");
             String prefix     = config.getString("prefix");
             if (headerName == null || headerName.isBlank()) headerName = "Authorization";
             if (prefix == null) prefix = "Bearer ";
 
+            log.info("[DeviceTokenAuthenticator] token 刷新成功，重试请求 deviceId={}", device.getDeviceId());
             return response.request().newBuilder()
                     .header(headerName, prefix + newToken)
                     .build();
-        }
-
-        private String parseTokenUrl() {
-            String authConfig = device.getAuthConfig();
-            if (authConfig == null || authConfig.isBlank()) return null;
-            return JSON.parseObject(authConfig).getString("tokenUrl");
-        }
-
-        /**
-         * 扩展点：实现真实的 token 刷新逻辑。
-         * 例如：POST tokenUrl with {@code grant_type=client_credentials}。
-         *
-         * @return 新 token，获取失败返回 null
-         */
-        private String doRefreshToken(String tokenUrl) {
-            // TODO: 按设备实际授权协议实现，示例：
-            // OkHttpClient plain = new OkHttpClient();
-            // Request req = new Request.Builder().url(tokenUrl)
-            //     .post(RequestBody.create("{...}", MediaType.parse("application/json")))
-            //     .build();
-            // try (Response resp = plain.newCall(req).execute()) {
-            //     return JSON.parseObject(resp.body().string()).getString("access_token");
-            // }
-            log.info("[DeviceTokenAuthenticator] 尝试刷新 token tokenUrl={} deviceId={}", tokenUrl, device.getDeviceId());
-            return null;
         }
 
         private int priorResponseCount(Response response) {

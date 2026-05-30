@@ -31,6 +31,24 @@ public interface DeviceGateway {
     DeviceStatusEnum getStatus(String deviceId);
 
     /**
+     * 发送指令到指定设备（跳过设备选择器，适用于直接执行场景）
+     *
+     * @param deviceId    目标设备ID，必须已注册且状态为 IDLE
+     * @param commandCode 指令代码
+     * @param params      运行时参数，替换模板中的 ${xxx} 占位符
+     * @param executionId 执行ID（回调时带回，用于匹配记录）
+     * @param nodeId      节点ID（回调时带回）
+     * @param callbackToken 回调令牌（校验用）
+     * @return taskId 设备侧任务ID
+     */
+    String sendCommandToDevice(String deviceId,
+                               String commandCode,
+                               Map<String, Object> params,
+                               String executionId,
+                               String nodeId,
+                               String callbackToken);
+
+    /**
      * 主动取消任务（步骤超时时调用）
      */
     void cancel(String deviceId, String taskId);

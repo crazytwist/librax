@@ -48,7 +48,7 @@ public class HttpDeviceDriver implements DeviceDriver {
                        String requestBody,
                        String executionId,
                        String callbackToken) {
-        String url    = buildUrl(device, command, executionId, callbackToken);
+        String url = buildUrl(device, command, executionId, callbackToken);
         String method = resolveMethod(command.getHttpMethod());
 
         Request request = buildRequest(url, method, command, requestBody, callbackToken);
@@ -85,7 +85,7 @@ public class HttpDeviceDriver implements DeviceDriver {
     // ----------------------------------------------------------------
 
     private Request buildRequest(String url, String method,
-                                  DeviceCommandDO command, String requestBody, String callbackToken) {
+                                 DeviceCommandDO command, String requestBody, String callbackToken) {
         Request.Builder builder = new Request.Builder().url(url);
 
         // 回调令牌（业务头，与认证头分开）
@@ -124,8 +124,8 @@ public class HttpDeviceDriver implements DeviceDriver {
 
         String path = command.getHttpPath() != null ? command.getHttpPath() : "";
         path = ExpressionUtil.render(path,
-                Map.of("executionId",  executionId  != null ? executionId  : "",
-                       "callbackToken", callbackToken != null ? callbackToken : ""));
+                Map.of("executionId", executionId != null ? executionId : "",
+                        "callbackToken", callbackToken != null ? callbackToken : ""));
 
         return baseUrl + path;
     }
@@ -137,10 +137,10 @@ public class HttpDeviceDriver implements DeviceDriver {
     private String resolveMethod(String method) {
         if (method == null || method.isBlank()) return "POST";
         return switch (method.toUpperCase()) {
-            case "GET"    -> "GET";
-            case "PUT"    -> "PUT";
+            case "GET" -> "GET";
+            case "PUT" -> "PUT";
             case "DELETE" -> "DELETE";
-            default       -> "POST";
+            default -> "POST";
         };
     }
 

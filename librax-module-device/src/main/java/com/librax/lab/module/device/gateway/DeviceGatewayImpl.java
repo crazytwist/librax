@@ -70,6 +70,45 @@ public class DeviceGatewayImpl implements DeviceGateway {
     }
 
     @Override
+    public String sendCommandToDevice(String deviceId,
+                                      String commandCode,
+                                      Map<String, Object> params,
+                                      String executionId,
+                                      String nodeId,
+                                      String callbackToken) {
+        // 1. 加载设备信息
+        DeviceInfoDO device = deviceInfoMapper.selectByDeviceId(deviceId);
+        if (device == null) {
+            throw new DeviceException("设备不存在: " + deviceId);
+        }
+        if (!Boolean.TRUE.equals(device.getEnabled())) {
+            throw new DeviceException("设备已禁用: " + deviceId);
+        }
+
+        // 2. 加载指令配置（按设备类型+指令码查找）
+        DeviceCommandDO command = deviceCommandMapper
+                .selectByTypeAndCode(device.getDeviceType(), commandCode);
+        if (command == null) {
+            throw new DeviceException("指令配置不存在: " + device.getDeviceType() + "." + commandCode);
+        }
+
+        // 3. 渲染请求模板
+        String requestBody = renderTemplate(command.getRequestTemplate(), params);
+
+        // 4. 获取驱动并发送
+        DeviceDriver driver = driverFactory.getDriver(device.getProtocol());
+        String taskId = driver.send(device, command, requestBody, executionId, callbackToken);
+
+        // 5. 更新设备状态为 BUSY（含反向索引 executionId+nodeId → deviceId）
+        stateCache.markBusy(device.getDeviceId(), taskId, executionId, nodeId);
+
+        log.info("[DeviceGateway] 指令已直发 deviceId={} commandCode={} taskId={} executionId={}",
+                deviceId, commandCode, taskId, executionId);
+
+        return taskId;
+    }
+
+    @Override
     public void cancel(String deviceId, String taskId) {
         DeviceInfoDO device = deviceInfoMapper.selectByDeviceId(deviceId);
         if (device == null) return;
