@@ -95,14 +95,16 @@ public class DeviceDirectExecServiceImpl implements DeviceDirectExecService {
                         reqVO.getDeviceId(),
                         reqVO.getCommandCode(),
                         safeParams(reqVO.getParams()),
-                        execId, NODE_ID, callbackToken);
+                        execId, NODE_ID, callbackToken,
+                        reqVO.isForceExec());
             } else {
-                // 自动选择：从同类型空闲设备中择优
+                // 自动选择：从同类型空闲设备中择优（forceExec=true 时含 BUSY 设备）
                 taskId = deviceGateway.sendCommand(
                         reqVO.getDeviceType(),
                         reqVO.getCommandCode(),
                         safeParams(reqVO.getParams()),
-                        execId, NODE_ID, callbackToken);
+                        execId, NODE_ID, callbackToken,
+                        reqVO.isForceExec());
             }
         } catch (Exception e) {
             log.error("[DeviceDirectExec] 指令发送失败 execId={} error={}", execId, e.getMessage(), e);

@@ -109,10 +109,9 @@ public class HeartbeatWatchdog {
             log.warn("[HeartbeatWatchdog] 心跳失败 deviceId={}: {}", deviceId, e.getMessage());
             lastHeartbeatMap.put(deviceId, LocalDateTime.now()); // 记录时间避免频繁重试
 
-            // 标记离线（但不覆盖 BUSY 状态的设备，可能只是心跳端口问题）
-            if (stateCache.isIdle(deviceId) || stateCache.getStatus(deviceId).isAbnormal()) {
-                stateCache.markOffline(deviceId);
-            }
+            // 心跳失败 = 设备无响应，无论当前是 IDLE 还是 BUSY 都标记 OFFLINE
+            // BUSY 设备心跳失败说明设备已挂，任务不会有回调，OFFLINE 后 DeviceSelector 自动跳过
+            stateCache.markOffline(deviceId);
         }
     }
 }

@@ -35,4 +35,7 @@ public class DeviceCommandExecuteReqVO {
     @Min(value = 100, message = "超时时间最小 100ms")
     private Long timeoutMs;
 
+    @Schema(description = "强制执行：跳过设备空闲状态校验，直接发送指令（适用于联调、调试场景）", defaultValue = "false")
+    private boolean forceExec = false;
+
 }

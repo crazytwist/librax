@@ -109,6 +109,50 @@ public class DeviceGatewayImpl implements DeviceGateway {
     }
 
     @Override
+    public String sendCommand(String deviceType,
+                              String commandCode,
+                              Map<String, Object> params,
+                              String executionId,
+                              String nodeId,
+                              String callbackToken,
+                              boolean forceExec) {
+        DeviceCommandDO command = deviceCommandMapper.selectByTypeAndCode(deviceType, commandCode);
+        if (command == null) {
+            throw new DeviceException("指令配置不存在: " + deviceType + "." + commandCode);
+        }
+        DeviceInfoDO device = deviceSelector.select(deviceType, null, forceExec);
+        if (device == null) {
+            throw new DeviceException("无可用设备: " + deviceType);
+        }
+        String requestBody = renderTemplate(command.getRequestTemplate(), params);
+        DeviceDriver driver = driverFactory.getDriver(device.getProtocol());
+        String taskId = driver.send(device, command, requestBody, executionId, callbackToken);
+        stateCache.markBusy(device.getDeviceId(), taskId, executionId, nodeId);
+        log.info("[DeviceGateway] 指令已发送(force={}) deviceId={} commandCode={} taskId={}",
+                forceExec, device.getDeviceId(), commandCode, taskId);
+        return taskId;
+    }
+
+    @Override
+    public String sendCommandToDevice(String deviceId,
+                                      String commandCode,
+                                      Map<String, Object> params,
+                                      String executionId,
+                                      String nodeId,
+                                      String callbackToken,
+                                      boolean forceExec) {
+        if (forceExec) {
+            // 强制释放当前占用，确保下面 markBusy 能正常写入
+            DeviceStatusEnum current = stateCache.getStatus(deviceId);
+            if (current == DeviceStatusEnum.BUSY) {
+                log.warn("[DeviceGateway] forceExec=true，强制释放 BUSY 设备 deviceId={}", deviceId);
+                stateCache.markIdle(deviceId);
+            }
+        }
+        return sendCommandToDevice(deviceId, commandCode, params, executionId, nodeId, callbackToken);
+    }
+
+    @Override
     public void cancel(String deviceId, String taskId) {
         DeviceInfoDO device = deviceInfoMapper.selectByDeviceId(deviceId);
         if (device == null) return;

@@ -24,41 +24,46 @@ public class DeviceSelector {
      * 选择一台空闲设备（不限区域）
      */
     public DeviceInfoDO select(String deviceType) {
-        return select(deviceType, null);
+        return select(deviceType, null, false);
+    }
+
+    public DeviceInfoDO select(String deviceType, String preferredZone) {
+        return select(deviceType, preferredZone, false);
     }
 
     /**
-     * 选择一台空闲设备（优先同区域，同区域内轮询）
+     * 选择设备
      *
      * @param deviceType    设备类型
      * @param preferredZone 优先区域（可为 null）
-     * @return 空闲设备，无可用时返回 null
+     * @param forceExec     true 时跳过空闲过滤，从所有启用设备中选（调试用）
+     * @return 目标设备，无可用时返回 null
      */
-    public DeviceInfoDO select(String deviceType, String preferredZone) {
-        List<DeviceInfoDO> candidates = deviceInfoMapper
-                .selectEnabledByType(deviceType);
+    public DeviceInfoDO select(String deviceType, String preferredZone, boolean forceExec) {
+        List<DeviceInfoDO> candidates = deviceInfoMapper.selectEnabledByType(deviceType);
 
-        // 过滤空闲设备
-        List<DeviceInfoDO> idle = candidates.stream()
-                .filter(d -> stateCache.isIdle(d.getDeviceId()))
-                .collect(Collectors.toList());
+        // 正常模式只选空闲设备；forceExec 跳过过滤
+        List<DeviceInfoDO> pool = forceExec
+                ? candidates
+                : candidates.stream()
+                        .filter(d -> stateCache.isIdle(d.getDeviceId()))
+                        .collect(Collectors.toList());
 
-        if (idle.isEmpty()) {
+        if (pool.isEmpty()) {
             return null;
         }
 
         // 优先同区域
         if (preferredZone != null) {
-            List<DeviceInfoDO> sameZone = idle.stream()
+            List<DeviceInfoDO> sameZone = pool.stream()
                     .filter(d -> preferredZone.equals(d.getZoneCode()))
                     .collect(Collectors.toList());
             if (!sameZone.isEmpty()) {
-                idle = sameZone;
+                pool = sameZone;
             }
         }
 
-        // round-robin 轮询
-        int idx = Math.abs(counter.getAndIncrement() % idle.size());
-        return idle.get(idx);
+        int idx = Math.abs(counter.getAndIncrement() % pool.size());
+        return pool.get(idx);
     }
 }

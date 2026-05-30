@@ -25,6 +25,16 @@ public interface DeviceGateway {
                        String nodeId,
                        String callbackToken);
 
+    default String sendCommand(String deviceType,
+                               String commandCode,
+                               Map<String, Object> params,
+                               String executionId,
+                               String nodeId,
+                               String callbackToken,
+                               boolean forceExec) {
+        return sendCommand(deviceType, commandCode, params, executionId, nodeId, callbackToken);
+    }
+
     /**
      * 查询设备状态（心跳/健康检查）
      */
@@ -47,6 +57,19 @@ public interface DeviceGateway {
                                String executionId,
                                String nodeId,
                                String callbackToken);
+
+    /**
+     * 强制发送指令到指定设备，跳过空闲状态校验（调试专用）
+     */
+    default String sendCommandToDevice(String deviceId,
+                                       String commandCode,
+                                       Map<String, Object> params,
+                                       String executionId,
+                                       String nodeId,
+                                       String callbackToken,
+                                       boolean forceExec) {
+        return sendCommandToDevice(deviceId, commandCode, params, executionId, nodeId, callbackToken);
+    }
 
     /**
      * 主动取消任务（步骤超时时调用）
