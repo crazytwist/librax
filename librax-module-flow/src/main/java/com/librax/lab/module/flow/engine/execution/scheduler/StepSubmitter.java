@@ -46,6 +46,7 @@ public class StepSubmitter {
     private final DispatchSpiFactory dispatchSpiFactory;
     private final ResourcePool resourcePool;
     private final MaterialCheckSpi materialCheckSpi;
+    private final ResourceWaitRegistry resourceWaitRegistry;
 
     /**
      * 资源等待默认超时时间：5分钟。
@@ -125,8 +126,10 @@ public class StepSubmitter {
                                             elapsedMs, waitTimeoutMs, node.getDeviceType())));
                     return;
                 }
-                log.info("[StepSubmitter] 资源不可用，等待下轮调度 executionId={} nodeId={} reason={}",
-                        executionId, node.getNodeId(), result.getReason());
+                // 注册到等待表，资源释放时由 ResourceReleaseWakeupListener 触发唤醒
+                resourceWaitRegistry.register(executionId, node.getDeviceType(), node.getZoneCode());
+                log.info("[StepSubmitter] 资源不可用，已注册等待 executionId={} nodeId={} type={} reason={}",
+                        executionId, node.getNodeId(), node.getDeviceType(), result.getReason());
                 return;
             }
 

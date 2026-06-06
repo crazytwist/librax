@@ -5,6 +5,7 @@ import com.librax.lab.module.flow.api.resource.AcquireFailReasonEnum;
 import com.librax.lab.module.flow.api.resource.AcquireRequest;
 import com.librax.lab.module.flow.api.resource.AcquireResult;
 import com.librax.lab.module.flow.api.resource.ResourcePool;
+import com.librax.lab.module.flow.api.resource.ResourceReleasedEvent;
 import com.librax.lab.module.resource.core.RedisResourceLock;
 import com.librax.lab.module.resource.core.ResourceSelector;
 import com.librax.lab.module.resource.dal.dataobject.resourceconfig.ResourceConfigDO;
@@ -16,6 +17,7 @@ import com.librax.lab.module.resource.dal.mysql.zonequota.ZoneQuotaMapper;
 import com.librax.lab.module.resource.enums.OwnershipTypeEnum;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -49,6 +51,7 @@ public class ResourcePoolImpl implements ResourcePool {
     private final ZoneQuotaMapper        zoneQuotaMapper;
     private final StepResourceHoldMapper stepResourceHoldMapper;
     private final PipelineExecutionSpi   executionSpi;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final long DEFAULT_RETRY_MS = 2_000L;
     private static final long TTL_BUFFER_MS    = 30_000L;
@@ -152,13 +155,23 @@ public class ResourcePoolImpl implements ResourcePool {
         boolean released = lock.release(resourceId, holderKey);
         if (!released) return;
 
+        String resourceType = config != null ? config.getResourceType() : null;
+
         if (isShared && lockZone != null && !lockZone.isEmpty()) {
-            lock.decrQuota(lockZone, config.getResourceType());
+            lock.decrQuota(lockZone, resourceType);
             log.info("[ResourcePool] 释放共享资源 resourceId={} holder={} zone={}",
                     resourceId, holderKey, lockZone);
         } else {
             log.info("[ResourcePool] 释放独占资源 resourceId={} holder={}",
                     resourceId, holderKey);
+        }
+
+        // 发布释放事件，唤醒所有等待该资源类型的 PENDING 步骤重新调度
+        if (resourceType != null) {
+            eventPublisher.publishEvent(
+                    new ResourceReleasedEvent(this, resourceId, resourceType, lockZone));
+            log.debug("[ResourcePool] 发布 ResourceReleasedEvent type={} zone={}",
+                    resourceType, lockZone);
         }
     }
 

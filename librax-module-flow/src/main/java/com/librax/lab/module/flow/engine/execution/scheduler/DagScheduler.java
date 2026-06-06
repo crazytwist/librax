@@ -58,6 +58,7 @@ public class DagScheduler {
     private final StepSubmitter stepSubmitter;
     private final StepSuccessHandler successHandler;
     private final StepFailureHandler failureHandler;
+    private final ResourceWaitRegistry resourceWaitRegistry;
 
     // ================================================================
     // 对外接口
@@ -218,6 +219,9 @@ public class DagScheduler {
         if (finalStatus == ExecutionStatusEnum.SUCCESS) {
             contextManager.cleanup(executionId);
         }
+
+        // 流程彻底结束，清理资源等待注册，防止已结束的 executionId 残留被唤醒
+        resourceWaitRegistry.unregisterAll(executionId);
     }
 
     // ================================================================

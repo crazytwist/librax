@@ -18,16 +18,16 @@ spring:
         stat:
           enabled: true
           log-slow-sql: true
-          slow-sql-millis: 100
+          slow-sql-millis: 200  # 生产环境慢 SQL 阈值适当放宽
           merge-sql: true
         wall:
           config:
             multi-statement-allow: true
     dynamic:
       druid:
-        initial-size: 5
-        min-idle: 5
-        max-active: 20
+        initial-size: 10
+        min-idle: 10
+        max-active: 50
         max-wait: 60000
         time-between-eviction-runs-millis: 60000
         min-evictable-idle-time-millis: 600000
@@ -41,22 +41,24 @@ spring:
       primary: master
       datasource:
         master:
-          # 连接 deploy-ubuntu.sh 创建的 mysql-local 容器（docker_default 网络）
-          url: jdbc:mysql://mysql-local:3306/librax-sz?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true
-          username: root
-          password: root
+          # DB_HOST/DB_PORT/DB_NAME/DB_USER/DB_PASS 由 deploy-to-server.sh 通过 -e 注入
+          # 默认值指向 deploy-ubuntu.sh 创建的 mysql-local 容器
+          url: jdbc:mysql://${DB_HOST:mysql-local}:${DB_PORT:3306}/${DB_NAME:librax-sz}?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true
+          username: ${DB_USER:root}
+          password: ${DB_PASS:root}
         slave:
           lazy: true
-          url: jdbc:mysql://mysql-local:3306/librax-sz?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true
-          username: root
-          password: root
+          url: jdbc:mysql://${DB_HOST:mysql-local}:${DB_PORT:3306}/${DB_NAME:librax-sz}?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true
+          username: ${DB_USER:root}
+          password: ${DB_PASS:root}
 
-  # 连接 deploy-ubuntu.sh 创建的 redis-local 容器（docker_default 网络）
   data:
     redis:
-      host: redis-local
-      port: 6379
+      # REDIS_HOST/REDIS_PORT/REDIS_PASS 由 deploy-to-server.sh 通过 -e 注入
+      host: ${REDIS_HOST:redis-local}
+      port: ${REDIS_PORT:6379}
       database: 0
+      password: ${REDIS_PASS:}  # 生产环境建议设置 Redis 密码
 
 --- #################### 定时任务相关配置 ####################
 
@@ -111,7 +113,7 @@ management:
     web:
       base-path: /actuator
       exposure:
-        include: '*'
+        include: 'health,info,metrics'  # 生产环境只暴露必要端点
 
 spring:
   boot:
@@ -127,12 +129,8 @@ logging:
   file:
     name: /librax-server/logs/librax-server.log
   level:
-    com.librax.lab.module.infra.dal.mysql: debug
-    com.librax.lab.module.infra.dal.mysql.logger.ApiErrorLogMapper: INFO
-    com.librax.lab.module.infra.dal.mysql.job.JobLogMapper: INFO
-    com.librax.lab.module.infra.dal.mysql.file.FileConfigMapper: INFO
-    com.librax.lab.module.system.dal.mysql:
-    com.librax.lab.module.system.dal.mysql.sms.SmsChannelMapper: INFO
+    root: INFO
+    com.librax.lab: INFO
     org.springframework.context.support.PostProcessorRegistrationDelegate: ERROR
 
 debug: false
@@ -141,15 +139,15 @@ debug: false
 # system 模块对 WxMpService / WxMaService 有硬注入，必须提供 appid，否则启动失败
 wx:
   mp:
-    app-id: wxf56b1542b9e85f8a
-    secret: 496379dcef1ba869e9234de8d598cfd3
+    app-id: ${WX_MP_APPID:wxf56b1542b9e85f8a}       # ← 可替换为客户的公众号 appid
+    secret: ${WX_MP_SECRET:496379dcef1ba869e9234de8d598cfd3}
     config-storage:
       type: RedisTemplate
       key-prefix: wx
       http-client-type: HttpClient
   miniapp:
-    appid: wxc4598c446f8a9cb3
-    secret: 4a1a04e07f6a4a0751b39c3064a92c8b
+    appid: ${WX_MA_APPID:wxc4598c446f8a9cb3}          # ← 可替换为客户的小程序 appid
+    secret: ${WX_MA_SECRET:4a1a04e07f6a4a0751b39c3064a92c8b}
     config-storage:
       type: RedisTemplate
       key-prefix: wa
@@ -161,13 +159,13 @@ justauth:
   enabled: true
   type:
     DINGTALK:
-      client-id: dingvrnreaje3yqvzhxg
-      client-secret: i8E6iZyDvZj51JIb0tYsYfVQYOks9Cq1lgryEjFRqC79P3iJcrxEwT6Qk2QvLrLI
+      client-id: ${DINGTALK_CLIENT_ID:dingvrnreaje3yqvzhxg}          # 可替换为客户的钉钉应用
+      client-secret: ${DINGTALK_CLIENT_SECRET:i8E6iZyDvZj51JIb0tYsYfVQYOks9Cq1lgryEjFRqC79P3iJcrxEwT6Qk2QvLrLI}
       ignore-check-redirect-uri: true
     WECHAT_ENTERPRISE:
-      client-id: wwd411c69a39ad2e54
-      client-secret: 1wTb7hYxnpT2TUbIeHGXGo7T0odav1ic10mLdyyATOw
-      agent-id: 1000004
+      client-id: ${WECHAT_CORP_ID:wwd411c69a39ad2e54}                 # 可替换为客户的企业微信
+      client-secret: ${WECHAT_CORP_SECRET:1wTb7hYxnpT2TUbIeHGXGo7T0odav1ic10mLdyyATOw}
+      agent-id: ${WECHAT_CORP_AGENT_ID:1000004}
       ignore-check-redirect-uri: true
     ALIPAY:
       client-id: xx
@@ -184,12 +182,18 @@ justauth:
 
 librax:
   captcha:
-    enable: false  # 测试环境关闭验证码，方便接口调试
+    enable: false  # 生产环境开启验证码
   security:
     mock-enable: false
   access-log:
     enable: true
   demo: false
+  sms-code:
+    expire-times: 10m
+    send-frequency: 1m
+    send-maximum-quantity-per-day: 10
+    begin-code: 1000  # 生产环境使用真实随机区间
+    end-code: 9999
 
 liteflow:
   rule-source-ext-data-map:

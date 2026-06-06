@@ -53,7 +53,7 @@ public class HttpDeviceDriver implements DeviceDriver {
 
         Request request = buildRequest(url, method, command, requestBody, callbackToken);
 
-        log.info("[HttpDeviceDriver] 发送请求 url={} method={} deviceId={}", url, method, device.getDeviceId());
+        log.info("[HttpDeviceDriver] 发送请求 url={} method={} deviceId={},requestBody={}", url, method, device.getDeviceId(), requestBody);
 
         OkHttpClient client = clientFactory.getClient(device);
         try (Response response = client.newCall(request).execute()) {
