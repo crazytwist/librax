@@ -79,6 +79,10 @@ public class MaterialInstanceDO extends BaseDO {
      */
     private BigDecimal currentVolUl;
     /**
+     * 当前数量（个），固体/耗材类填写，液体类为NULL，步骤消耗后更新
+     */
+    private Integer currentCount;
+    /**
      * 当前浓度描述，覆盖 material_def 的标准浓度（如稀释后填写实际浓度）
      */
     private String concentration;

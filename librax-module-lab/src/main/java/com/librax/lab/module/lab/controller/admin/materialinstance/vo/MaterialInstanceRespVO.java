@@ -67,6 +67,10 @@ public class MaterialInstanceRespVO {
     @ExcelProperty("当前体积（微升），液体类内容物填写，固体/空容器为NULL，步骤消耗后更新")
     private BigDecimal currentVolUl;
 
+    @Schema(description = "当前数量（个），固体/耗材类填写，液体类为NULL，步骤消耗后更新")
+    @ExcelProperty("当前数量（个）")
+    private Integer currentCount;
+
     @Schema(description = "当前浓度描述，覆盖 material_def 的标准浓度（如稀释后填写实际浓度）")
     @ExcelProperty("当前浓度描述，覆盖 material_def 的标准浓度（如稀释后填写实际浓度）")
     private String concentration;

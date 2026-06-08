@@ -75,6 +75,18 @@ public class MaterialConsumptionDO extends BaseDO {
      */
     private BigDecimal volAfterUl;
     /**
+     * 操作前数量（个），固体/耗材类填写
+     */
+    private Integer countBefore;
+    /**
+     * 数量变化量（个），消耗为负值如-2，产生为正值如+5
+     */
+    private Integer countChange;
+    /**
+     * 操作后数量（个），= count_before + count_change
+     */
+    private Integer countAfter;
+    /**
      * 转移来源库位，TRANSFER操作时填写
      */
     private String fromSlotId;

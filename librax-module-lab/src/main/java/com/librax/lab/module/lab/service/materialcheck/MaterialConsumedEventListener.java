@@ -125,27 +125,34 @@ public class MaterialConsumedEventListener {
     }
 
     /**
-     * 固体/耗材扣减：标记为 IN_USE
+     * 固体/耗材扣减：从实例的 currentCount 依次扣减，扣完标记 USED
      */
     private void deductCount(MaterialConsumedEvent event,
                              MaterialCheckRuleDO rule,
                              List<MaterialInstanceDO> available) {
-        int needed = rule.getMinCount();
-        int consumed = 0;
+        int remaining = rule.getMinCount();
 
         for (MaterialInstanceDO instance : available) {
-            if (consumed >= needed) break;
+            if (remaining <= 0) break;
+            if (instance.getCurrentCount() == null || instance.getCurrentCount() <= 0) continue;
 
-            instance.setStatus("IN_USE");
+            int countBefore = instance.getCurrentCount();
+            int deduct = Math.min(countBefore, remaining);
+            int countAfter = countBefore - deduct;
+
+            instance.setCurrentCount(countAfter);
+            if (countAfter == 0) {
+                instance.setStatus("USED");
+            }
             instanceMapper.updateById(instance);
 
-            consumptionMapper.insert(buildConsumption(
-                    event, instance, "CONSUME",
-                    instance.getCurrentVolUl(), null, instance.getCurrentVolUl()));
+            consumptionMapper.insert(buildCountConsumption(
+                    event, instance, "CONSUME", countBefore, -deduct, countAfter));
 
-            consumed++;
+            remaining -= deduct;
 
-            log.info("[MaterialConsumed] 耗材消耗 instanceId={}", instance.getInstanceId());
+            log.info("[MaterialConsumed] 耗材扣减 instanceId={} deduct={} after={}",
+                    instance.getInstanceId(), deduct, countAfter);
         }
     }
 
@@ -167,6 +174,28 @@ public class MaterialConsumedEventListener {
                 .volBeforeUl(volBefore)
                 .volChangeUl(volChange)
                 .volAfterUl(volAfter)
+                .consumedAt(LocalDateTime.now())
+                .build();
+    }
+
+    private MaterialConsumptionDO buildCountConsumption(MaterialConsumedEvent event,
+                                                         MaterialInstanceDO instance,
+                                                         String action,
+                                                         int countBefore,
+                                                         int countChange,
+                                                         int countAfter) {
+        return MaterialConsumptionDO.builder()
+                .executionId(event.getExecutionId())
+                .nodeId(event.getNodeId())
+                .attempt(event.getAttempt())
+                .instanceId(instance.getInstanceId())
+                .typeCode(instance.getTypeCode())
+                .materialCode(instance.getMaterialCode())
+                .batchNo(instance.getBatchNo())
+                .action(action)
+                .countBefore(countBefore)
+                .countChange(countChange)
+                .countAfter(countAfter)
                 .consumedAt(LocalDateTime.now())
                 .build();
     }

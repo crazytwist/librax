@@ -64,14 +64,18 @@ public class MaterialCheckSpiImpl implements MaterialCheckSpi {
                 }
             }
 
-            // 检查数量（固体/耗材类）
+            // 检查数量（固体/耗材类）：汇总所有可用实例的 currentCount
             if (rule.getMinCount() != null) {
-                int count = available.size();
-                if (count < rule.getMinCount()) {
+                int totalCount = available.stream()
+                        .map(MaterialInstanceDO::getCurrentCount)
+                        .filter(Objects::nonNull)
+                        .mapToInt(Integer::intValue)
+                        .sum();
+                if (totalCount < rule.getMinCount()) {
                     failReasons.add(String.format(
                             "物料[%s/%s]数量不足: 需要%d个, 可用%d个 (区域=%s)",
                             rule.getMaterialCode(), rule.getContentType(),
-                            rule.getMinCount(), count, zoneCode));
+                            rule.getMinCount(), totalCount, zoneCode));
                 }
             }
         }
