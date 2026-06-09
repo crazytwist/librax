@@ -69,6 +69,9 @@ public class SampleInfoRespVO {
     @ExcelProperty("扩展属性，不同类型样本有不同属性")
     private String attributes;
 
+    @Schema(description = "实验参数，JSON 格式，如 {\"targetPh\": 7.2, \"volumeUl\": 500}，流程步骤执行时从此字段读取")
+    private String experimentParams;
+
     @Schema(description = "REGISTERED/LOADED/IN_PROCESS/SPLIT/COMPLETED/ARCHIVED/REJECTED/LOST", requiredMode = Schema.RequiredMode.REQUIRED, example = "1")
     @ExcelProperty("REGISTERED/LOADED/IN_PROCESS/SPLIT/COMPLETED/ARCHIVED/REJECTED/LOST")
     private String status;

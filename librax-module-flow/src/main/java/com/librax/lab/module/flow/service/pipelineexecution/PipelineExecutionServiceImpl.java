@@ -197,6 +197,7 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         record.setParentCallbackToken(parentCallbackToken);      // ★ 父流程等待token
         record.setInputParams(inputParams != null
                 ? JSON.toJSONString(inputParams) : null);
+        record.setSubjectId(extractSubjectId(inputParams));      // ★ 执行主体ID（sampleId）
         record.setRowVersion(0);
         executionMapper.insert(record);
 
@@ -288,8 +289,18 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         record.setTriggerType(triggerType != null ? triggerType : "MANUAL");
         record.setTriggeredBy(triggeredBy);
         record.setInputParams(inputParams != null ? JSON.toJSONString(inputParams) : null);
+        record.setSubjectId(extractSubjectId(inputParams));
         record.setRowVersion(0);
         executionMapper.insert(record);
+    }
+
+    /**
+     * 从 inputParams 提取执行主体ID（目前约定 key 为 "sampleId"）
+     */
+    private static String extractSubjectId(Map<String, Object> inputParams) {
+        if (inputParams == null) return null;
+        Object v = inputParams.get("sampleId");
+        return v != null ? v.toString() : null;
     }
 
     /**

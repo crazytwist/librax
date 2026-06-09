@@ -109,6 +109,12 @@ public class PipelineExecutionDO extends BaseDO {
      * 待消费的样本ID队列，逗号分隔，延迟绑定模式使用
      */
     private String pendingSampleIds;
+    /**
+     * 执行主体业务ID，如样本ID（lab_sample_info.sample_id）。
+     * 由启动方通过 inputParams["sampleId"] 传入，引擎自动提取存储，
+     * 用于 execution→sample 反向查询，flow 模块不感知具体类型。
+     */
+    private String subjectId;
 
 
 }

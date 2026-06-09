@@ -12,6 +12,7 @@ import com.librax.lab.module.flow.api.model.StepResult;
 import com.librax.lab.module.flow.api.resource.AcquireRequest;
 import com.librax.lab.module.flow.api.resource.AcquireResult;
 import com.librax.lab.module.flow.api.resource.ResourcePool;
+import com.librax.lab.module.flow.api.sample.SampleContextSpi;
 import com.librax.lab.module.flow.dal.dataobject.stepexecution.StepExecutionDO;
 import com.librax.lab.module.flow.dal.mysql.stepexecution.StepExecutionMapper;
 import com.librax.lab.module.flow.engine.definition.model.PipelineGraph;
@@ -22,11 +23,13 @@ import com.librax.lab.module.flow.engine.execution.statemachine.StepStateMachine
 import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -47,6 +50,10 @@ public class StepSubmitter {
     private final ResourcePool resourcePool;
     private final MaterialCheckSpi materialCheckSpi;
     private final ResourceWaitRegistry resourceWaitRegistry;
+
+    /** 样本上下文 SPI，可选——lab 模块未部署时为空列表，不影响流程运行 */
+    @Autowired(required = false)
+    private List<SampleContextSpi> sampleContextSpis;
 
     /**
      * 资源等待默认超时时间：5分钟。
@@ -285,15 +292,42 @@ public class StepSubmitter {
     }
 
     private Map<String, Object> resolveInputParams(String executionId, StepNode node) {
-        Map<String, Object> inputParams = contextManager
+        // 1. 读取流程启动时的初始参数（含 sampleId 等业务 key）
+        Map<String, Object> launchParams = contextManager
                 .getNodeOutput(executionId, CONTEXT_KEY_INPUT);
+
+        // 2. 解析步骤级 inputMapping + YAML 静态 params
         Map<String, Object> mappedParams = contextManager.resolveInputMapping(
-                executionId, node.getInputMapping(), inputParams);
+                executionId, node.getInputMapping(), launchParams);
         Map<String, Object> merged = new HashMap<>(node.getParams());
         if (mappedParams != null) merged.putAll(mappedParams);
-        // 递归解析 merged 中任意层级的 ${...} 表达式（兼容 process_json 等嵌套结构）
+
+        // 3. 递归解析 ${...} 表达式
         @SuppressWarnings("unchecked")
-        Map<String, Object> resolved = (Map<String, Object>) contextManager.resolveDeep(executionId, merged, inputParams);
+        Map<String, Object> resolved = (Map<String, Object>) contextManager.resolveDeep(executionId, merged, launchParams);
+
+        // 4. 将样本 experimentParams 作为基础层注入（低优先级，YAML 显式配置的参数覆盖此层）
+        //    前提：launchParams 中包含 sampleId（由调用方启动流程时传入）
+        if (sampleContextSpis != null && !sampleContextSpis.isEmpty() && launchParams != null) {
+            Object sampleIdVal = launchParams.get("sampleId");
+            if (sampleIdVal != null) {
+                String sampleId = sampleIdVal.toString();
+                try {
+                    Map<String, Object> sampleParams = sampleContextSpis.get(0).getExperimentParams(sampleId);
+                    if (sampleParams != null && !sampleParams.isEmpty()) {
+                        // sample params 打底，resolved 覆盖（步骤配置优先级更高）
+                        Map<String, Object> withBase = new HashMap<>(sampleParams);
+                        withBase.putAll(resolved);
+                        resolved = withBase;
+                        log.debug("[StepSubmitter] 样本实验参数已注入 sampleId={} keys={}",
+                                sampleId, sampleParams.keySet());
+                    }
+                } catch (Exception e) {
+                    log.warn("[StepSubmitter] 样本实验参数注入失败，跳过 sampleId={}", sampleId, e);
+                }
+            }
+        }
+
         return resolved;
     }
 

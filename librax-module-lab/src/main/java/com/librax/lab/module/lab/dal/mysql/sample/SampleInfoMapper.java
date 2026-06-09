@@ -57,4 +57,16 @@ public interface SampleInfoMapper extends BaseMapperX<SampleInfoDO> {
                 .set(SampleInfoDO::getUpdateTime, LocalDateTime.now()));
     }
 
+    /**
+     * 流程启动时绑定执行ID，清空当前节点ID（流程尚未进入任何步骤）
+     * 不修改样本状态，状态变更由具体步骤执行器或业务逻辑触发
+     */
+    default int updateCurrentExecutionId(String sampleId, String executionId) {
+        return update(null, new LambdaUpdateWrapper<SampleInfoDO>()
+                .eq(SampleInfoDO::getSampleId, sampleId)
+                .set(SampleInfoDO::getCurrentExecutionId, executionId)
+                .set(SampleInfoDO::getCurrentNodeId, null)
+                .set(SampleInfoDO::getUpdateTime, LocalDateTime.now()));
+    }
+
 }

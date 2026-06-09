@@ -81,6 +81,10 @@ public class SampleInfoDO extends BaseDO {
      */
     private String attributes;
     /**
+     * 实验参数，JSON 格式，如 {"targetPh": 7.2, "volumeUl": 500}，流程步骤执行时从此字段读取
+     */
+    private String experimentParams;
+    /**
      * REGISTERED/LOADED/IN_PROCESS/SPLIT/COMPLETED/ARCHIVED/REJECTED/LOST
      */
     private String status;
