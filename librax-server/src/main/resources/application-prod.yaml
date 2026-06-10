@@ -58,7 +58,6 @@ spring:
       host: ${REDIS_HOST:redis-local}
       port: ${REDIS_PORT:6379}
       database: 0
-      password: ${REDIS_PASS:}  # 生产环境建议设置 Redis 密码
 
 --- #################### 定时任务相关配置 ####################
 
@@ -156,7 +155,7 @@ wx:
 --- #################### 社交登录相关配置 ####################
 
 justauth:
-  enabled: true
+  enabled: false
   type:
     DINGTALK:
       client-id: ${DINGTALK_CLIENT_ID:dingvrnreaje3yqvzhxg}          # 可替换为客户的钉钉应用

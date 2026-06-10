@@ -29,6 +29,9 @@ public class SlotInfoPageReqVO extends PageParam {
     @Schema(description = "所属货架编码，关联 lab_rack_info.rack_id，仅 FIXED 类型填写", example = "11492")
     private String rackId;
 
+    @Schema(description = "占用状态：EMPTY=空闲 OCCUPIED=已占用 DISABLED=停用")
+    private String status;
+
     @Schema(description = "是否启用：1=启用参与调度 0=禁用（维修/封存时禁用）")
     private Boolean enabled;
 

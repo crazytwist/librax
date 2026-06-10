@@ -1,9 +1,11 @@
 package com.librax.lab.framework.common.util.expression;
 
+import com.alibaba.fastjson.JSON;
 import com.googlecode.aviator.AviatorEvaluator;
 import com.googlecode.aviator.Expression;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -62,9 +64,21 @@ public final class ExpressionUtil {
         if (vars == null || vars.isEmpty()) return template;
         String result = template;
         for (Map.Entry<String, Object> entry : vars.entrySet()) {
-            result = result.replace(
-                    "${" + entry.getKey() + "}",
-                    entry.getValue() != null ? entry.getValue().toString() : "");
+            String key         = entry.getKey();
+            Object val         = entry.getValue();
+            String placeholder = "${" + key + "}";
+
+            if (val instanceof List || val instanceof Map) {
+                // List/Map 序列化为 JSON 字符串。
+                // 若模板中占位符被引号包裹（如 "${agvCmdList}"），需同时去掉外层引号，
+                // 否则结果会变成字符串而非 JSON 数组/对象。
+                String jsonVal = JSON.toJSONString(val);
+                result = result.replace("\"" + placeholder + "\"", jsonVal);
+                result = result.replace(placeholder, jsonVal);
+            } else {
+                result = result.replace(placeholder,
+                        val != null ? val.toString() : "");
+            }
         }
         return result;
     }

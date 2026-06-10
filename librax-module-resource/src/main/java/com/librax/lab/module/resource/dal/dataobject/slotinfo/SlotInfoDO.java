@@ -90,6 +90,24 @@ public class SlotInfoDO extends BaseDO {
      * 最大容纳数量，一般为1（一个库位放一个容器），特殊场景可设大
      */
     private Integer capacity;
+
+    /**
+     * 占用状态：EMPTY=空闲 OCCUPIED=已占用 DISABLED=停用（维修/封存）
+     * 物料放入/取出时实时更新，供调度模块快速查找空闲库位
+     */
+    private String status;
+
+    /**
+     * 当前已放入的容器数量，达到 capacity 时 status 自动置为 OCCUPIED
+     */
+    private Integer currentCount;
+
+    /**
+     * 当前占用的物料实例ID（lab_material_instance.instance_id），空闲时为 NULL。
+     * 多容量库位时记录最近放入的实例ID，完整列表通过 lab_material_instance.slot_id 反查。
+     */
+    private String occupiedBy;
+
     /**
      * 是否启用：1=启用参与调度 0=禁用（维修/封存时禁用）
      */

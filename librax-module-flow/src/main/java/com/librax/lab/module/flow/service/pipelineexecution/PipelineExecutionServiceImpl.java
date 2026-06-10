@@ -142,13 +142,16 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
                 triggerType, triggeredBy);
         // 3. 初始化所有节点的 pe_step_execution（PENDING）
         initStepExecutions(executionId, graph);
-        // 4. 初始化 pe_execution_context（空）
-        if (inputParams != null && !inputParams.isEmpty()) {
-            contextManager.putNodeOutput(executionId, CONTEXT_KEY_INPUT, inputParams);
-        }
-        // 4.1 加载样本信息
+        // 4. Hook 先执行，允许 Hook 向 inputParams 注入额外参数（如 experiment_params）
+        //    使用可变 Map 副本，避免 Hook 修改调用方传入的原始 Map
+        Map<String, Object> enrichedParams = inputParams != null
+                ? new java.util.HashMap<>(inputParams) : new java.util.HashMap<>();
         for (PipelineStartHook hook : startHooks) {
-            hook.beforeSchedule(executionId, pipelineKey, graph.getVersion(), inputParams);
+            hook.beforeSchedule(executionId, pipelineKey, graph.getVersion(), enrichedParams);
+        }
+        // 4.1 Hook 富化完成后写入执行上下文，步骤可通过 ${input.xxx} 引用
+        if (!enrichedParams.isEmpty()) {
+            contextManager.putNodeOutput(executionId, CONTEXT_KEY_INPUT, enrichedParams);
         }
         // 5. 流程状态 PENDING → RUNNING
         executionStateMachine.transition(
@@ -203,13 +206,15 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
 
         initStepExecutions(executionId, graph);
 
-        if (inputParams != null && !inputParams.isEmpty()) {
-            contextManager.putNodeOutput(executionId, CONTEXT_KEY_INPUT, inputParams);
-        }
-
+        // Hook 先执行，允许注入额外参数（如 experiment_params），再写入上下文
+        Map<String, Object> enrichedParams = inputParams != null
+                ? new java.util.HashMap<>(inputParams) : new java.util.HashMap<>();
         for (PipelineStartHook hook : startHooks) {
             hook.beforeSchedule(executionId, pipelineKey,
-                    graph.getVersion(), inputParams);
+                    graph.getVersion(), enrichedParams);
+        }
+        if (!enrichedParams.isEmpty()) {
+            contextManager.putNodeOutput(executionId, CONTEXT_KEY_INPUT, enrichedParams);
         }
 
         executionStateMachine.transition(
