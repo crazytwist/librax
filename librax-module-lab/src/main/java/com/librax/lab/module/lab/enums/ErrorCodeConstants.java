@@ -42,6 +42,11 @@ public interface ErrorCodeConstants {
     ErrorCode MATERIAL_CONSUMPTION_NOT_EXISTS =
             new ErrorCode(1_050_001_009, "步骤物料消耗记录不存在");
 
+    ErrorCode MATERIAL_INSTANCE_ALREADY_IN_SLOT =
+            new ErrorCode(1_050_001_010, "物料实例已在库位中，请先下架再操作");
+
+    ErrorCode MATERIAL_INSTANCE_NOT_IN_SLOT =
+            new ErrorCode(1_050_001_011, "物料实例当前不在任何库位中");
 
 }
 

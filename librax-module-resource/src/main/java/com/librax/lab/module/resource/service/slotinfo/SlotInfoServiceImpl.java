@@ -82,4 +82,30 @@ public class SlotInfoServiceImpl implements SlotInfoService {
         return slotInfoMapper.selectPage(pageReqVO);
     }
 
+    @Override
+    public SlotInfoDO getSlotInfoBySlotId(String slotId) {
+        return slotInfoMapper.selectBySlotId(slotId);
+    }
+
+    @Override
+    public void occupySlot(String slotId, String instanceId) {
+        SlotInfoDO slot = slotInfoMapper.selectBySlotId(slotId);
+        if (slot == null) {
+            throw exception(SLOT_INFO_NOT_EXISTS);
+        }
+        if ("DISABLED".equals(slot.getStatus())) {
+            throw exception(SLOT_DISABLED);
+        }
+        if ("OCCUPIED".equals(slot.getStatus())) {
+            throw exception(SLOT_ALREADY_OCCUPIED);
+        }
+        int capacity = slot.getCapacity() != null ? slot.getCapacity() : 1;
+        slotInfoMapper.occupy(slotId, instanceId, capacity);
+    }
+
+    @Override
+    public void releaseSlot(String slotId) {
+        slotInfoMapper.release(slotId);
+    }
+
 }

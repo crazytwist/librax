@@ -28,6 +28,7 @@ import static com.librax.lab.framework.apilog.core.enums.OperateTypeEnum.*;
 import com.librax.lab.module.lab.controller.admin.materialinstance.vo.*;
 import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
 import com.librax.lab.module.lab.service.materialinstance.MaterialInstanceService;
+import java.util.List;
 
 @Tag(name = "管理后台 - 物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理")
 @RestController
@@ -86,6 +87,40 @@ public class MaterialInstanceController {
     public CommonResult<PageResult<MaterialInstanceRespVO>> getMaterialInstancePage(@Valid MaterialInstancePageReqVO pageReqVO) {
         PageResult<MaterialInstanceDO> pageResult = materialInstanceService.getMaterialInstancePage(pageReqVO);
         return success(BeanUtils.toBean(pageResult, MaterialInstanceRespVO.class));
+    }
+
+    @PostMapping("/batch-load")
+    @Operation(summary = "批量上架 - 将多个物料实例分别绑定到指定库位")
+    @PreAuthorize("@ss.hasPermission('lab:material-instance:update')")
+    public CommonResult<List<String>> batchLoadToSlot(@Valid @RequestBody MaterialInstanceBatchLoadReqVO reqVO) {
+        List<String> errors = materialInstanceService.batchLoadToSlot(reqVO.getItems());
+        return success(errors);
+    }
+
+    @PutMapping("/batch-unload")
+    @Operation(summary = "批量下架 - 将多个物料实例从当前库位移除")
+    @Parameter(name = "instanceIds", description = "物料实例ID列表", required = true)
+    @PreAuthorize("@ss.hasPermission('lab:material-instance:update')")
+    public CommonResult<Boolean> batchUnloadFromSlot(@RequestParam("instanceIds") List<String> instanceIds) {
+        materialInstanceService.batchUnloadFromSlot(instanceIds);
+        return success(true);
+    }
+
+    @PutMapping("/load")
+    @Operation(summary = "物料上架 - 将物料实例绑定到指定库位")
+    @PreAuthorize("@ss.hasPermission('lab:material-instance:update')")
+    public CommonResult<Boolean> loadToSlot(@Valid @RequestBody MaterialInstanceLoadReqVO reqVO) {
+        materialInstanceService.loadToSlot(reqVO.getInstanceId(), reqVO.getSlotId());
+        return success(true);
+    }
+
+    @PutMapping("/unload")
+    @Operation(summary = "物料下架 - 将物料实例从当前库位移除")
+    @Parameter(name = "instanceId", description = "物料实例ID", required = true)
+    @PreAuthorize("@ss.hasPermission('lab:material-instance:update')")
+    public CommonResult<Boolean> unloadFromSlot(@RequestParam("instanceId") String instanceId) {
+        materialInstanceService.unloadFromSlot(instanceId);
+        return success(true);
     }
 
     @GetMapping("/export-excel")

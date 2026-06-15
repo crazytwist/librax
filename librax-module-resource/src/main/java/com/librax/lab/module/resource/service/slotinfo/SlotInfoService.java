@@ -59,4 +59,24 @@ public interface SlotInfoService {
      */
     PageResult<SlotInfoDO> getSlotInfoPage(SlotInfoPageReqVO pageReqVO);
 
+    /**
+     * 按 slotId 查询库位
+     */
+    SlotInfoDO getSlotInfoBySlotId(String slotId);
+
+    /**
+     * 物料上架：占用库位，校验库位可用性，status → OCCUPIED
+     *
+     * @param slotId     库位编码
+     * @param instanceId 物料实例ID
+     */
+    void occupySlot(String slotId, String instanceId);
+
+    /**
+     * 物料下架：释放库位，currentCount -1，降到 0 时 status → EMPTY
+     *
+     * @param slotId 库位编码
+     */
+    void releaseSlot(String slotId);
+
 }

@@ -21,6 +21,11 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
      * 按物料编码 + 内容类型 + 区域查找可用实例
      * 条件：status=AVAILABLE, 未过期
      */
+    default MaterialInstanceDO selectByInstanceId(String instanceId) {
+        return selectOne(new LambdaQueryWrapperX<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId));
+    }
+
     default List<MaterialInstanceDO> selectAvailable(String materialCode,
                                                       String contentType,
                                                       String zoneCode) {

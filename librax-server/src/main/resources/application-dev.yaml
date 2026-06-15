@@ -42,19 +42,19 @@ spring:
       datasource:
         master:
           # 连接 deploy-ubuntu.sh 创建的 mysql-local 容器（docker_default 网络）
-          url: jdbc:mysql://mysql-local:3306/librax-sz?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true
+          url: jdbc:mysql://192.168.42.228:3306/librax-sz?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true
           username: root
           password: root
         slave:
           lazy: true
-          url: jdbc:mysql://mysql-local:3306/librax-sz?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true
+          url: jdbc:mysql://192.168.42.228:3306/librax-sz?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&nullCatalogMeansCurrent=true&rewriteBatchedStatements=true
           username: root
           password: root
 
   # 连接 deploy-ubuntu.sh 创建的 redis-local 容器（docker_default 网络）
   data:
     redis:
-      host: redis-local
+      host: 192.168.42.228
       port: 6379
       database: 0
 
@@ -125,7 +125,7 @@ spring:
 # 日志输出到容器内 /librax-server/logs/，经 volume 挂载到宿主机 /opt/logs/，供 Promtail 采集
 logging:
   file:
-    name: /librax-server/logs/librax-server.log
+    name: /Users/yinan/workspace/logs/librax.log # 日志文件名，全路径
   level:
     com.librax.lab.module.infra.dal.mysql: debug
     com.librax.lab.module.infra.dal.mysql.logger.ApiErrorLogMapper: INFO

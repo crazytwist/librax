@@ -85,7 +85,7 @@ public class StepSubmitter {
         }
 
         // 2. 提前解析入参（后续 tryStart 写 snapshot + buildContext 两处复用，不重复解析）
-        Map<String, Object> inputParams = resolveInputParams(executionId, node);
+        Map<String, Object> inputParams = resolveInputParams(executionId, node, stepDO);
 
         // 2.5 物料核验（物料不足直接 fail，不进资源调度）
         if (node.getPipelineStepId() != null) {
@@ -207,7 +207,7 @@ public class StepSubmitter {
         }
 
         try {
-            Map<String, Object> inputParams = resolveInputParams(executionId, node);
+            Map<String, Object> inputParams = resolveInputParams(executionId, node, stepDO);
             StepDispatchContext ctx = buildContext(
                     executionId, graph, node, stepDO, dagCallback, inputParams);
             StepExecutor conditionExecutor = executorFactory.getExecutor(StepTypeEnum.CONDITION);
@@ -291,20 +291,29 @@ public class StepSubmitter {
                 .build();
     }
 
-    private Map<String, Object> resolveInputParams(String executionId, StepNode node) {
+    private Map<String, Object> resolveInputParams(String executionId, StepNode node,
+                                                     StepExecutionDO stepDO) {
         // 1. 读取流程启动时的初始参数（含 sampleId 等业务 key）
         Map<String, Object> launchParams = contextManager
                 .getNodeOutput(executionId, CONTEXT_KEY_INPUT);
 
+        // 系统变量：可在参数模版中通过 ${sys.executionId} / ${sys.nodeId} / ${sys.callbackToken} 引用
+        Map<String, Object> sysVars = Map.of(
+                "executionId", executionId,
+                "nodeId", node.getNodeId(),
+                "callbackToken", stepDO != null && stepDO.getCallbackToken() != null
+                        ? stepDO.getCallbackToken() : ""
+        );
+
         // 2. 解析步骤级 inputMapping + YAML 静态 params
         Map<String, Object> mappedParams = contextManager.resolveInputMapping(
-                executionId, node.getInputMapping(), launchParams);
+                executionId, node.getInputMapping(), launchParams, sysVars);
         Map<String, Object> merged = new HashMap<>(node.getParams());
         if (mappedParams != null) merged.putAll(mappedParams);
 
         // 3. 递归解析 ${...} 表达式
         @SuppressWarnings("unchecked")
-        Map<String, Object> resolved = (Map<String, Object>) contextManager.resolveDeep(executionId, merged, launchParams);
+        Map<String, Object> resolved = (Map<String, Object>) contextManager.resolveDeep(executionId, merged, launchParams, sysVars);
 
         // 4. 将样本 experimentParams 作为基础层注入（低优先级，YAML 显式配置的参数覆盖此层）
         //    前提：launchParams 中包含 sampleId（由调用方启动流程时传入）

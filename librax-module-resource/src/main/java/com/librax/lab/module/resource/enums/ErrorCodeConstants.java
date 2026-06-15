@@ -28,5 +28,10 @@ public interface ErrorCodeConstants {
     ErrorCode SLOT_INFO_NOT_EXISTS =
             new ErrorCode(1_070_001_005, "库位资源定义不存在");
 
+    ErrorCode SLOT_ALREADY_OCCUPIED =
+            new ErrorCode(1_070_001_006, "库位已被占用，无法上架");
+
+    ErrorCode SLOT_DISABLED =
+            new ErrorCode(1_070_001_007, "库位已停用，无法上架");
 
 }

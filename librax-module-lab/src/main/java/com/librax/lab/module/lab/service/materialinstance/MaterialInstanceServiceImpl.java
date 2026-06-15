@@ -1,6 +1,7 @@
 package com.librax.lab.module.lab.service.materialinstance;
 
 import cn.hutool.core.collection.CollUtil;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -14,6 +15,8 @@ import com.librax.lab.framework.common.pojo.PageParam;
 import com.librax.lab.framework.common.util.object.BeanUtils;
 
 import com.librax.lab.module.lab.dal.mysql.materialinstance.MaterialInstanceMapper;
+import com.librax.lab.module.resource.dal.dataobject.slotinfo.SlotInfoDO;
+import com.librax.lab.module.resource.service.slotinfo.SlotInfoService;
 
 import static com.librax.lab.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static com.librax.lab.framework.common.util.collection.CollectionUtils.convertList;
@@ -31,6 +34,9 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
 
     @Resource
     private MaterialInstanceMapper materialInstanceMapper;
+
+    @Resource
+    private SlotInfoService slotInfoService;
 
     @Override
     public Long createMaterialInstance(MaterialInstanceSaveReqVO createReqVO) {
@@ -80,6 +86,77 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
     @Override
     public PageResult<MaterialInstanceDO> getMaterialInstancePage(MaterialInstancePageReqVO pageReqVO) {
         return materialInstanceMapper.selectPage(pageReqVO);
+    }
+
+    @Override
+    public List<String> batchLoadToSlot(List<com.librax.lab.module.lab.controller.admin.materialinstance.vo.MaterialInstanceBatchLoadReqVO.Item> items) {
+        List<String> errors = new ArrayList<>();
+        for (com.librax.lab.module.lab.controller.admin.materialinstance.vo.MaterialInstanceBatchLoadReqVO.Item item : items) {
+            try {
+                loadToSlot(item.getInstanceId(), item.getSlotId());
+            } catch (Exception e) {
+                errors.add(item.getInstanceId() + " → " + item.getSlotId() + "：" + e.getMessage());
+            }
+        }
+        return errors;
+    }
+
+    @Override
+    public void batchUnloadFromSlot(List<String> instanceIds) {
+        List<String> errors = new ArrayList<>();
+        for (String instanceId : instanceIds) {
+            try {
+                unloadFromSlot(instanceId);
+            } catch (Exception e) {
+                errors.add(instanceId + "：" + e.getMessage());
+            }
+        }
+        if (!errors.isEmpty()) {
+            throw new RuntimeException("部分下架失败：" + String.join("；", errors));
+        }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void loadToSlot(String instanceId, String slotId) {
+        // 1. 校验物料实例存在
+        MaterialInstanceDO instance = materialInstanceMapper.selectByInstanceId(instanceId);
+        if (instance == null) {
+            throw exception(MATERIAL_INSTANCE_NOT_EXISTS);
+        }
+        // 2. 校验物料实例当前未绑定库位
+        if (instance.getSlotId() != null) {
+            throw exception(MATERIAL_INSTANCE_ALREADY_IN_SLOT);
+        }
+        // 3. 占用库位（内部校验库位存在/可用/未停用）
+        slotInfoService.occupySlot(slotId, instanceId);
+        // 4. 更新物料实例的库位和区域
+        SlotInfoDO slot = slotInfoService.getSlotInfoBySlotId(slotId);
+        materialInstanceMapper.update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId)
+                .set(MaterialInstanceDO::getSlotId, slotId)
+                .set(MaterialInstanceDO::getZoneCode, slot.getZoneCode()));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void unloadFromSlot(String instanceId) {
+        // 1. 校验物料实例存在
+        MaterialInstanceDO instance = materialInstanceMapper.selectByInstanceId(instanceId);
+        if (instance == null) {
+            throw exception(MATERIAL_INSTANCE_NOT_EXISTS);
+        }
+        // 2. 校验物料实例当前在某个库位
+        if (instance.getSlotId() == null) {
+            throw exception(MATERIAL_INSTANCE_NOT_IN_SLOT);
+        }
+        // 3. 释放库位
+        slotInfoService.releaseSlot(instance.getSlotId());
+        // 4. 清除物料实例的库位和区域
+        materialInstanceMapper.update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId)
+                .set(MaterialInstanceDO::getSlotId, null)
+                .set(MaterialInstanceDO::getZoneCode, null));
     }
 
 }

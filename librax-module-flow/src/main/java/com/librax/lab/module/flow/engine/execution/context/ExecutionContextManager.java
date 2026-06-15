@@ -157,11 +157,28 @@ public class ExecutionContextManager {
     public Map<String, Object> resolveInputMapping(String executionId,
                                                    Map<String, String> inputMapping,
                                                    Map<String, Object> inputParams) {
+        return resolveInputMapping(executionId, inputMapping, inputParams, null);
+    }
+
+    /**
+     * 解析 input_mapping 表达式，从上下文取值
+     * 支持 ${nodeId.fieldName} 语法，以及 ${sys.xxx} 系统变量
+     *
+     * @param executionId  执行实例ID
+     * @param inputMapping 如 {"phValue": "${s_ph.ph}"}
+     * @param inputParams  流程初始参数（处理 ${input.xxx} 引用）
+     * @param sysVars      系统变量（executionId / nodeId / callbackToken）
+     * @return 解析后的实际入参 Map
+     */
+    public Map<String, Object> resolveInputMapping(String executionId,
+                                                   Map<String, String> inputMapping,
+                                                   Map<String, Object> inputParams,
+                                                   Map<String, Object> sysVars) {
         Map<String, Object> resolved = new HashMap<>();
         if (inputMapping == null || inputMapping.isEmpty()) return resolved;
 
         inputMapping.forEach((paramName, expr) -> {
-            Object value = resolveExpression(executionId, expr, inputParams);
+            Object value = resolveExpression(executionId, expr, inputParams, sysVars);
             resolved.put(paramName, value);
         });
         return resolved;
@@ -177,17 +194,32 @@ public class ExecutionContextManager {
      * @return 解析后的值，结构与输入保持一致
      */
     public Object resolveDeep(String executionId, Object value, Map<String, Object> inputParams) {
+        return resolveDeep(executionId, value, inputParams, null);
+    }
+
+    /**
+     * 递归解析任意层级的 ${...} 表达式
+     * 支持 Map / List / String 的嵌套结构，以及 ${sys.xxx} 系统变量
+     *
+     * @param executionId 执行实例ID
+     * @param value       待解析的值（String / Map / List / 其他基本类型）
+     * @param inputParams 流程初始参数
+     * @param sysVars     系统变量（executionId / nodeId / callbackToken）
+     * @return 解析后的值，结构与输入保持一致
+     */
+    public Object resolveDeep(String executionId, Object value, Map<String, Object> inputParams,
+                              Map<String, Object> sysVars) {
         if (value instanceof String s) {
-            return resolveExpression(executionId, s, inputParams);
+            return resolveExpression(executionId, s, inputParams, sysVars);
         }
         if (value instanceof Map<?, ?> map) {
             Map<String, Object> result = new LinkedHashMap<>();
-            map.forEach((k, v) -> result.put((String) k, resolveDeep(executionId, v, inputParams)));
+            map.forEach((k, v) -> result.put((String) k, resolveDeep(executionId, v, inputParams, sysVars)));
             return result;
         }
         if (value instanceof List<?> list) {
             return list.stream()
-                    .map(item -> resolveDeep(executionId, item, inputParams))
+                    .map(item -> resolveDeep(executionId, item, inputParams, sysVars))
                     .collect(Collectors.toList());
         }
         return value;
@@ -208,13 +240,17 @@ public class ExecutionContextManager {
 
     /**
      * 解析单个表达式
-     * ${s_ph.ph}    → 取 executionId 上下文中 s_ph 节点的 ph 字段
-     * ${input.xxx}  → 取流程初始参数中的 xxx 字段
-     * 其他          → 当作字面量直接返回
+     * ${s_ph.ph}       → 取 executionId 上下文中 s_ph 节点的 ph 字段
+     * ${input.xxx}     → 取流程初始参数中的 xxx 字段
+     * ${sys.executionId}   → 当前执行实例ID
+     * ${sys.nodeId}        → 当前节点ID
+     * ${sys.callbackToken} → 当前步骤回调令牌
+     * 其他             → 当作字面量直接返回
      */
     private Object resolveExpression(String executionId,
                                      String expr,
-                                     Map<String, Object> inputParams) {
+                                     Map<String, Object> inputParams,
+                                     Map<String, Object> sysVars) {
         if (!StringUtils.hasText(expr)) return expr;
 
         // 匹配 ${xxx.yyy} 格式
@@ -223,10 +259,13 @@ public class ExecutionContextManager {
             int dotIdx = inner.indexOf('.');
             if (dotIdx < 0) return expr; // 格式不对，原样返回
 
-            String prefix = inner.substring(0, dotIdx);   // nodeId 或 "input"
+            String prefix = inner.substring(0, dotIdx);   // nodeId 或 "input" 或 "sys"
             String fieldName = inner.substring(dotIdx + 1);  // 字段名
 
-            if ("input".equals(prefix)) {
+            if ("sys".equals(prefix)) {
+                // 取系统变量（executionId / nodeId / callbackToken）
+                return sysVars != null ? sysVars.get(fieldName) : null;
+            } else if ("input".equals(prefix)) {
                 // 取流程初始参数
                 return inputParams != null ? inputParams.get(fieldName) : null;
             } else {
