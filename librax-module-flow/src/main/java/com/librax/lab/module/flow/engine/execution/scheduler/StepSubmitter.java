@@ -24,6 +24,7 @@ import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -31,6 +32,7 @@ import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.Executor;
 
 import static com.librax.lab.module.flow.api.scheduler.SchedulerConstants.*;
@@ -54,6 +56,15 @@ public class StepSubmitter {
     /** 样本上下文 SPI，可选——lab 模块未部署时为空列表，不影响流程运行 */
     @Autowired(required = false)
     private List<SampleContextSpi> sampleContextSpis;
+
+    /** 回调基础地址，用于构造 callbackUrl 透传给外部服务 */
+    @Value("${librax.flow.callback-base-url:http://localhost:48080/app-api}")
+    private String callbackBaseUrl;
+
+    /** 通用步骤回调路径（非设备类，如 HTTP Task / MANUAL） */
+    private static final String STEP_CALLBACK_PATH   = "/flow/callback/step-complete";
+    /** 设备步骤回调路径模版（含 executionId / nodeId 占位符） */
+    private static final String DEVICE_CALLBACK_PATH = "/device/callback/%s/%s";
 
     /**
      * 资源等待默认超时时间：5分钟。
@@ -84,8 +95,11 @@ public class StepSubmitter {
             return;
         }
 
-        // 2. 提前解析入参（后续 tryStart 写 snapshot + buildContext 两处复用，不重复解析）
-        Map<String, Object> inputParams = resolveInputParams(executionId, node, stepDO);
+        // 2. 提前生成 callbackToken，确保 input_snapshot 与实际发出的请求 body 中 token 完全一致
+        String callbackToken = UUID.randomUUID().toString().replace("-", "");
+
+        // 3. 解析入参（使用预生成的 token，snapshot 与 body 保持一致）
+        Map<String, Object> inputParams = resolveInputParams(executionId, node, stepDO, callbackToken);
 
         // 2.5 物料核验（物料不足直接 fail，不进资源调度）
         if (node.getPipelineStepId() != null) {
@@ -147,9 +161,9 @@ public class StepSubmitter {
             inputParams.put(CONTEXT_KEY_RESOURCE_ID, resourceId);
         }
 
-        // 4. CAS 抢占步骤（PENDING → RUNNING），同时写 input_snapshot
+        // 4. CAS 抢占步骤（PENDING → RUNNING），同时写 input_snapshot（含真实 callbackToken）
         boolean started = stepStateMachine.tryStart(
-                executionId, node.getNodeId(), stepDO.getAttempt(), inputParams);
+                executionId, node.getNodeId(), stepDO.getAttempt(), inputParams, callbackToken);
         if (!started) {
             log.warn("[StepSubmitter] 步骤已被抢占 executionId={} nodeId={}", executionId, node.getNodeId());
             if (resourceId != null) {
@@ -158,12 +172,11 @@ public class StepSubmitter {
             return;
         }
 
-        // 5. tryStart 成功后重新查，拿到生成的 callbackToken
+        // 5. tryStart 成功后重新查，拿到完整的 stepDO（含 stepType 等字段供 buildContext 使用）
         stepDO = stepMapper.selectLatestAttempt(executionId, node.getNodeId());
         final StepExecutionDO finalStepDO = stepDO;
 
-
-        // 7. 组装上下文并分发（复用已解析的 inputParams，不重复解析）
+        // 6. 组装上下文并分发（复用已解析的 inputParams，不重复解析）
         StepDispatchContext ctx = buildContext(
                 executionId, graph, node, finalStepDO, dagCallback, inputParams);
         DispatchSpi spi = dispatchSpiFactory.getSpi(node.getDispatchMode());
@@ -291,19 +304,38 @@ public class StepSubmitter {
                 .build();
     }
 
+    /**
+     * CONDITION 节点专用重载：token 对 CONDITION 无意义，传空串即可。
+     */
     private Map<String, Object> resolveInputParams(String executionId, StepNode node,
-                                                     StepExecutionDO stepDO) {
+                                                    StepExecutionDO stepDO) {
+        return resolveInputParams(executionId, node, stepDO, "");
+    }
+
+    /**
+     * 解析步骤入参。
+     *
+     * @param callbackToken 由 submit() 在 tryStart 之前预生成，确保 snapshot 与请求 body 一致
+     */
+    private Map<String, Object> resolveInputParams(String executionId, StepNode node,
+                                                     StepExecutionDO stepDO, String callbackToken) {
         // 1. 读取流程启动时的初始参数（含 sampleId 等业务 key）
         Map<String, Object> launchParams = contextManager
                 .getNodeOutput(executionId, CONTEXT_KEY_INPUT);
 
-        // 系统变量：可在参数模版中通过 ${sys.executionId} / ${sys.nodeId} / ${sys.callbackToken} 引用
-        Map<String, Object> sysVars = Map.of(
-                "executionId", executionId,
-                "nodeId", node.getNodeId(),
-                "callbackToken", stepDO != null && stepDO.getCallbackToken() != null
-                        ? stepDO.getCallbackToken() : ""
-        );
+        // 设备步骤（INSTRUMENT）回调到 device/callback，由 DeviceCallbackHandler 负责释放设备后再推进 DAG
+        // 其他步骤（HTTP Task / MANUAL 等）直接回调到 flow/callback/step-complete
+        String callbackUrl = (node.getStepType() == StepTypeEnum.INSTRUMENT)
+                ? callbackBaseUrl + String.format(DEVICE_CALLBACK_PATH, executionId, node.getNodeId())
+                : callbackBaseUrl + STEP_CALLBACK_PATH;
+
+        // 系统变量：可在参数模版中通过 ${sys.executionId} / ${sys.nodeId} /
+        //           ${sys.callbackToken} / ${sys.callbackUrl} 引用
+        Map<String, Object> sysVars = new HashMap<>();
+        sysVars.put("executionId",   executionId);
+        sysVars.put("nodeId",        node.getNodeId());
+        sysVars.put("callbackToken", callbackToken);
+        sysVars.put("callbackUrl",   callbackUrl);
 
         // 2. 解析步骤级 inputMapping + YAML 静态 params
         Map<String, Object> mappedParams = contextManager.resolveInputMapping(
@@ -336,6 +368,22 @@ public class StepSubmitter {
                 }
             }
         }
+
+        // 5. 将流程启动参数（launchParams）作为最低优先级底层合并
+        //    使 requestTemplate 中可直接用 ${taskId} 引用，无需在 YAML 里显式 inputMapping
+        //    优先级：sampleParams < launchParams < YAML params/inputMapping < 系统字段
+        if (launchParams != null && !launchParams.isEmpty()) {
+            Map<String, Object> withLaunch = new HashMap<>(launchParams);
+            withLaunch.putAll(resolved);
+            resolved = withLaunch;
+        }
+
+        // 6. 自动内置四个系统字段，外部服务无需在 YAML 里配置即可直接使用
+        //    优先级最高，始终覆盖（保证外部拿到的一定是当前步骤真实值）
+        resolved.put("executionId",   executionId);
+        resolved.put("nodeId",        node.getNodeId());
+        resolved.put("callbackToken", callbackToken);
+        resolved.put("callbackUrl",   callbackUrl);
 
         return resolved;
     }

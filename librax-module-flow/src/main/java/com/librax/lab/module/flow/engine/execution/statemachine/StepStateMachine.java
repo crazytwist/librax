@@ -120,6 +120,52 @@ public class StepStateMachine implements StepStateApi {
         return tryStart(executionId, nodeId, attempt, null);
     }
 
+    /**
+     * PENDING → RUNNING（外部预生成 token 版）
+     *
+     * <p>token 由调用方在 resolveInputParams 之前生成并注入参数，
+     * 保证 DB input_snapshot 与实际发出的请求 body 中 callbackToken 完全一致。
+     *
+     * @param callbackToken 调用方预生成的 token（UUID 32位hex），不再内部生成
+     */
+    public boolean tryStart(String executionId, String nodeId,
+                            int attempt, Map<String, Object> inputParams,
+                            String callbackToken) {
+        ExecutionMdc.set(executionId, nodeId, attempt);
+        LocalDateTime now      = LocalDateTime.now();
+        String        snapshot = (inputParams != null && !inputParams.isEmpty())
+                ? JSON.toJSONString(inputParams) : null;
+
+        LambdaUpdateWrapper<StepExecutionDO> wrapper = new LambdaUpdateWrapper<StepExecutionDO>()
+                .eq(StepExecutionDO::getExecutionId, executionId)
+                .eq(StepExecutionDO::getNodeId,      nodeId)
+                .eq(StepExecutionDO::getAttempt,     attempt)
+                .eq(StepExecutionDO::getStatus,      StepStatusEnum.PENDING.name())
+                .set(StepExecutionDO::getStatus,         RUNNING.name())
+                .set(StepExecutionDO::getStartedAt,      now)
+                .set(StepExecutionDO::getCallbackToken,  callbackToken)
+                .set(StepExecutionDO::getInputSnapshot,  snapshot)
+                .set(StepExecutionDO::getUpdater,        "SYSTEM")
+                .set(StepExecutionDO::getUpdateTime,     now);
+
+        boolean acquired = stepMapper.update(null, wrapper) > 0;
+        if (!acquired) {
+            return false;
+        }
+
+        StepExecutionDO current = stepMapper.selectByExecutionNodeAttempt(
+                executionId, nodeId, attempt);
+        String stepType = current != null ? current.getStepType() : null;
+
+        log.info("[StepStateMachine] PENDING->RUNNING executionId={} nodeId={} attempt={}",
+                executionId, nodeId, attempt);
+        eventPublisher.publishStepEvent(executionId, nodeId, attempt,
+                EventTypeEnum.STEP_STARTED,
+                StepStatusEnum.PENDING.name(), RUNNING.name(),
+                stepType != null ? Map.of("stepType", stepType) : null);
+        return true;
+    }
+
     // ================================================================
     // markSuccess — RUNNING/WAITING → SUCCESS
     // ================================================================
