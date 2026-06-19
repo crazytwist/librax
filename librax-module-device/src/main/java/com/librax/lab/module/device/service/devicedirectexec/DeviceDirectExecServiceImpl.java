@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.librax.lab.module.device.controller.admin.devicecommand.vo.DeviceCommandExecuteReqVO;
 import com.librax.lab.module.device.controller.admin.devicecommand.vo.DeviceCommandExecuteRespVO;
+import com.librax.lab.module.device.driver.DeviceSendResult;
 import com.librax.lab.module.device.gateway.DeviceGateway;
 import com.librax.lab.module.device.gateway.DeviceStateCache;
 import lombok.RequiredArgsConstructor;
@@ -87,11 +88,11 @@ public class DeviceDirectExecServiceImpl implements DeviceDirectExecService {
         redisTemplate.expire(redisKey, EXPIRE_HOURS, TimeUnit.HOURS);
 
         // 2. 发送指令（指定设备 / 自动选择）
-        String taskId;
+        DeviceSendResult sendResult;
         try {
             if (StringUtils.hasText(reqVO.getDeviceId())) {
                 // 指定设备：跳过选择器，直接发往目标设备
-                taskId = deviceGateway.sendCommandToDevice(
+                sendResult = deviceGateway.sendCommandToDevice(
                         reqVO.getDeviceId(),
                         reqVO.getCommandCode(),
                         safeParams(reqVO.getParams()),
@@ -99,7 +100,7 @@ public class DeviceDirectExecServiceImpl implements DeviceDirectExecService {
                         reqVO.isForceExec());
             } else {
                 // 自动选择：从同类型空闲设备中择优（forceExec=true 时含 BUSY 设备）
-                taskId = deviceGateway.sendCommand(
+                sendResult = deviceGateway.sendCommand(
                         reqVO.getDeviceType(),
                         reqVO.getCommandCode(),
                         safeParams(reqVO.getParams()),
@@ -120,6 +121,8 @@ public class DeviceDirectExecServiceImpl implements DeviceDirectExecService {
             resp.setErrorMsg(e.getMessage());
             return resp;
         }
+
+        String taskId = sendResult.getTaskId();
 
         // 3. sendCommand 执行后 stateCache 已写入反向索引，从中取出实际 deviceId
         String actualDeviceId = stateCache.getDeviceIdByExecutionNode(execId, NODE_ID);

@@ -15,8 +15,8 @@ public class MockDeviceDriver implements DeviceDriver {
     }
 
     @Override
-    public String send(DeviceInfoDO device, DeviceCommandDO command, String requestBody, String executionId, String callbackToken) {
-        return "MockID" + UUID.randomUUID();
+    public DeviceSendResult send(DeviceInfoDO device, DeviceCommandDO command, String requestBody, String executionId, String callbackToken) {
+        return DeviceSendResult.of("MockID" + UUID.randomUUID(), null);
     }
 
     @Override

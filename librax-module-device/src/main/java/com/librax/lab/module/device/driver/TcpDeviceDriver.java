@@ -37,11 +37,11 @@ public class TcpDeviceDriver implements DeviceDriver {
     }
 
     @Override
-    public String send(DeviceInfoDO device,
-                       DeviceCommandDO command,
-                       String requestBody,
-                       String executionId,
-                       String callbackToken) {
+    public DeviceSendResult send(DeviceInfoDO device,
+                                 DeviceCommandDO command,
+                                 String requestBody,
+                                 String executionId,
+                                 String callbackToken) {
         String host = device.getHost();
         int port = device.getPort();
         int connectTimeout = device.getConnectTimeoutMs() != null
@@ -91,7 +91,7 @@ public class TcpDeviceDriver implements DeviceDriver {
                 }
             }
 
-            return taskId;
+            return DeviceSendResult.of(taskId, null);
 
         } catch (DeviceException e) {
             throw e;

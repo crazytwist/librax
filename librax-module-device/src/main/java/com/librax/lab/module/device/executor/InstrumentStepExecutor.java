@@ -1,5 +1,6 @@
 package com.librax.lab.module.device.executor;
 
+import com.librax.lab.module.device.driver.DeviceSendResult;
 import com.librax.lab.module.device.gateway.DeviceGateway;
 import com.librax.lab.module.flow.api.dispatch.StepDispatchContext;
 import com.librax.lab.module.flow.api.enums.StepTypeEnum;
@@ -42,9 +43,7 @@ public class InstrumentStepExecutor implements StepExecutor {
         log.info("[InstrumentExecutor] 发送设备指令 nodeId={} deviceId={} device={} cmd={}",
                 ctx.getNodeId(), resourceId, deviceType, commandCode);
 
-        // 调设备网关发指令（非阻塞）
-        // 设备完成后通过 CallbackDispatcher 回调 StepCallbackService 推进 DAG
-        String taskId = deviceGateway.sendCommand(
+        DeviceSendResult result = deviceGateway.sendCommand(
                 deviceType,
                 commandCode,
                 ctx.getInputParams(),
@@ -52,13 +51,19 @@ public class InstrumentStepExecutor implements StepExecutor {
                 ctx.getNodeId(),
                 ctx.getCallbackToken());
 
-        // 返回 WAITING,等设备回调
-        // _callbackToken 已由 StepStateMachine.tryStart 生成并写入 pe_step_execution.callback_token
-        // 可通过 ctx.getCallbackToken() 获取,此处无需传递(DirectDispatchSpi.handleWaiting 会统一处理)
-        return StepResult.waitForDevice(Map.of(
-                "deviceTaskId", taskId,
+        Map<String, Object> outputs = Map.of(
+                "deviceTaskId", result.getTaskId(),
                 "deviceType", deviceType,
                 "command", commandCode
-        ));
+        );
+
+        // SYNC 模式：HTTP 响应即完成，直接推进下一节点，无需等待回调
+        if (result.isSyncCompleted()) {
+            log.info("[InstrumentExecutor] 同步完成(SYNC) nodeId={} taskId={}", ctx.getNodeId(), result.getTaskId());
+            return StepResult.ok(outputs);
+        }
+
+        // 异步模式（WEBHOOK/POLL）：步骤进入 WAITING，等设备回调
+        return StepResult.waitForDevice(outputs);
     }
 }

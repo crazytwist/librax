@@ -43,11 +43,11 @@ public class HttpDeviceDriver implements DeviceDriver {
     }
 
     @Override
-    public String send(DeviceInfoDO device,
-                       DeviceCommandDO command,
-                       String requestBody,
-                       String executionId,
-                       String callbackToken) {
+    public DeviceSendResult send(DeviceInfoDO device,
+                                 DeviceCommandDO command,
+                                 String requestBody,
+                                 String executionId,
+                                 String callbackToken) {
         String url = buildUrl(device, command, executionId, callbackToken);
         String method = resolveMethod(command.getHttpMethod());
 
@@ -62,10 +62,12 @@ public class HttpDeviceDriver implements DeviceDriver {
                 throw new DeviceException("HTTP_SEND_FAILED",
                         "HTTP 请求失败 status=" + response.code() + " deviceId=" + device.getDeviceId());
             }
+            log.info("[HttpDeviceDriver] 响应body deviceId={} status={} body={}",
+                    device.getDeviceId(), response.code(), body);
             String taskId = extractTaskId(body);
             log.info("[HttpDeviceDriver] 请求成功 deviceId={} taskId={} status={}",
                     device.getDeviceId(), taskId, response.code());
-            return taskId;
+            return DeviceSendResult.of(taskId, body);
         } catch (DeviceException e) {
             throw e;
         } catch (Exception e) {

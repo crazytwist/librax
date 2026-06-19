@@ -6,6 +6,7 @@ import com.librax.lab.module.device.controller.admin.devicecommand.vo.DeviceComm
 import com.librax.lab.module.device.controller.admin.devicecommand.vo.DeviceCommandRespVO;
 import com.librax.lab.module.device.controller.admin.devicecommand.vo.DeviceCommandSaveReqVO;
 import com.librax.lab.module.device.service.devicedirectexec.DeviceDirectExecService;
+import jakarta.annotation.security.PermitAll;
 import org.springframework.web.bind.annotation.*;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -104,7 +105,7 @@ public class DeviceCommandController {
             description = "不依赖流水线，直接触发设备执行指定指令。" +
                     "接口立即返回 execId，设备完成后可通过 /execute/result 轮询结果。" +
                     "适用于设备联调、运维操作、人工干预等场景。")
-    @PreAuthorize("@ss.hasPermission('lab:device-command:execute')")
+    @PermitAll
     @ApiAccessLog(operateType = OTHER)
     public CommonResult<DeviceCommandExecuteRespVO> executeDeviceCommand(
             @Valid @RequestBody DeviceCommandExecuteReqVO reqVO) {

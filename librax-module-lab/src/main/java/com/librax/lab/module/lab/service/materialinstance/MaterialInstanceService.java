@@ -61,6 +61,14 @@ public interface MaterialInstanceService {
     PageResult<MaterialInstanceDO> getMaterialInstancePage(MaterialInstancePageReqVO pageReqVO);
 
     /**
+     * 根据库位ID列表批量查询已绑定的物料实例
+     *
+     * @param slotIds 库位ID列表
+     * @return slotId → MaterialInstanceDO，未绑定的库位不出现在 Map 中
+     */
+    Map<String, MaterialInstanceDO> listBySlotIds(List<String> slotIds);
+
+    /**
      * 批量上架：将多个物料实例分别绑定到指定库位，逐条执行，失败条目收集后统一抛出
      *
      * @param items instanceId → slotId 的映射列表

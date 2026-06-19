@@ -187,6 +187,8 @@ librax:
   access-log:
     enable: true
   demo: false
+  device:
+    skip-idle-check: false  # prod: 生产环境必须校验设备 IDLE 状态
   sms-code:
     expire-times: 10m
     send-frequency: 1m

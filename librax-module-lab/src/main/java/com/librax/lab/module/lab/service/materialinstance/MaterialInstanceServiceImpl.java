@@ -89,6 +89,18 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
     }
 
     @Override
+    public Map<String, MaterialInstanceDO> listBySlotIds(List<String> slotIds) {
+        List<MaterialInstanceDO> list = materialInstanceMapper.selectBySlotIds(slotIds);
+        Map<String, MaterialInstanceDO> result = new LinkedHashMap<>();
+        for (MaterialInstanceDO item : list) {
+            if (item.getSlotId() != null) {
+                result.put(item.getSlotId(), item);
+            }
+        }
+        return result;
+    }
+
+    @Override
     public List<String> batchLoadToSlot(List<com.librax.lab.module.lab.controller.admin.materialinstance.vo.MaterialInstanceBatchLoadReqVO.Item> items) {
         List<String> errors = new ArrayList<>();
         for (com.librax.lab.module.lab.controller.admin.materialinstance.vo.MaterialInstanceBatchLoadReqVO.Item item : items) {

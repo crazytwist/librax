@@ -12,6 +12,7 @@ import jakarta.validation.constraints.*;
 import jakarta.validation.*;
 import jakarta.servlet.http.*;
 import java.util.*;
+import java.util.LinkedHashMap;
 import java.io.IOException;
 
 import com.librax.lab.framework.common.pojo.PageParam;
@@ -87,6 +88,18 @@ public class MaterialInstanceController {
     public CommonResult<PageResult<MaterialInstanceRespVO>> getMaterialInstancePage(@Valid MaterialInstancePageReqVO pageReqVO) {
         PageResult<MaterialInstanceDO> pageResult = materialInstanceService.getMaterialInstancePage(pageReqVO);
         return success(BeanUtils.toBean(pageResult, MaterialInstanceRespVO.class));
+    }
+
+    @GetMapping("/list-by-slots")
+    @Operation(summary = "根据库位ID列表批量查询绑定的物料实例")
+    @Parameter(name = "slotIds", description = "库位ID列表", required = true)
+    @PreAuthorize("@ss.hasPermission('lab:material-instance:query')")
+    public CommonResult<Map<String, MaterialInstanceRespVO>> listBySlots(
+            @RequestParam("slotIds") List<String> slotIds) {
+        Map<String, MaterialInstanceDO> doMap = materialInstanceService.listBySlotIds(slotIds);
+        Map<String, MaterialInstanceRespVO> voMap = new LinkedHashMap<>();
+        doMap.forEach((slotId, item) -> voMap.put(slotId, BeanUtils.toBean(item, MaterialInstanceRespVO.class)));
+        return success(voMap);
     }
 
     @PostMapping("/batch-load")

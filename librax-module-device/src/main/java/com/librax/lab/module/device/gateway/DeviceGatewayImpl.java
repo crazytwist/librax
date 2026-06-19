@@ -7,12 +7,15 @@ import com.librax.lab.module.device.dal.mysql.devicecommand.DeviceCommandMapper;
 import com.librax.lab.module.device.dal.mysql.deviceinfo.DeviceInfoMapper;
 import com.librax.lab.module.device.driver.DeviceDriver;
 import com.librax.lab.module.device.driver.DeviceDriverFactory;
+import com.librax.lab.module.device.driver.DeviceSendResult;
 import com.librax.lab.module.device.enums.DeviceStatusEnum;
 import com.librax.lab.module.device.exception.DeviceException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.librax.lab.framework.common.util.expression.ExpressionUtil;
 
 import java.util.Map;
@@ -29,12 +32,12 @@ public class DeviceGatewayImpl implements DeviceGateway {
     private final DeviceStateCache stateCache;
 
     @Override
-    public String sendCommand(String deviceType,
-                              String commandCode,
-                              Map<String, Object> params,
-                              String executionId,
-                              String nodeId,
-                              String callbackToken) {
+    public DeviceSendResult sendCommand(String deviceType,
+                                        String commandCode,
+                                        Map<String, Object> params,
+                                        String executionId,
+                                        String nodeId,
+                                        String callbackToken) {
         // 1. 加载指令配置
         DeviceCommandDO command = deviceCommandMapper
                 .selectByTypeAndCode(deviceType, commandCode);
@@ -48,20 +51,28 @@ public class DeviceGatewayImpl implements DeviceGateway {
             throw new DeviceException("无可用设备: " + deviceType);
         }
 
-        // 3. 渲染请求模板（替换 ${xxx} 占位符）
-        String requestBody = renderTemplate(command.getRequestTemplate(), params);
+        // 3. 渲染请求模板（替换 ${xxx} 占位符），并自动注入系统回调字段
+        String requestBody = injectSysFields(
+                renderTemplate(command.getRequestTemplate(), params),
+                executionId, nodeId, callbackToken, params);
 
         // 4. 获取对应驱动并发送
         DeviceDriver driver = driverFactory.getDriver(device.getProtocol());
-        String taskId = driver.send(device, command, requestBody, executionId, callbackToken);
+        DeviceSendResult result = driver.send(device, command, requestBody, executionId, callbackToken);
 
         // 5. 更新设备状态为 BUSY（同时写反向索引 executionId+nodeId → deviceId）
-        stateCache.markBusy(device.getDeviceId(), taskId, executionId, nodeId);
+        stateCache.markBusy(device.getDeviceId(), result.getTaskId(), executionId, nodeId);
 
-        log.info("[DeviceGateway] 指令已发送 deviceId={} commandCode={} taskId={} executionId={}",
-                device.getDeviceId(), commandCode, taskId, executionId);
+        // 6. SYNC 模式：HTTP 响应即完成，标记同步完成后立即释放设备
+        if ("SYNC".equalsIgnoreCase(command.getCompletionMode())) {
+            stateCache.markIdle(device.getDeviceId());
+            result.setSyncCompleted(true);
+        }
 
-        return taskId;
+        log.info("[DeviceGateway] 指令已发送 deviceId={} commandCode={} taskId={} syncCompleted={} executionId={}",
+                device.getDeviceId(), commandCode, result.getTaskId(), result.isSyncCompleted(), executionId);
+
+        return result;
     }
 
     @Override
@@ -70,12 +81,12 @@ public class DeviceGatewayImpl implements DeviceGateway {
     }
 
     @Override
-    public String sendCommandToDevice(String deviceId,
-                                      String commandCode,
-                                      Map<String, Object> params,
-                                      String executionId,
-                                      String nodeId,
-                                      String callbackToken) {
+    public DeviceSendResult sendCommandToDevice(String deviceId,
+                                                 String commandCode,
+                                                 Map<String, Object> params,
+                                                 String executionId,
+                                                 String nodeId,
+                                                 String callbackToken) {
         // 1. 加载设备信息
         DeviceInfoDO device = deviceInfoMapper.selectByDeviceId(deviceId);
         if (device == null) {
@@ -92,30 +103,38 @@ public class DeviceGatewayImpl implements DeviceGateway {
             throw new DeviceException("指令配置不存在: " + device.getDeviceType() + "." + commandCode);
         }
 
-        // 3. 渲染请求模板
-        String requestBody = renderTemplate(command.getRequestTemplate(), params);
+        // 3. 渲染请求模板，并自动注入系统回调字段
+        String requestBody = injectSysFields(
+                renderTemplate(command.getRequestTemplate(), params),
+                executionId, nodeId, callbackToken, params);
 
         // 4. 获取驱动并发送
         DeviceDriver driver = driverFactory.getDriver(device.getProtocol());
-        String taskId = driver.send(device, command, requestBody, executionId, callbackToken);
+        DeviceSendResult result = driver.send(device, command, requestBody, executionId, callbackToken);
 
         // 5. 更新设备状态为 BUSY（含反向索引 executionId+nodeId → deviceId）
-        stateCache.markBusy(device.getDeviceId(), taskId, executionId, nodeId);
+        stateCache.markBusy(device.getDeviceId(), result.getTaskId(), executionId, nodeId);
 
-        log.info("[DeviceGateway] 指令已直发 deviceId={} commandCode={} taskId={} executionId={}",
-                deviceId, commandCode, taskId, executionId);
+        // 6. SYNC 模式：立即释放设备并标记同步完成
+        if ("SYNC".equalsIgnoreCase(command.getCompletionMode())) {
+            stateCache.markIdle(device.getDeviceId());
+            result.setSyncCompleted(true);
+        }
 
-        return taskId;
+        log.info("[DeviceGateway] 指令已直发 deviceId={} commandCode={} taskId={} syncCompleted={} executionId={}",
+                deviceId, commandCode, result.getTaskId(), result.isSyncCompleted(), executionId);
+
+        return result;
     }
 
     @Override
-    public String sendCommand(String deviceType,
-                              String commandCode,
-                              Map<String, Object> params,
-                              String executionId,
-                              String nodeId,
-                              String callbackToken,
-                              boolean forceExec) {
+    public DeviceSendResult sendCommand(String deviceType,
+                                        String commandCode,
+                                        Map<String, Object> params,
+                                        String executionId,
+                                        String nodeId,
+                                        String callbackToken,
+                                        boolean forceExec) {
         DeviceCommandDO command = deviceCommandMapper.selectByTypeAndCode(deviceType, commandCode);
         if (command == null) {
             throw new DeviceException("指令配置不存在: " + deviceType + "." + commandCode);
@@ -124,23 +143,29 @@ public class DeviceGatewayImpl implements DeviceGateway {
         if (device == null) {
             throw new DeviceException("无可用设备: " + deviceType);
         }
-        String requestBody = renderTemplate(command.getRequestTemplate(), params);
+        String requestBody = injectSysFields(
+                renderTemplate(command.getRequestTemplate(), params),
+                executionId, nodeId, callbackToken, params);
         DeviceDriver driver = driverFactory.getDriver(device.getProtocol());
-        String taskId = driver.send(device, command, requestBody, executionId, callbackToken);
-        stateCache.markBusy(device.getDeviceId(), taskId, executionId, nodeId);
-        log.info("[DeviceGateway] 指令已发送(force={}) deviceId={} commandCode={} taskId={}",
-                forceExec, device.getDeviceId(), commandCode, taskId);
-        return taskId;
+        DeviceSendResult result = driver.send(device, command, requestBody, executionId, callbackToken);
+        stateCache.markBusy(device.getDeviceId(), result.getTaskId(), executionId, nodeId);
+        if ("SYNC".equalsIgnoreCase(command.getCompletionMode())) {
+            stateCache.markIdle(device.getDeviceId());
+            result.setSyncCompleted(true);
+        }
+        log.info("[DeviceGateway] 指令已发送(force={}) deviceId={} commandCode={} taskId={} syncCompleted={}",
+                forceExec, device.getDeviceId(), commandCode, result.getTaskId(), result.isSyncCompleted());
+        return result;
     }
 
     @Override
-    public String sendCommandToDevice(String deviceId,
-                                      String commandCode,
-                                      Map<String, Object> params,
-                                      String executionId,
-                                      String nodeId,
-                                      String callbackToken,
-                                      boolean forceExec) {
+    public DeviceSendResult sendCommandToDevice(String deviceId,
+                                                 String commandCode,
+                                                 Map<String, Object> params,
+                                                 String executionId,
+                                                 String nodeId,
+                                                 String callbackToken,
+                                                 boolean forceExec) {
         if (forceExec) {
             // 强制释放当前占用，确保下面 markBusy 能正常写入
             DeviceStatusEnum current = stateCache.getStatus(deviceId);
@@ -164,5 +189,30 @@ public class DeviceGatewayImpl implements DeviceGateway {
 
     private String renderTemplate(String template, Map<String, Object> params) {
         return ExpressionUtil.render(template, params);
+    }
+
+    /**
+     * 自动将系统回调字段注入到 JSON 请求体中。
+     *
+     * <p>无论 requestTemplate 是否配置了 ${executionId} 等占位符，
+     * 发给设备的 body 都会携带这四个字段，设备可用于回调鉴权和流程推进。
+     * 若 body 不是合法 JSON（如纯文本/二进制协议），原样返回不做修改。
+     */
+    private String injectSysFields(String body, String executionId, String nodeId,
+                                   String callbackToken, Map<String, Object> params) {
+        if (body == null || body.isBlank()) return body;
+        try {
+            JSONObject json = JSON.parseObject(body);
+            if (executionId   != null) json.put("executionId",   executionId);
+            if (nodeId        != null) json.put("nodeId",        nodeId);
+            if (callbackToken != null) json.put("callbackToken", callbackToken);
+            // callbackUrl 来自流程执行时的 params，直接执行场景下为空
+            Object callbackUrl = params != null ? params.get("callbackUrl") : null;
+            if (callbackUrl   != null) json.put("callbackUrl",   callbackUrl.toString());
+            return json.toJSONString();
+        } catch (Exception e) {
+            log.debug("[DeviceGateway] body 非 JSON 格式，跳过系统字段注入");
+            return body;
+        }
     }
 }

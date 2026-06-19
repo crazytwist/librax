@@ -4,12 +4,15 @@ package com.librax.lab.module.device.gateway;
 import com.librax.lab.module.device.dal.dataobject.deviceinfo.DeviceInfoDO;
 import com.librax.lab.module.device.dal.mysql.deviceinfo.DeviceInfoMapper;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class DeviceSelector {
@@ -19,6 +22,14 @@ public class DeviceSelector {
 
     /** round-robin 计数器 */
     private final AtomicInteger counter = new AtomicInteger(0);
+
+    /**
+     * 全局跳过设备 IDLE 校验开关。
+     * true  = 从所有启用设备中选择，忽略 BUSY 状态（设备不回调/调试场景）
+     * false = 只选 IDLE 设备（生产默认）
+     */
+    @Value("${librax.device.skip-idle-check:false}")
+    private boolean skipIdleCheck;
 
     /**
      * 选择一台空闲设备（不限区域）
@@ -42,8 +53,12 @@ public class DeviceSelector {
     public DeviceInfoDO select(String deviceType, String preferredZone, boolean forceExec) {
         List<DeviceInfoDO> candidates = deviceInfoMapper.selectEnabledByType(deviceType);
 
-        // 正常模式只选空闲设备；forceExec 跳过过滤
-        List<DeviceInfoDO> pool = forceExec
+        // forceExec 或全局 skipIdleCheck 开启时跳过 IDLE 过滤
+        boolean bypassIdle = forceExec || skipIdleCheck;
+        if (skipIdleCheck) {
+            log.debug("[DeviceSelector] skip-idle-check=true，跳过 BUSY 状态过滤 type={}", deviceType);
+        }
+        List<DeviceInfoDO> pool = bypassIdle
                 ? candidates
                 : candidates.stream()
                         .filter(d -> stateCache.isIdle(d.getDeviceId()))

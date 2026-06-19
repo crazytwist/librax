@@ -24,6 +24,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static com.librax.lab.framework.common.pojo.CommonResult.success;
 
@@ -99,6 +101,16 @@ public class AppMaterialInstanceController {
         return success(BeanUtils.toBean(list, AppMaterialInstanceRespVO.class));
     }
 
+    @PostMapping("/list-by-slots")
+    @Operation(summary = "根据库位ID列表批量查询绑定的物料实例")
+    @PermitAll
+    public CommonResult<Map<String, AppMaterialInstanceRespVO>> listBySlots(@RequestBody List<String> slotIds) {
+        Map<String, MaterialInstanceDO> doMap = materialInstanceService.listBySlotIds(slotIds);
+        Map<String, AppMaterialInstanceRespVO> voMap = new LinkedHashMap<>();
+        doMap.forEach((slotId, item) -> voMap.put(slotId, BeanUtils.toBean(item, AppMaterialInstanceRespVO.class)));
+        return success(voMap);
+    }
+
     @PostMapping("/batch-load")
     @Operation(summary = "批量上架 - 将多个物料实例分别绑定到指定库位")
     @PermitAll
@@ -109,9 +121,8 @@ public class AppMaterialInstanceController {
 
     @PutMapping("/batch-unload")
     @Operation(summary = "批量下架 - 将多个物料实例从当前库位移除")
-    @Parameter(name = "instanceIds", description = "物料实例ID列表", required = true)
     @PermitAll
-    public CommonResult<Boolean> batchUnloadFromSlot(@RequestParam("instanceIds") List<String> instanceIds) {
+    public CommonResult<Boolean> batchUnloadFromSlot(@RequestBody List<String> instanceIds) {
         materialInstanceService.batchUnloadFromSlot(instanceIds);
         return success(true);
     }

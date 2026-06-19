@@ -138,6 +138,15 @@ librax:
   info:
     version: 1.0.0
     base-package: com.librax.lab
+  flow:
+    # 流程回调基础地址，外部服务通过此地址回调推进步骤
+    # 格式：http(s)://your-domain/app-api
+    # 各环境在对应 application-{env}.yaml 中覆盖
+    callback-base-url: http://localhost:48080/app-api
+  device:
+    # 跳过设备 IDLE/BUSY 状态校验，从所有启用设备中择优
+    # 适用于设备不主动回调、调试阶段等场景，生产环境建议设为 false
+    skip-idle-check: true
   web:
     admin-ui:
       url: http://dashboard.librax.iocoder.cn # Admin 管理后台 UI 的地址

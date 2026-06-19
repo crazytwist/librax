@@ -26,6 +26,17 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
                 .eq(MaterialInstanceDO::getInstanceId, instanceId));
     }
 
+    /**
+     * 根据库位ID列表批量查询已绑定的物料实例（每个库位至多一条）
+     */
+    default List<MaterialInstanceDO> selectBySlotIds(List<String> slotIds) {
+        if (slotIds == null || slotIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>()
+                .in(MaterialInstanceDO::getSlotId, slotIds));
+    }
+
     default List<MaterialInstanceDO> selectAvailable(String materialCode,
                                                       String contentType,
                                                       String zoneCode) {

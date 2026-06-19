@@ -77,6 +77,16 @@ public class DeviceCommandDO extends BaseDO {
      */
     private Integer pollMaxTimes;
     /**
+     * 指令完成模式：
+     * <ul>
+     *   <li>WEBHOOK（默认/null）— 设备异步回调，步骤进入 WAITING 等回调推进</li>
+     *   <li>SYNC — HTTP 响应返回即视为完成，直接推进下一节点，无需等回调</li>
+     *   <li>POLL — 轮询查询结果（配合 pollPath / pollDoneExpr 使用）</li>
+     * </ul>
+     */
+    private String completionMode;
+
+    /**
      * Mock协议返回数据，MockDeviceDriver 用此字段生成回调
      */
     private String mockOutput;

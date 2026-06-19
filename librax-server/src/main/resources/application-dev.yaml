@@ -190,6 +190,8 @@ librax:
   access-log:
     enable: true
   demo: false
+  device:
+    skip-idle-check: true  # dev: 设备不主动回调时跳过 IDLE 校验
 
 liteflow:
   rule-source-ext-data-map:
