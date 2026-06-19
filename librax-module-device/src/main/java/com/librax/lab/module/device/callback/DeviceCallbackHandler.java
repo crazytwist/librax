@@ -9,8 +9,10 @@ import com.librax.lab.module.device.service.devicedirectexec.DeviceDirectExecSer
 import com.librax.lab.module.device.service.devicedirectexec.DeviceDirectExecServiceImpl;
 import com.librax.lab.module.flow.api.callback.CallbackResult;
 import com.librax.lab.module.flow.api.callback.StepCallbackSpi;
+import com.librax.lab.module.flow.api.callback.TaskCallbackSpi;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -18,7 +20,7 @@ import java.util.Map;
 /**
  * 设备回调处理器
  *
- * <p>统一处理设备完成回调：释放设备 → 解析响应 → 推进 DAG。
+ * <p>统一处理设备完成回调：释放设备 → 解析响应 → 推进 DAG → 关闭 task 记录。
  * 同时被 {@code DeviceCallbackController}（webhook 模式）和
  * {@code DevicePollScheduler}（poll 模式）调用。
  */
@@ -27,11 +29,20 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class DeviceCallbackHandler {
 
-    private final StepCallbackSpi        stepCallbackSpi;
-    private final DeviceStateCache       stateCache;
-    private final DeviceCommandMapper    commandMapper;
-    private final CodecExecutor          codecExecutor;
+    private final StepCallbackSpi         stepCallbackSpi;
+    private final DeviceStateCache        stateCache;
+    private final DeviceCommandMapper     commandMapper;
+    private final CodecExecutor           codecExecutor;
     private final DeviceDirectExecService directExecService;
+
+    /**
+     * 可选注入：task 模块提供实现。
+     * QUEUED+ASYNC 路径下，设备回调推进 DAG 后需关闭 lab_task 记录，
+     * 防止 Watchdog 误判超时并重新入队导致指令重复发送。
+     * DIRECT 路径无 lab_task 记录，此 SPI 会静默忽略。
+     */
+    @Autowired(required = false)
+    private TaskCallbackSpi taskCallbackSpi;
 
     /**
      * 处理设备回调
@@ -74,6 +85,17 @@ public class DeviceCallbackHandler {
         } catch (Exception e) {
             // 设备已完成，不因回调处理异常而重试（避免设备端重复回调）
             log.error("[DeviceCallback] 推进异常 executionId={} nodeId={}", executionId, nodeId, e);
+        }
+
+        // 4. 关闭对应的 lab_task 记录（QUEUED+ASYNC 路径）
+        // DIRECT 路径无 lab_task 记录，TaskCallbackSpi 实现会静默忽略
+        if (taskCallbackSpi != null && req.getCallbackToken() != null) {
+            taskCallbackSpi.closeByToken(
+                    req.getCallbackToken(),
+                    req.isSuccess(),
+                    outputs,
+                    req.getErrorCode(),
+                    req.getErrorMsg());
         }
     }
 

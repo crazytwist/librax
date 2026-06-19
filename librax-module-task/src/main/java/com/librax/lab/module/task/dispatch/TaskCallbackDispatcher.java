@@ -23,8 +23,8 @@ import java.util.Map;
  *   <li>幂等校验 — 任务已终态直接忽略重复回调</li>
  *   <li>CAS 更新任务终态 — 防止和 Watchdog 超时标记的并发冲突</li>
  *   <li>写 lab_task_event 审计日志</li>
+ *   <li>通过 {@link ResourcePool#releaseByHolder} 释放该步骤持有的所有资源</li>
  *   <li>发 {@link TaskCompletedEvent} 推进 flow 模块的 DAG</li>
- *   <li>TODO:resource 模块接入后,在此处释放资源</li>
  * </ol>
  * 不直接调 flow 模块的 StepCallbackService,通过 Spring Event 解耦。
  */
