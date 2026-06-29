@@ -20,6 +20,8 @@ public class PipelineGraph {
     private String name;
     private FailStrategyEnum failStrategy;
     private Long defaultTimeoutMs;
+    private String sampleMode;
+    private String defaultInputParams;
 
 
     // ---- 节点列表 ----

@@ -51,7 +51,9 @@ public class PipelineGraphBuilder {
 
     public PipelineGraph build(String pipelineKey, Integer version) {
         PipelineDefinitionDO definition = loadDefinition(pipelineKey, version);
-        List<PipelineStepDO> pipelineSteps = loadPipelineSteps(pipelineKey, version);
+        // version 为 null 时 loadDefinition 已解析出实际版本，后续统一用实际版本查询
+        int resolvedVersion = definition.getVersion();
+        List<PipelineStepDO> pipelineSteps = loadPipelineSteps(pipelineKey, resolvedVersion);
         Map<String, StepDefinitionDO> stepDefMap = loadStepDefinitions(pipelineSteps);
 
         List<StepNode> stepNodes = pipelineSteps.stream()
@@ -60,14 +62,16 @@ public class PipelineGraphBuilder {
 
         PipelineGraph graph = new PipelineGraph();
         graph.setPipelineKey(pipelineKey);
-        graph.setVersion(version);
+        graph.setVersion(resolvedVersion);
         graph.setName(definition.getName());
         graph.setFailStrategy(FailStrategyEnum.valueOf(definition.getFailStrategy()));
+        graph.setSampleMode(definition.getSampleMode());
+        graph.setDefaultInputParams(definition.getDefaultInputParams());
         graph.setSteps(stepNodes);
         graph.buildIndex();
 
         log.info("[PipelineGraphBuilder] 组装完成 pipeline_key={} version={} 节点数={}",
-                pipelineKey, version, stepNodes.size());
+                pipelineKey, resolvedVersion, stepNodes.size());
         return graph;
     }
 
@@ -76,7 +80,9 @@ public class PipelineGraphBuilder {
     // ----------------------------------------------------------------
 
     private PipelineDefinitionDO loadDefinition(String pipelineKey, Integer version) {
-        PipelineDefinitionDO definition = definitionMapper.selectByKeyAndVersion(pipelineKey, version);
+        PipelineDefinitionDO definition = (version == null)
+                ? definitionMapper.selectLatestActive(pipelineKey)
+                : definitionMapper.selectByKeyAndVersion(pipelineKey, version);
         if (definition == null) {
             throw exception(PIPELINE_DEFINITION_NOT_EXISTS, pipelineKey, version);
         }

@@ -76,8 +76,8 @@ public class PipelineStepRespVO {
     @ExcelProperty("重试退避时间(ms)，NULL 则向上取默认值")
     private Long backoffMs;
 
-    @Schema(description = "FAIL_PIPELINE | SKIP | RETRY_ONLY | COMPENSATE，覆盖流程级 fail_strategy，NULL 则继承")
-    @ExcelProperty("FAIL_PIPELINE | SKIP | RETRY_ONLY | COMPENSATE，覆盖流程级 fail_strategy，NULL 则继承")
+    @Schema(description = "FAIL_FAST | SKIP | CONTINUE_ON_FAIL，覆盖流程级 fail_strategy，NULL 则继承")
+    @ExcelProperty("FAIL_FAST | SKIP | CONTINUE_ON_FAIL，覆盖流程级 fail_strategy，NULL 则继承")
     private String onFailure;
 
     @Schema(description = "失败时触发的补偿节点 node_id，引用本流程内已有节点", example = "27145")

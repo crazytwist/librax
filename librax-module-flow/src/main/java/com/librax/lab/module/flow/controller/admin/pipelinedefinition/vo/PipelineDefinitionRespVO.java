@@ -60,6 +60,10 @@ public class PipelineDefinitionRespVO {
     @ExcelProperty("发布时间，status=ACTIVE 时填写")
     private LocalDateTime publishedAt;
 
+    @Schema(description = "流程默认入参（JSON 对象），启动时未传参则使用，传参则合并（传参优先）")
+    @ExcelProperty("流程默认入参")
+    private String defaultInputParams;
+
     @Schema(description = "创建时间", requiredMode = Schema.RequiredMode.REQUIRED)
     @ExcelProperty("创建时间")
     private LocalDateTime createTime;

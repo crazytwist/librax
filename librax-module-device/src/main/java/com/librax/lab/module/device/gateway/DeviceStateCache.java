@@ -87,7 +87,7 @@ public class DeviceStateCache {
         String deviceId = redisTemplate.opsForValue().get(execKey);
 
         if (deviceId == null) {
-            log.warn("[DeviceStateCache] 反向索引不存在 executionId={} nodeId={}",
+            log.debug("[DeviceStateCache] 反向索引不存在（已释放或部分回调重入）executionId={} nodeId={}",
                     executionId, nodeId);
             return;
         }

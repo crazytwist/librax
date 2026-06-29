@@ -8,6 +8,9 @@ import java.util.Map;
 
 public interface SampleLifecycleService {
 
+    /** 判断该执行实例是否开启了样本追踪（sample_mode != NONE） */
+    boolean isSampleTrackingEnabled(String executionId);
+
     /** 流程启动：样本进入流程 */
     void onSampleLoaded(String sampleId, String executionId);
 

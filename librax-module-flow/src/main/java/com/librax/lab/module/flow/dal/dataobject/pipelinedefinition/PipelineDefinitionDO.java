@@ -76,6 +76,11 @@ public class PipelineDefinitionDO extends BaseDO {
      */
     private LocalDateTime publishedAt;
     /**
+     * 流程默认入参（JSON 对象），启动时若调用方未传参则使用，
+     * 若调用方传参则合并（调用方传参优先）
+     */
+    private String defaultInputParams;
+    /**
      * 样本模式
      */
     private String sampleMode = "REQUIRED";

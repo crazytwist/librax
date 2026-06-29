@@ -142,10 +142,17 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
                 triggerType, triggeredBy);
         // 3. 初始化所有节点的 pe_step_execution（PENDING）
         initStepExecutions(executionId, graph);
-        // 4. Hook 先执行，允许 Hook 向 inputParams 注入额外参数（如 experiment_params）
+        // 4. 合并参数：definition.defaultInputParams 作为 base，调用方传参覆盖
         //    使用可变 Map 副本，避免 Hook 修改调用方传入的原始 Map
-        Map<String, Object> enrichedParams = inputParams != null
-                ? new java.util.HashMap<>(inputParams) : new java.util.HashMap<>();
+        Map<String, Object> enrichedParams = new java.util.HashMap<>();
+        if (org.springframework.util.StringUtils.hasText(graph.getDefaultInputParams())) {
+            enrichedParams.putAll(com.alibaba.fastjson.JSON.parseObject(
+                    graph.getDefaultInputParams(),
+                    new com.alibaba.fastjson.TypeReference<Map<String, Object>>() {}));
+        }
+        if (inputParams != null) {
+            enrichedParams.putAll(inputParams);
+        }
         for (PipelineStartHook hook : startHooks) {
             hook.beforeSchedule(executionId, pipelineKey, graph.getVersion(), enrichedParams);
         }
@@ -201,6 +208,7 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         record.setInputParams(inputParams != null
                 ? JSON.toJSONString(inputParams) : null);
         record.setSubjectId(extractSubjectId(inputParams));      // ★ 执行主体ID（sampleId）
+        record.setSampleMode(graph.getSampleMode());
         record.setRowVersion(0);
         executionMapper.insert(record);
 
@@ -295,6 +303,7 @@ public class PipelineExecutionServiceImpl implements PipelineExecutionService {
         record.setTriggeredBy(triggeredBy);
         record.setInputParams(inputParams != null ? JSON.toJSONString(inputParams) : null);
         record.setSubjectId(extractSubjectId(inputParams));
+        record.setSampleMode(graph.getSampleMode());
         record.setRowVersion(0);
         executionMapper.insert(record);
     }

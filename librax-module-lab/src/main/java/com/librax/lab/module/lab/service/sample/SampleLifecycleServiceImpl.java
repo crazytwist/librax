@@ -505,6 +505,11 @@ public class SampleLifecycleServiceImpl implements SampleLifecycleService {
         log.info("[SampleLifecycle] 补做预绑定完成 sampleId={} executionId={}", sampleId, executionId);
     }
 
+    @Override
+    public boolean isSampleTrackingEnabled(String executionId) {
+        return isSampleEnabled(executionId);
+    }
+
     /**
      * 判断是否启用样本逻辑（通过 executionId，读冗余字段，无需 JOIN）
      */

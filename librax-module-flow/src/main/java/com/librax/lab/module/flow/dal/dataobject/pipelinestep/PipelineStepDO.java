@@ -111,7 +111,7 @@ public class PipelineStepDO extends BaseDO {
      */
     private Long backoffMs;
     /**
-     * FAIL_PIPELINE | SKIP | RETRY_ONLY | COMPENSATE，覆盖流程级 fail_strategy，NULL 则继承
+     * FAIL_FAST | SKIP | CONTINUE_ON_FAIL，覆盖流程级 fail_strategy，NULL 则继承
      */
     private String onFailure;
     /**

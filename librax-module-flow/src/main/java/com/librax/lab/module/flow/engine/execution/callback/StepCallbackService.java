@@ -2,6 +2,7 @@ package com.librax.lab.module.flow.engine.execution.callback;
 
 import com.alibaba.fastjson.JSON;
 import com.librax.lab.module.flow.api.callback.StepCallbackSpi;
+import com.librax.lab.module.flow.api.callback.StepPartialCallbackPostProcessor;
 import com.librax.lab.module.flow.api.enums.WaitingForEnum;
 import com.librax.lab.module.flow.api.resource.ResourcePool;
 import com.librax.lab.module.flow.dal.dataobject.pipelineexecution.PipelineExecutionDO;
@@ -18,6 +19,7 @@ import com.librax.lab.module.flow.service.pipelineexecution.PipelineExecutionSer
 import com.librax.lab.module.infra.mdc.ExecutionMdc;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -36,6 +38,7 @@ public class StepCallbackService implements StepCallbackSpi {
     private final DagScheduler dagScheduler;
     private final ResourcePool resourcePool;
     private final PipelineExecutionService executionService;
+    private final ApplicationContext applicationContext;
 
     /**
      * 外部回调推进步骤
@@ -108,6 +111,15 @@ public class StepCallbackService implements StepCallbackSpi {
             if (loopResult != null) {
                 // 已经发起新的子流程，不走普通失败处理，直接返回
                 return CallbackResult.ok();
+            }
+        }
+
+        // 4.5 部分回调处理：步骤配置了 partialCallbackProcessor 时，
+        //     每次回调先触发后处理器，只有 isCompleted() 返回 true 才推进 DAG
+        if (success) {
+            CallbackResult partialResult = handlePartialCallback(stepDO, outputs);
+            if (partialResult != null) {
+                return partialResult;
             }
         }
 
@@ -213,5 +225,53 @@ public class StepCallbackService implements StepCallbackSpi {
 
         return StepResult.waiting(WaitingForEnum.CHILD_EXECUTION, Map.of(
                 "currentRetry", nextRetry));
+    }
+
+    /**
+     * 处理部分回调逻辑
+     *
+     * <p>当步骤参数中配置了 {@code partialCallbackProcessor} 时：
+     * <ol>
+     *   <li>查找对应的 {@link StepPartialCallbackPostProcessor} Bean</li>
+     *   <li>调用 {@code onEachCallback} 触发业务动作（如启动下游流程）</li>
+     *   <li>若 {@code isCompleted} 返回 false，步骤继续等待，返回非 null 阻止 DAG 推进</li>
+     *   <li>若 {@code isCompleted} 返回 true，返回 null 让调用方继续推进 DAG</li>
+     * </ol>
+     *
+     * @return 非 null 表示本次回调已处理但步骤尚未完成，DAG 不应推进；
+     *         null 表示无部分回调配置或步骤已完成，调用方继续正常流程
+     */
+    private CallbackResult handlePartialCallback(StepExecutionDO stepDO, Map<String, Object> outputs) {
+        if (stepDO.getInputSnapshot() == null) {
+            return null;
+        }
+        Map<String, Object> snapshot = JSON.parseObject(stepDO.getInputSnapshot(), Map.class);
+        String processorBeanName = (String) snapshot.get("partialCallbackProcessor");
+        if (processorBeanName == null) {
+            return null;
+        }
+
+        StepPartialCallbackPostProcessor processor;
+        try {
+            processor = applicationContext.getBean(processorBeanName, StepPartialCallbackPostProcessor.class);
+        } catch (Exception e) {
+            log.error("[StepCallback] 找不到 partialCallbackProcessor bean={} executionId={} nodeId={}",
+                    processorBeanName, stepDO.getExecutionId(), stepDO.getNodeId(), e);
+            return CallbackResult.fail("PROCESSOR_NOT_FOUND",
+                    "partialCallbackProcessor 不存在: " + processorBeanName);
+        }
+
+        processor.onEachCallback(stepDO.getExecutionId(), stepDO.getNodeId(),
+                outputs != null ? outputs : Map.of());
+
+        if (!processor.isCompleted(stepDO.getExecutionId(), stepDO.getNodeId(), snapshot)) {
+            log.info("[StepCallback] 部分回调已处理，步骤继续等待 executionId={} nodeId={} processor={}",
+                    stepDO.getExecutionId(), stepDO.getNodeId(), processorBeanName);
+            return CallbackResult.ok();
+        }
+
+        log.info("[StepCallback] 部分回调全部到齐，推进 DAG executionId={} nodeId={} processor={}",
+                stepDO.getExecutionId(), stepDO.getNodeId(), processorBeanName);
+        return null;
     }
 }

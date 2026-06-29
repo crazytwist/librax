@@ -53,4 +53,7 @@ public class PipelineDefinitionSaveReqVO {
     @Schema(description = "发布时间，status=ACTIVE 时填写")
     private LocalDateTime publishedAt;
 
+    @Schema(description = "流程默认入参（JSON 对象），启动时未传参则使用，传参则合并（传参优先）")
+    private String defaultInputParams;
+
 }

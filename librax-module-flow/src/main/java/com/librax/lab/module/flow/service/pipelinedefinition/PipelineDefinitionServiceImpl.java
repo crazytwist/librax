@@ -101,7 +101,7 @@ public class PipelineDefinitionServiceImpl implements PipelineDefinitionService 
         def.setName(pipelineKey);
         def.setStatus("DRAFT");
         def.setDefaultTimeoutMs(3_600_000L);
-        def.setFailStrategy("FAIL_PIPELINE");
+        def.setFailStrategy("FAIL_FAST");
         pipelineDefinitionMapper.insert(def);
     }
 

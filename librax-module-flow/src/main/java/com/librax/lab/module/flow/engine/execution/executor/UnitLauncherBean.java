@@ -49,7 +49,7 @@ import java.util.Map;
 public class UnitLauncherBean implements StepExecutor {
 
     private final ApplicationContext applicationContext;
-    // ★ 新增
+
     private final ResourcePool resourcePool;
 
     private PipelineExecutionService getExecutionService() {

@@ -43,6 +43,7 @@ public class SampleFlowIntegrationListener {
     @EventListener
     public void onExecutionStarted(ExecutionStartedEvent event) {
         try {
+            if (!sampleService.isSampleTrackingEnabled(event.getExecutionId())) return;
             List<String> sampleIds = resolveSampleIds(event.getExecutionId());
             if (sampleIds.isEmpty()) return;
 
@@ -152,6 +153,7 @@ public class SampleFlowIntegrationListener {
     @EventListener
     public void onExecutionCompleted(ExecutionCompletedEvent event) {
         try {
+            if (!sampleService.isSampleTrackingEnabled(event.getExecutionId())) return;
             List<String> sampleIds = resolveSampleIds(event.getExecutionId());
             if (sampleIds.isEmpty()) return;
 
