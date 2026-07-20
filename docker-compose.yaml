@@ -1,0 +1,58 @@
+# AI生成注释: Swarm 编排 — ingress 发布端口；HOST_PORT 可由 GitLab CI/CD 或 .env.* 覆盖，默认 48080
+# 服务名 librax-server 会在 deploy 阶段被 sed 替换为实际 SERVICE_NAME
+# 作者: AI
+version: '3.8'
+
+services:
+  librax-server:
+    image: ${DOCKER_IMAGE_DOMAIN}/${CI_PROJECT_NAME}:latest
+    ports:
+      # AI生成注释: 默认 ingress，任意 Swarm 节点 IP:HOST_PORT 均可访问
+      # 作者: AI
+      - target: 48080
+        published: ${HOST_PORT:-48080}
+        protocol: tcp
+        mode: ingress
+    environment:
+      - TZ=Asia/Shanghai
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-prod}
+      - JAVA_OPTS=${JAVA_OPTS:--Xms512m -Xmx512m -Djava.security.egd=file:/dev/./urandom}
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASS=${DB_PASS}
+      - REDIS_HOST=${REDIS_HOST}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASS=${REDIS_PASS:-}
+    deploy:
+      replicas: 1
+      placement:
+        preferences:
+          - spread: node.id
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
+        monitor: 30s
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 5s
+      resources:
+        limits:
+          cpus: '2.00'
+          memory: 1536M
+        reservations:
+          cpus: '0.50'
+          memory: 768M
+    networks:
+      - librax-network
+
+networks:
+  librax-network:
+    external: true

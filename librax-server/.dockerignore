@@ -1,0 +1,6 @@
+# AI生成注释: 缩小 Docker 构建上下文，CI 仅需 jar 与 Dockerfile
+# 作者: AI
+*
+!target/
+!target/librax-server.jar
+!Dockerfile
