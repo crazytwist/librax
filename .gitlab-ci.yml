@@ -1,5 +1,5 @@
 # AI生成注释: Librax 后端 GitLab CI（参考 fanghuayuan-web，构建改为 Maven 多模块）
-# 流水线: build(jar) → push(镜像) → deploy(Swarm) / 离线交付
+# 流水线: build(jar→MinIO) → push(镜像) → deploy(Swarm) / 离线交付
 # 作者: AI
 image: docker.m.daocloud.io/maven:3.9-eclipse-temurin-17
 
@@ -24,14 +24,24 @@ variables:
   HOST_PORT: "48080"
   MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
   TZ: "Asia/Shanghai"
+  # AI生成注释: 大文件走 MinIO，避免 GitLab artifacts 体积限制；对象路径按流水线隔离
+  # 作者: AI
+  MINIO_ARTIFACT_PATH: "${CI_PROJECT_NAME}/${CI_PIPELINE_ID}/librax-server.jar"
 
 stages:
   - build
   - push
   - deploy
 
+# AI生成注释: MinIO mc 客户端初始化（复用 gitlab-artifacts 桶内预置的 mc）
+# 作者: AI
+.mc_setup:
+  script:
+    - wget -q ${MINIO_SERVER}/gitlab-artifacts/mc -O mc && chmod +x mc
+    - ./mc alias set minio ${MINIO_SERVER} ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
+
 # ---------------------------------------
-# 1. Maven 构建 librax-server.jar
+# 1. Maven 构建 librax-server.jar → 上传 MinIO
 # ---------------------------------------
 build-job:
   stage: build
@@ -44,10 +54,11 @@ build-job:
   script:
     - mvn -B clean package -DskipTests
     - ls -lh librax-server/target/librax-server.jar
-  artifacts:
-    paths:
-      - librax-server/target/librax-server.jar
-    expire_in: 1 week
+    # AI生成注释: jar 过大，改传 MinIO gitlab-artifacts 桶，不再使用 GitLab artifacts
+    # 作者: AI
+    - !reference [.mc_setup, script]
+    - ./mc cp librax-server/target/librax-server.jar minio/gitlab-artifacts/${MINIO_ARTIFACT_PATH}
+    - echo "JAR 上传成功：${MINIO_SERVER}/gitlab-artifacts/${MINIO_ARTIFACT_PATH}"
 
 # ---------------------------------------
 # 2. 构建并推送 Docker 镜像
@@ -58,9 +69,16 @@ push-job:
   tags:
     - librax
   cache: []
-  dependencies:
-    - build-job
+  needs:
+    - job: build-job
+      artifacts: false
   script:
+    # AI生成注释: 从 MinIO 拉取构建产物后再打镜像
+    # 作者: AI
+    - !reference [.mc_setup, script]
+    - mkdir -p librax-server/target
+    - ./mc cp minio/gitlab-artifacts/${MINIO_ARTIFACT_PATH} librax-server/target/librax-server.jar
+    - ls -lh librax-server/target/librax-server.jar
     - docker build -t ${DOCKER_IMAGE_DOMAIN}/${CI_PROJECT_NAME}:latest -f librax-server/Dockerfile librax-server
     - docker push ${DOCKER_IMAGE_DOMAIN}/${CI_PROJECT_NAME}:latest
 
@@ -123,16 +141,20 @@ deploy-job-docker:
   tags:
     - librax
   cache: []
-  dependencies:
-    - build-job
+  needs:
+    - job: build-job
+      artifacts: false
   when: manual
   script:
+    # AI生成注释: 离线交付同样从 MinIO 拉取 jar，再导出镜像上传
+    # 作者: AI
+    - !reference [.mc_setup, script]
+    - mkdir -p librax-server/target
+    - ./mc cp minio/gitlab-artifacts/${MINIO_ARTIFACT_PATH} librax-server/target/librax-server.jar
     - |
       export $(grep -vE '^\s*(#|$)' .env.delivery | xargs) && \
       docker build -t librax-server:prod -f librax-server/Dockerfile librax-server
     - docker save -o librax-server.tar librax-server:prod
-    - wget ${MINIO_SERVER}/gitlab-artifacts/mc && chmod +x mc
     - export DEPLOY_DATE=$(date +"%Y%m%d%H%M")
-    - ./mc alias set minio ${MINIO_SERVER} ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
     - ./mc cp librax-server.tar minio/gitlab-artifacts/${CI_PROJECT_NAME}/${DEPLOY_DATE}/librax-server.tar
     - echo "镜像上传成功，访问地址：${MINIO_SERVER}/gitlab-artifacts/${CI_PROJECT_NAME}/${DEPLOY_DATE}/librax-server.tar"
