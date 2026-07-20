@@ -34,4 +34,16 @@ public interface ErrorCodeConstants {
     ErrorCode SLOT_DISABLED =
             new ErrorCode(1_070_001_007, "库位已停用，无法上架");
 
+    ErrorCode AGV_LOAD_PLAN_NOT_EXISTS =
+            new ErrorCode(1_070_001_008, "AGV装载计划不存在: {}");
+
+    ErrorCode AGV_LOAD_PLAN_STATE_INVALID =
+            new ErrorCode(1_070_001_009, "AGV装载计划状态不允许当前操作: {}");
+
+    ErrorCode SLOT_READY_CONFLICT =
+            new ErrorCode(1_070_001_010, "库位就绪冲突: {}");
+
+    ErrorCode AGV_LOAD_PLAN_INVALID =
+            new ErrorCode(1_070_001_011, "AGV装载计划参数错误: {}");
+
 }

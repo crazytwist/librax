@@ -18,6 +18,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.librax.lab.framework.common.util.expression.ExpressionUtil;
 
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -52,9 +53,10 @@ public class DeviceGatewayImpl implements DeviceGateway {
         }
 
         // 3. 渲染请求模板（替换 ${xxx} 占位符），并自动注入系统回调字段
+        Map<String, Object> enrichedParams = withTaskId(params, executionId);
         String requestBody = injectSysFields(
-                renderTemplate(command.getRequestTemplate(), params),
-                executionId, nodeId, callbackToken, params);
+                renderTemplate(command.getRequestTemplate(), enrichedParams),
+                executionId, nodeId, callbackToken, enrichedParams);
 
         // 4. 获取对应驱动并发送
         DeviceDriver driver = driverFactory.getDriver(device.getProtocol());
@@ -104,9 +106,10 @@ public class DeviceGatewayImpl implements DeviceGateway {
         }
 
         // 3. 渲染请求模板，并自动注入系统回调字段
+        Map<String, Object> enrichedParams = withTaskId(params, executionId);
         String requestBody = injectSysFields(
-                renderTemplate(command.getRequestTemplate(), params),
-                executionId, nodeId, callbackToken, params);
+                renderTemplate(command.getRequestTemplate(), enrichedParams),
+                executionId, nodeId, callbackToken, enrichedParams);
 
         // 4. 获取驱动并发送
         DeviceDriver driver = driverFactory.getDriver(device.getProtocol());
@@ -143,9 +146,10 @@ public class DeviceGatewayImpl implements DeviceGateway {
         if (device == null) {
             throw new DeviceException("无可用设备: " + deviceType);
         }
+        Map<String, Object> enrichedParams = withTaskId(params, executionId);
         String requestBody = injectSysFields(
-                renderTemplate(command.getRequestTemplate(), params),
-                executionId, nodeId, callbackToken, params);
+                renderTemplate(command.getRequestTemplate(), enrichedParams),
+                executionId, nodeId, callbackToken, enrichedParams);
         DeviceDriver driver = driverFactory.getDriver(device.getProtocol());
         DeviceSendResult result = driver.send(device, command, requestBody, executionId, callbackToken);
         stateCache.markBusy(device.getDeviceId(), result.getTaskId(), executionId, nodeId);
@@ -192,6 +196,17 @@ public class DeviceGatewayImpl implements DeviceGateway {
     }
 
     /**
+     * 将 executionId 作为 taskId 注入 params，模板中 ${taskId} 即可直接引用。
+     * 若调用方已显式传入 taskId 则不覆盖。
+     */
+    private Map<String, Object> withTaskId(Map<String, Object> params, String executionId) {
+        if (executionId == null) return params;
+        Map<String, Object> enriched = new HashMap<>(params != null ? params : Map.of());
+        enriched.putIfAbsent("taskId", executionId);
+        return enriched;
+    }
+
+    /**
      * 自动将系统回调字段注入到 JSON 请求体中。
      *
      * <p>无论 requestTemplate 是否配置了 ${executionId} 等占位符，
@@ -201,6 +216,9 @@ public class DeviceGatewayImpl implements DeviceGateway {
     private String injectSysFields(String body, String executionId, String nodeId,
                                    String callbackToken, Map<String, Object> params) {
         if (body == null || body.isBlank()) return body;
+        if (disableSysFieldInjection(params)) {
+            return body;
+        }
         try {
             JSONObject json = JSON.parseObject(body);
             if (executionId   != null) json.put("executionId",   executionId);
@@ -214,5 +232,12 @@ public class DeviceGatewayImpl implements DeviceGateway {
             log.debug("[DeviceGateway] body 非 JSON 格式，跳过系统字段注入");
             return body;
         }
+    }
+
+    private boolean disableSysFieldInjection(Map<String, Object> params) {
+        if (params == null) return false;
+        Object disabled = params.get("disableSysFieldInjection");
+        if (disabled instanceof Boolean b) return b;
+        return disabled instanceof String s && "true".equalsIgnoreCase(s);
     }
 }

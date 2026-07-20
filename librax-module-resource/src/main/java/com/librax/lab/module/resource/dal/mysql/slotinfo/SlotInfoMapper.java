@@ -24,6 +24,16 @@ public interface SlotInfoMapper extends BaseMapperX<SlotInfoDO> {
                 .eq(SlotInfoDO::getSlotId, slotId));
     }
 
+    default List<SlotInfoDO> selectEnabledByRackId(String rackId) {
+        return selectList(new LambdaQueryWrapperX<SlotInfoDO>()
+                .eq(SlotInfoDO::getRackId, rackId)
+                .eq(SlotInfoDO::getEnabled, true)
+                .orderByAsc(SlotInfoDO::getPositionLayer)
+                .orderByAsc(SlotInfoDO::getPositionRow)
+                .orderByAsc(SlotInfoDO::getPositionCol)
+                .orderByAsc(SlotInfoDO::getSlotId));
+    }
+
     default PageResult<SlotInfoDO> selectPage(SlotInfoPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<SlotInfoDO>()
                 .eqIfPresent(SlotInfoDO::getSlotId, reqVO.getSlotId())
@@ -58,6 +68,63 @@ public interface SlotInfoMapper extends BaseMapperX<SlotInfoDO> {
                 .setSql("current_count = GREATEST(current_count - 1, 0)")
                 .setSql("status = IF(current_count - 1 <= 0, 'EMPTY', 'OCCUPIED')")
                 .setSql("occupied_by = IF(current_count - 1 <= 0, NULL, occupied_by)")
+                .set(SlotInfoDO::getUpdateTime, LocalDateTime.now()));
+    }
+
+    /** 原子预留一个空库位，防止并发搬运任务重复选择。 */
+    default int reserveIfEmpty(String slotId) {
+        return update(null, new LambdaUpdateWrapper<SlotInfoDO>()
+                .eq(SlotInfoDO::getSlotId, slotId)
+                .eq(SlotInfoDO::getEnabled, true)
+                .eq(SlotInfoDO::getStatus, "EMPTY")
+                .lt(SlotInfoDO::getCurrentCount, 1)
+                .set(SlotInfoDO::getStatus, "RESERVED")
+                .set(SlotInfoDO::getUpdateTime, LocalDateTime.now()));
+    }
+
+    /** 将预留库位提交为实际占用。 */
+    default int occupyReserved(String slotId, String instanceId) {
+        return update(null, new LambdaUpdateWrapper<SlotInfoDO>()
+                .eq(SlotInfoDO::getSlotId, slotId)
+                .eq(SlotInfoDO::getStatus, "RESERVED")
+                .set(SlotInfoDO::getStatus, "OCCUPIED")
+                .set(SlotInfoDO::getCurrentCount, 1)
+                .set(SlotInfoDO::getOccupiedBy, instanceId)
+                .set(SlotInfoDO::getUpdateTime, LocalDateTime.now()));
+    }
+
+    /** 上游设备通知补料完成：只允许把空库位原子更新为已占用。 */
+    default int markReadyIfEmpty(String slotId, String instanceId) {
+        return update(null, new LambdaUpdateWrapper<SlotInfoDO>()
+                .eq(SlotInfoDO::getSlotId, slotId)
+                .eq(SlotInfoDO::getEnabled, true)
+                .eq(SlotInfoDO::getStatus, "EMPTY")
+                .eq(SlotInfoDO::getCurrentCount, 0)
+                .set(SlotInfoDO::getStatus, "OCCUPIED")
+                .set(SlotInfoDO::getCurrentCount, 1)
+                .set(SlotInfoDO::getOccupiedBy, instanceId)
+                .set(SlotInfoDO::getUpdateTime, LocalDateTime.now()));
+    }
+
+    /** 仓储机械臂完成备料：将服务端预留的中转位提交为实际占用。 */
+    default int markReadyIfReserved(String slotId, String instanceId) {
+        return update(null, new LambdaUpdateWrapper<SlotInfoDO>()
+                .eq(SlotInfoDO::getSlotId, slotId)
+                .eq(SlotInfoDO::getEnabled, true)
+                .eq(SlotInfoDO::getStatus, "RESERVED")
+                .set(SlotInfoDO::getStatus, "OCCUPIED")
+                .set(SlotInfoDO::getCurrentCount, 1)
+                .set(SlotInfoDO::getOccupiedBy, instanceId)
+                .set(SlotInfoDO::getUpdateTime, LocalDateTime.now()));
+    }
+
+    /** 释放空库位或本次任务的预留。 */
+    default int clearOccupancy(String slotId) {
+        return update(null, new LambdaUpdateWrapper<SlotInfoDO>()
+                .eq(SlotInfoDO::getSlotId, slotId)
+                .set(SlotInfoDO::getStatus, "EMPTY")
+                .set(SlotInfoDO::getCurrentCount, 0)
+                .set(SlotInfoDO::getOccupiedBy, null)
                 .set(SlotInfoDO::getUpdateTime, LocalDateTime.now()));
     }
 

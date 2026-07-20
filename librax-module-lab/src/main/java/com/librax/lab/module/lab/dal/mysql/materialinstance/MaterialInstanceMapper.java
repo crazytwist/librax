@@ -7,6 +7,7 @@ import com.librax.lab.framework.mybatis.core.query.LambdaQueryWrapperX;
 import com.librax.lab.framework.mybatis.core.mapper.BaseMapperX;
 import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
 import org.apache.ibatis.annotations.Mapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.librax.lab.module.lab.controller.admin.materialinstance.vo.*;
 
 /**
@@ -48,6 +49,35 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
                 .and(w -> w.isNull(MaterialInstanceDO::getExpiredAt)
                         .or()
                         .ge(MaterialInstanceDO::getExpiredAt, java.time.LocalDate.now())));
+    }
+
+    /** 原子预留可用物料，避免两个补料单选中同一实例。 */
+    default int reserveAvailable(String instanceId) {
+        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId)
+                .eq(MaterialInstanceDO::getStatus, "AVAILABLE")
+                .set(MaterialInstanceDO::getStatus, "RESERVED")
+                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+    }
+
+    /** 补料到位后提交物料的新位置。 */
+    default int completeReplenishment(String instanceId, String slotId, String zoneCode) {
+        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId)
+                .eq(MaterialInstanceDO::getStatus, "RESERVED")
+                .set(MaterialInstanceDO::getSlotId, slotId)
+                .set(MaterialInstanceDO::getZoneCode, zoneCode)
+                .set(MaterialInstanceDO::getStatus, "AVAILABLE")
+                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+    }
+
+    /** 补料失败时归还尚未搬走的库存预留。 */
+    default int releaseReservation(String instanceId) {
+        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId)
+                .eq(MaterialInstanceDO::getStatus, "RESERVED")
+                .set(MaterialInstanceDO::getStatus, "AVAILABLE")
+                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
     }
 
     default PageResult<MaterialInstanceDO> selectPage(MaterialInstancePageReqVO reqVO) {

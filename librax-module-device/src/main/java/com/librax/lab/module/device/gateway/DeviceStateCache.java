@@ -18,10 +18,12 @@ public class DeviceStateCache {
     private final StringRedisTemplate redisTemplate;
 
     // device:state:{deviceId}  → Hash: status/taskId/executionId/busySince
-    private static final String STATE_PREFIX = "device:state:";
+    private static final String STATE_PREFIX       = "device:state:";
     // device:exec:{executionId}:{nodeId} → deviceId（反向索引，O(1)释放用）
-    private static final String EXEC_PREFIX  = "device:exec:";
-    private static final long   EXPIRE_HOURS = 24;
+    private static final String EXEC_PREFIX        = "device:exec:";
+    // device:active-node:{executionId} → nodeId（AGV回调无nodeId时的兜底查询）
+    private static final String ACTIVE_NODE_PREFIX = "device:active-node:";
+    private static final long   EXPIRE_HOURS       = 24;
 
     // ----------------------------------------------------------------
     // 写操作
@@ -48,6 +50,9 @@ public class DeviceStateCache {
         // 2. 反向索引：executionId + nodeId → deviceId
         String execKey = execKey(executionId, nodeId);
         redisTemplate.opsForValue().set(execKey, deviceId, EXPIRE_HOURS, TimeUnit.HOURS);
+
+        // 3. executionId → nodeId（AGV回调只带taskId时用于定位当前活跃节点）
+        redisTemplate.opsForValue().set(activeNodeKey(executionId), nodeId, EXPIRE_HOURS, TimeUnit.HOURS);
 
         log.debug("[DeviceStateCache] 标记忙碌 deviceId={} executionId={} nodeId={}",
                 deviceId, executionId, nodeId);
@@ -153,6 +158,13 @@ public class DeviceStateCache {
         return redisTemplate.opsForValue().get(execKey(executionId, nodeId));
     }
 
+    /**
+     * 根据 executionId 查询当前活跃的 nodeId。
+     * 用于 AGV 回调只携带 taskId（=executionId）而不携带 nodeId 时的路由兜底。
+     */
+    public String getActiveNodeByExecution(String executionId) {
+        return redisTemplate.opsForValue().get(activeNodeKey(executionId));
+    }
 
     // ----------------------------------------------------------------
     // Key 工具
@@ -164,5 +176,9 @@ public class DeviceStateCache {
 
     private String execKey(String executionId, String nodeId) {
         return EXEC_PREFIX + executionId + ":" + nodeId;
+    }
+
+    private String activeNodeKey(String executionId) {
+        return ACTIVE_NODE_PREFIX + executionId;
     }
 }

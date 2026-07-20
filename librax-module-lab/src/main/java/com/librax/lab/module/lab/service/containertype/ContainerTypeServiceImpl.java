@@ -7,6 +7,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+
 import com.librax.lab.module.lab.controller.admin.containertype.vo.*;
 import com.librax.lab.module.lab.dal.dataobject.containertype.ContainerTypeDO;
 import com.librax.lab.framework.common.pojo.PageResult;
@@ -60,10 +61,10 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
     }
 
     @Override
-        public void deleteContainerTypeListByIds(List<Long> ids) {
+    public void deleteContainerTypeListByIds(List<Long> ids) {
         // 删除
         containerTypeMapper.deleteByIds(ids);
-        }
+    }
 
 
     private void validateContainerTypeExists(Long id) {
