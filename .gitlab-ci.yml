@@ -1,7 +1,7 @@
 # AI生成注释: Librax 后端 GitLab CI（参考 fanghuayuan-web，构建改为 Maven 多模块）
 # 流水线: build(jar) → push(镜像) → deploy(Swarm) / 离线交付
 # 作者: AI
-image: docker.1ms.run/maven:3.9-eclipse-temurin-17
+image: docker.m.daocloud.io/maven:3.9-eclipse-temurin-17
 
 workflow:
   rules:
