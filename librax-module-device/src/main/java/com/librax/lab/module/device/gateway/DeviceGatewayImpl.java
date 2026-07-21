@@ -198,11 +198,19 @@ public class DeviceGatewayImpl implements DeviceGateway {
     /**
      * 将 executionId 作为 taskId 注入 params，模板中 ${taskId} 即可直接引用。
      * 若调用方已显式传入 taskId 则不覆盖。
+     * 同时对 requestId 做兜底：若未传或传的是未解析的占位符（如 ${requestId}），自动生成 UUID。
      */
     private Map<String, Object> withTaskId(Map<String, Object> params, String executionId) {
-        if (executionId == null) return params;
         Map<String, Object> enriched = new HashMap<>(params != null ? params : Map.of());
-        enriched.putIfAbsent("taskId", executionId);
+        if (executionId != null) {
+            enriched.putIfAbsent("taskId", executionId);
+        }
+        // requestId 兜底：未传 或 仍是占位符形式（${...}）时自动生成
+        Object requestId = enriched.get("requestId");
+        if (requestId == null || requestId.toString().isBlank()
+                || requestId.toString().startsWith("${")) {
+            enriched.put("requestId", java.util.UUID.randomUUID().toString().replace("-", ""));
+        }
         return enriched;
     }
 
