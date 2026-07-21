@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS `lab_agv_load_item` (
     `agv_slot_id`      VARCHAR(64)  NOT NULL COMMENT 'AGV载货位',
     `target_slot_id`   VARCHAR(64)  NOT NULL COMMENT '最终目标位',
     `instance_id`      VARCHAR(64)  NULL COMMENT '实际物料实例ID',
+    `container_type`   VARCHAR(64)  NULL COMMENT '容器类型编码，对应 lab_container_type.type_code',
     `wave_no`          INT          NULL COMMENT '装载波次',
     `warehouse_source_location` VARCHAR(64) NULL COMMENT '仓储内部始发位置',
     `step1_json`       JSON         NULL COMMENT 'AGV装载参数',
