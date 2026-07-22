@@ -134,6 +134,11 @@ public class DeviceStateCache {
         return "IDLE".equals(status);
     }
 
+    /** 判断设备是否有 Redis 状态记录（区分"无记录=未初始化"和"记录=OFFLINE"）。 */
+    public boolean hasState(String deviceId) {
+        return Boolean.TRUE.equals(redisTemplate.hasKey(stateKey(deviceId)));
+    }
+
     public DeviceStatusEnum getStatus(String deviceId) {
         Object status = redisTemplate.opsForHash().get(stateKey(deviceId), "status");
         if (status == null) return DeviceStatusEnum.OFFLINE;
