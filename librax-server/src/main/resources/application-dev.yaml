@@ -191,7 +191,8 @@ librax:
     enable: true
   demo: false
   device:
-    skip-idle-check: true  # dev: 设备不主动回调时跳过 IDLE 校验
+    skip-idle-check: true    # dev: 设备不主动回调时跳过 IDLE 校验
+    skip-health-check: true  # dev: 跳过 ResourcePool 健康过滤，避免 NO_HEALTHY
 
 liteflow:
   rule-source-ext-data-map:

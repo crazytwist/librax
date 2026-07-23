@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.security.PermitAll;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -35,6 +36,7 @@ import java.util.Map;
  *
  * <p>所有接口均无需鉴权（@PermitAll），仓储设备可直接调用。
  */
+@Slf4j
 @Tag(name = "外部设备 - 仓储回调",
         description = "仓储机械臂完成搬运后的统一回调接口，补料与下料共用，无需鉴权")
 @RestController
@@ -74,6 +76,8 @@ public class SlotReadyController {
     @PermitAll
     @TenantIgnore
     public CommonResult<Map<String, Object>> warehouseCallback(@Valid @RequestBody WarehouseCallbackReqVO req) {
+        log.info("[warehouseCallback] 收到仓储回调 requestId={} transferTaskId={} materialId={} toLocation={} fromLocation={} status={}",
+                req.getRequestId(), req.getTransferTaskId(), req.getMaterialId(), req.getToLocation(), req.getFromLocation(), req.getStatus());
         if (org.springframework.util.StringUtils.hasText(req.getTransferTaskId())) {
             if (agvLoadPlanService.hasPlan(req.getTransferTaskId())) {
                 return CommonResult.success(agvLoadPlanService.markSlotReady(req));

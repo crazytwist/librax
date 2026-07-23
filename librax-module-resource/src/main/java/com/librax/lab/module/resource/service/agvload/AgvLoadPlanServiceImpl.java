@@ -18,8 +18,14 @@ import com.librax.lab.module.resource.dal.mysql.agvload.AgvTaskQueueMapper;
 import com.librax.lab.module.resource.dal.mysql.slotinfo.SlotInfoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -38,6 +44,11 @@ import static com.librax.lab.module.resource.enums.ErrorCodeConstants.*;
 @Service
 @RequiredArgsConstructor
 public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignalHandler, AgvTaskStateHandler, AgvResumeHandler {
+
+    /** 自注入，用于在事务提交后通过 Spring 代理调用 @Async 方法 */
+    @Lazy
+    @Autowired
+    private AgvLoadPlanService self;
 
     private static final String FLOW_WAIT_NODE = "s_agv_wait_signal";
 
@@ -275,11 +286,17 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         item.setStatus("READY");
         itemMapper.updateById(item);
 
-        boolean triggered = plan.getOrchestrationNodeId() != null
-                ? afterWarehouseReady(plan) : dispatchNextWaveIfReady(plan);
-        log.info("[AgvLoadPlan] 源库位就绪 taskId={} slotId={} instanceId={} startAgain={}",
-                req.getTransferTaskId(), req.getToLocation(), req.getMaterialId(), triggered);
-        return result(plan, item, triggered, false);
+        // 事务提交后再异步触发下一步，确保先返回200给仓储，再发下一条 prepareMaterials
+        String planTaskId = plan.getTaskId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                self.triggerNextStepAsync(planTaskId);
+            }
+        });
+        log.info("[AgvLoadPlan] 源库位就绪 taskId={} slotId={} instanceId={} 异步触发下一步",
+                req.getTransferTaskId(), req.getToLocation(), req.getMaterialId());
+        return result(plan, item, false, false);
     }
 
     @Override
@@ -460,18 +477,38 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         params.put("toLocation", next.getSourceSlotId());             // 中转位（AGV来此取料）
         params.put("callbackUrl", plan.getWarehouseCallbackUrl());
         params.put("disableSysFieldInjection", true);
-        DeviceCommandSpi.Result response = deviceCommandSpi.send("WAREHOUSE", "prepareMaterials", params,
-                plan.getTaskId(), "warehouse_prepare_" + next.getSequenceNo(), null);
-        if (response.getResponseBody() != null && !response.getResponseBody().isBlank()) {
+        int maxRetries = 3;
+        for (int attempt = 0; attempt <= maxRetries; attempt++) {
+            if (attempt > 0) {
+                long delayMs = 1000L * (1L << (attempt - 1)); // 1s, 2s, 4s
+                log.warn("[AgvWarehouse] 备料重试 taskId={} attempt={}/{} waitMs={}",
+                        plan.getTaskId(), attempt, maxRetries, delayMs);
+                try {
+                    Thread.sleep(delayMs);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw exception(AGV_LOAD_PLAN_STATE_INVALID, "备料重试被中断");
+                }
+            }
+            DeviceCommandSpi.Result response = deviceCommandSpi.send("WAREHOUSE", "prepareMaterials", params,
+                    plan.getTaskId(), "warehouse_prepare_" + next.getSequenceNo(), null);
+            if (response.getResponseBody() == null || response.getResponseBody().isBlank()) {
+                break; // 无响应体，视为接受
+            }
             Integer code = JSON.parseObject(response.getResponseBody()).getInteger("code");
-            if (code != null && code != 0 && code != 1005) {
-                String message = JSON.parseObject(response.getResponseBody()).getString("message");
-                if (message == null) message = JSON.parseObject(response.getResponseBody()).getString("msg");
+            if (code == null || code == 0 || code == 1005) {
+                break; // 成功
+            }
+            String message = JSON.parseObject(response.getResponseBody()).getString("message");
+            if (message == null) message = JSON.parseObject(response.getResponseBody()).getString("msg");
+            log.warn("[AgvWarehouse] 仓储拒绝备料 taskId={} attempt={} code={} message={}",
+                    plan.getTaskId(), attempt, code, message);
+            if (attempt == maxRetries) {
                 throw exception(AGV_LOAD_PLAN_STATE_INVALID,
-                        "仓储拒绝备料 code=" + code + ", message=" + message);
+                        "仓储拒绝备料(已重试" + maxRetries + "次) code=" + code + ", message=" + message);
             }
         }
-        log.info("[AgvWarehouse] 请求仓储备料 taskId={} subRequestId={} from={} to={}",
+        log.info("[AgvWarehouse] 请求仓储备料成功 taskId={} subRequestId={} from={} to={}",
                 plan.getTaskId(), subRequestId, next.getWarehouseSourceLocation(), next.getSourceSlotId());
     }
 
@@ -624,6 +661,30 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         log.info("[AgvLoadPlan] 第{}波就绪，通知AGV继续 taskId={} count={}",
                 nextWave, plan.getTaskId(), dispatchCount);
         return true;
+    }
+
+    @Async
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public void triggerNextStepAsync(String taskId) {
+        try {
+            // 等待 200ms，给仓储设备完成内部状态切换的时间
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        try {
+            AgvLoadPlanDO plan = planMapper.selectByTaskId(taskId);
+            if (plan == null) {
+                log.warn("[AgvLoadPlan] 异步触发下一步：计划不存在 taskId={}", taskId);
+                return;
+            }
+            boolean triggered = plan.getOrchestrationNodeId() != null
+                    ? afterWarehouseReady(plan) : dispatchNextWaveIfReady(plan);
+            log.info("[AgvLoadPlan] 异步触发下一步完成 taskId={} triggered={}", taskId, triggered);
+        } catch (Exception e) {
+            log.error("[AgvLoadPlan] 异步触发下一步失败 taskId={}", taskId, e);
+        }
     }
 
     private AgvLoadPlanDO requireActivePlanForUpdate(String taskId) {

@@ -12,6 +12,7 @@ import com.librax.lab.module.flow.engine.definition.model.StepNode;
 import com.librax.lab.module.flow.service.pipelineexecution.PipelineExecutionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.security.PermitAll;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -39,6 +40,7 @@ public class PipelineGraphTestController {
      * 验证流程图加载是否正确
      * GET /admin-api/flow/test/graph?pipelineKey=water_quality_test&version=1
      */
+    @PermitAll
     @Operation(summary = "验证流程图加载是否正确")
     @GetMapping("/graph")
     public CommonResult<Map<String, Object>> getGraph(
@@ -92,6 +94,7 @@ public class PipelineGraphTestController {
      * 验证缓存失效是否正常
      * DELETE /admin-api/flow/test/graph/cache?pipelineKey=water_quality_test&version=1
      */
+    @PermitAll
     @Operation(summary = "验证缓存失效是否正常")
     @DeleteMapping("/graph/cache")
     public CommonResult<String> invalidateCache(
@@ -107,6 +110,7 @@ public class PipelineGraphTestController {
      * POST /admin-api/flow/test/start
      * Body: {"pipelineKey":"water_quality_test","version":1,"sampleId":"S-001"}
      */
+    @PermitAll
     @Operation(summary = "启动一条流程")
     @PostMapping("/start")
     public CommonResult<Map<String, Object>> start(@RequestBody @Valid PipelineStartReqVO req) {
@@ -127,6 +131,7 @@ public class PipelineGraphTestController {
      * 查询流程执行进度
      * GET /admin-api/flow/test/progress?executionId=xxx
      */
+    @PermitAll
     @Operation(summary = "查询流程执行进度")
     @GetMapping("/progress")
     public CommonResult<Map<String, Object>> progress(@RequestParam String executionId) {

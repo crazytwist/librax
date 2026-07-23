@@ -41,7 +41,15 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
     default List<MaterialInstanceDO> selectAvailable(String materialCode,
                                                       String contentType,
                                                       String zoneCode) {
+        return selectAvailable(null, materialCode, contentType, zoneCode);
+    }
+
+    default List<MaterialInstanceDO> selectAvailable(String typeCode,
+                                                      String materialCode,
+                                                      String contentType,
+                                                      String zoneCode) {
         return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>()
+                .eqIfPresent(MaterialInstanceDO::getTypeCode, typeCode)
                 .eqIfPresent(MaterialInstanceDO::getMaterialCode, materialCode)
                 .eqIfPresent(MaterialInstanceDO::getContentType, contentType)
                 .eqIfPresent(MaterialInstanceDO::getZoneCode, zoneCode)
@@ -60,25 +68,50 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
                 .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
     }
 
-    /** 补料到位后提交物料的新位置。 */
-    default int completeReplenishment(String instanceId, String slotId, String zoneCode) {
+    /**
+     * 搬运完成后提交物料的新位置，并将状态恢复为搬运前的原始状态。
+     * <p>搬运不改变物料的语义状态：AVAILABLE→AVAILABLE（补料），USED→USED（下料）。
+     */
+    default int completeTransfer(String instanceId, String slotId, String zoneCode, String targetStatus) {
         return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
                 .eq(MaterialInstanceDO::getInstanceId, instanceId)
                 .eq(MaterialInstanceDO::getStatus, "RESERVED")
                 .set(MaterialInstanceDO::getSlotId, slotId)
                 .set(MaterialInstanceDO::getZoneCode, zoneCode)
-                .set(MaterialInstanceDO::getStatus, "AVAILABLE")
+                .set(MaterialInstanceDO::getStatus, targetStatus)
                 .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
     }
 
-    /** 补料失败时归还尚未搬走的库存预留。 */
-    default int releaseReservation(String instanceId) {
+    /** 补料到位后提交物料的新位置（快捷方法，恢复为 AVAILABLE）。 */
+    default int completeReplenishment(String instanceId, String slotId, String zoneCode) {
+        return completeTransfer(instanceId, slotId, zoneCode, "AVAILABLE");
+    }
+
+    /**
+     * 搬运失败时将物料预留归还原始状态。
+     */
+    default int releaseReservationTo(String instanceId, String targetStatus) {
         return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
                 .eq(MaterialInstanceDO::getInstanceId, instanceId)
                 .eq(MaterialInstanceDO::getStatus, "RESERVED")
-                .set(MaterialInstanceDO::getStatus, "AVAILABLE")
+                .set(MaterialInstanceDO::getStatus, targetStatus)
                 .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
     }
+
+    /** 补料失败时归还尚未搬走的库存预留（恢复为 AVAILABLE）。 */
+    default int releaseReservation(String instanceId) {
+        return releaseReservationTo(instanceId, "AVAILABLE");
+    }
+
+    /** 下料前原子锁定已使用物料（USED → RESERVED），防并发下料任务重复选中。 */
+    default int reserveUsed(String instanceId) {
+        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId)
+                .eq(MaterialInstanceDO::getStatus, "USED")
+                .set(MaterialInstanceDO::getStatus, "RESERVED")
+                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+    }
+
 
     default PageResult<MaterialInstanceDO> selectPage(MaterialInstancePageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<MaterialInstanceDO>()

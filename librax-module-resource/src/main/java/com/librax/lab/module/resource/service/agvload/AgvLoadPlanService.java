@@ -24,4 +24,6 @@ public interface AgvLoadPlanService {
     boolean hasPlan(String taskId);
 
     void commitTransfer(String taskId);
+
+    void triggerNextStepAsync(String taskId);
 }

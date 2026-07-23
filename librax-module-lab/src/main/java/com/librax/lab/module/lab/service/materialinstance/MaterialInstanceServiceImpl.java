@@ -171,4 +171,23 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
                 .set(MaterialInstanceDO::getZoneCode, null));
     }
 
+    @Override
+    public MaterialInstanceDO getInstanceByInsId(String instanceId) {
+        return materialInstanceMapper.selectByInstanceId(instanceId);
+    }
+
+    @Override
+    public int moveTo(String instanceId, String slotId) {
+        return moveTo(instanceId, slotId, "AVAILABLE");
+    }
+
+    @Override
+    public int moveTo(String instanceId, String slotId, String targetStatus) {
+        SlotInfoDO slot = slotInfoService.getSlotInfoBySlotId(slotId);
+        if (slot == null) {
+            throw new IllegalStateException("目标库位不存在: " + slotId);
+        }
+        return materialInstanceMapper.completeTransfer(instanceId, slotId, slot.getZoneCode(), targetStatus);
+    }
+
 }

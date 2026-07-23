@@ -6,6 +6,7 @@ import com.librax.lab.module.resource.dal.dataobject.resourceconfig.ResourceConf
 import com.librax.lab.module.resource.dal.mysql.resourceconfig.ResourceConfigMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -25,6 +26,9 @@ public class ResourceSelector {
 
     private final ResourceConfigMapper resourceConfigMapper;
     private final DeviceQueryApi deviceQueryApi;
+
+    @Value("${librax.device.skip-health-check:false}")
+    private boolean skipHealthCheck;
 
     /**
      * 返回两个列表:独占候选、共享候选(已按健康过滤)
@@ -61,9 +65,13 @@ public class ResourceSelector {
         return ids;
     }
 
-    /** 调 DeviceQueryApi 过滤掉不健康的设备 */
+    /** 调 DeviceQueryApi 过滤掉不健康的设备（skip-health-check=true 时跳过） */
     private List<String> filterHealthy(List<String> resourceIds) {
         if (resourceIds.isEmpty()) return resourceIds;
+        if (skipHealthCheck) {
+            log.debug("[ResourceSelector] skip-health-check=true，跳过健康过滤 count={}", resourceIds.size());
+            return resourceIds;
+        }
         List<String> ok = new ArrayList<>(resourceIds.size());
         for (String id : resourceIds) {
             if (deviceQueryApi.getHealth(id).isUsable()) {
