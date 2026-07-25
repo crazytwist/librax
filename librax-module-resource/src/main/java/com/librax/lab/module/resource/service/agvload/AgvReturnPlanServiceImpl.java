@@ -17,8 +17,14 @@ import com.librax.lab.module.resource.dal.mysql.agvload.AgvTaskQueueMapper;
 import com.librax.lab.module.resource.dal.mysql.slotinfo.SlotInfoMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -40,6 +46,11 @@ import static com.librax.lab.module.resource.enums.ErrorCodeConstants.*;
 @RequiredArgsConstructor
 public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
         AgvTaskStateHandler, AgvWaitSignalHandler, AgvResumeHandler {
+
+    /** 自注入，用于在事务提交后通过 Spring 代理调用 @Async 方法 */
+    @Lazy
+    @Autowired
+    private AgvReturnPlanService self;
 
     private final AgvReturnPlanMapper planMapper;
     private final AgvReturnItemMapper itemMapper;
@@ -69,14 +80,19 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
         int totalWaves = (returnItems.size() + waveSize - 1) / waveSize;
 
         // 预留 AGV 槽位和中转位
+        // 同一中转位可能被多个波次复用，只需预留一次
+        Set<String> reservedTransitSlots = new java.util.HashSet<>();
         for (Map<String, Object> item : returnItems) {
             String agvSlot = required(item, "agvSlotId");
             String transit = required(item, "transitSlotId");
             if (slotMapper.reserveIfEmpty(agvSlot) == 0) {
                 throw exception(AGV_LOAD_PLAN_INVALID, "AGV槽位不可用: " + agvSlot);
             }
-            if (slotMapper.reserveIfEmpty(transit) == 0) {
-                throw exception(AGV_LOAD_PLAN_INVALID, "中转位不可用: " + transit);
+            if (!reservedTransitSlots.contains(transit)) {
+                if (slotMapper.reserveIfEmpty(transit) == 0) {
+                    throw exception(AGV_LOAD_PLAN_INVALID, "中转位不可用: " + transit);
+                }
+                reservedTransitSlots.add(transit);
             }
         }
 
@@ -153,9 +169,14 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
 
         int wave = item.getWaveNo();
 
-        // 当前波次还有物料等待仓储处理
-        if (requestNextWarehouseReturn(plan, wave)) {
-            log.info("[AgvReturn] 波次{}继续入库 taskId={} slotId={}", wave, req.getTransferTaskId(), req.getFromLocation());
+        // 当前波次还有物料等待仓储处理（只检查，不在事务内发起外部调用）
+        if (itemMapper.selectNextPendingReturn(plan.getTaskId(), wave) != null) {
+            log.info("[AgvReturn] 波次{}继续入库 taskId={} slotId={} 异步触发下一条仓储请求",
+                    wave, req.getTransferTaskId(), req.getFromLocation());
+            String planTaskId = plan.getTaskId();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override public void afterCommit() { self.triggerNextStepAsync(planTaskId); }
+            });
             return result(plan, item);
         }
 
@@ -170,13 +191,21 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
                 .stream().filter(i -> "RETURNED".equals(i.getStatus())).count());
 
         if (plan.getCurrentWave() < plan.getTotalWaves()) {
+            // 还有下一波：先持久化递增后的 currentWave，事务提交后再下发 AGV 卸料指令
             plan.setCurrentWave(plan.getCurrentWave() + 1);
-            sendUnloadWave(plan);
-            log.info("[AgvReturn] 波次{}完成，触发下一波卸料 taskId={}", wave, req.getTransferTaskId());
+            planMapper.updateById(plan);
+            log.info("[AgvReturn] 波次{}完成，异步触发下一波卸料 taskId={}", wave, req.getTransferTaskId());
         } else {
-            completeOrchestration(plan);
-            log.info("[AgvReturn] 全部入库完成，触发流程回调 taskId={}", req.getTransferTaskId());
+            // 全部完成：先持久化 WAIT_FLOW_COMMIT，事务提交后再回调流程
+            plan.setStatus("WAIT_FLOW_COMMIT");
+            planMapper.updateById(plan);
+            log.info("[AgvReturn] 全部入库完成，异步触发流程回调 taskId={}", req.getTransferTaskId());
         }
+
+        String planTaskId = plan.getTaskId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() { self.triggerNextStepAsync(planTaskId); }
+        });
         return result(plan, item);
     }
 
@@ -359,6 +388,14 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
         if (waveItems.isEmpty()) {
             throw exception(AGV_LOAD_PLAN_INVALID, "第" + wave + "波无待卸料物料");
         }
+        // 波次 2+ 时中转位已被上一波入库后清空为 EMPTY，需重新预留为 RESERVED
+        // 波次 1 时中转位已在 startReturnOrchestration 预留，reserveIfEmpty 返回 0 无副作用
+        Set<String> reservedTransits = new java.util.HashSet<>();
+        for (AgvReturnItemDO item : waveItems) {
+            if (reservedTransits.add(item.getTransitSlotId())) {
+                slotMapper.reserveIfEmpty(item.getTransitSlotId());
+            }
+        }
         String agvTaskId = plan.getTaskId() + "-UNLOAD-" + wave;
         List<Map<String, Object>> commands = new ArrayList<>();
         for (AgvReturnItemDO item : waveItems) {
@@ -432,9 +469,14 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
         return true;
     }
 
+    /** 仅设置状态（DB 持久化），流程回调由 triggerNextStepAsync 在事务提交后异步执行。 */
     private void completeOrchestration(AgvReturnPlanDO plan) {
         plan.setStatus("WAIT_FLOW_COMMIT");
         planMapper.updateById(plan);
+    }
+
+    /** 事务提交后推进流程：回调节点（仅在 WAIT_FLOW_COMMIT 时调用）。 */
+    private void doFlowCallback(AgvReturnPlanDO plan) {
         CallbackResult callback = stepCallbackSpi.callback(
                 plan.getTaskId(), plan.getOrchestrationNodeId(), null, true,
                 Map.of("returnedCount", plan.getExpectedCount(), "warehouseReturn", true),
@@ -442,6 +484,39 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
         if (!callback.isSuccess()) {
             throw exception(AGV_LOAD_PLAN_STATE_INVALID,
                     "下料编排节点推进失败: " + callback.getErrorMsg());
+        }
+    }
+
+    @Async
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public void triggerNextStepAsync(String taskId) {
+        try {
+            // 等待 200ms，确保仓储设备已收到本次回调的 200 响应，再发下一条请求
+            Thread.sleep(200);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        try {
+            AgvReturnPlanDO plan = planMapper.selectByTaskId(taskId);
+            if (plan == null) {
+                log.warn("[AgvReturn] 异步触发下一步：计划不存在 taskId={}", taskId);
+                return;
+            }
+            if ("WAIT_FLOW_COMMIT".equals(plan.getStatus())) {
+                // 全部入库完成，回调流程（事务已提交，安全调用）
+                doFlowCallback(plan);
+                log.info("[AgvReturn] 异步流程回调完成 taskId={}", taskId);
+            } else {
+                // 当前波次还有待请求的仓储入库 → 发下一条仓储请求；否则触发下一波 AGV 卸料
+                int wave = plan.getCurrentWave();
+                if (!requestNextWarehouseReturn(plan, wave)) {
+                    sendUnloadWave(plan);
+                    log.info("[AgvReturn] 异步触发第{}波卸料 taskId={}", wave, taskId);
+                }
+            }
+        } catch (Exception e) {
+            log.error("[AgvReturn] 异步触发下一步失败 taskId={}", taskId, e);
         }
     }
 

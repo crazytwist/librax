@@ -45,6 +45,7 @@ public interface AgvReturnItemMapper extends BaseMapperX<AgvReturnItemDO> {
         return selectOne(new LambdaQueryWrapperX<AgvReturnItemDO>()
                 .eq(AgvReturnItemDO::getTaskId, taskId)
                 .eq(AgvReturnItemDO::getTransitSlotId, transitSlotId)
+                .eq(AgvReturnItemDO::getStatus, "IN_TRANSIT")
                 .last("LIMIT 1"));
     }
 }

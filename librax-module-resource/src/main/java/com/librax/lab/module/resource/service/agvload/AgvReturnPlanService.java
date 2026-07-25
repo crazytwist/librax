@@ -53,4 +53,14 @@ public interface AgvReturnPlanService {
     boolean hasPlan(String taskId);
 
     Map<String, Object> getProgress(String taskId);
+
+    /**
+     * 事务提交后异步触发下一步：请求仓储入库、下发下一波 AGV 卸料、或回调流程。
+     *
+     * <p>由 {@link #markSlotReturned} 在事务提交后通过 {@code afterCommit} 钩子调用，
+     * 确保先返回 200 给仓储，再执行后续外部调用，与补料侧保持一致。
+     *
+     * @param taskId 下料编排任务ID（即流程执行ID）
+     */
+    void triggerNextStepAsync(String taskId);
 }
