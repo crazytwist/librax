@@ -25,8 +25,20 @@ services:
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASS=${REDIS_PASS:-}
+    # AI生成注释: 方案 A — stdout 由 json-file 保留，供节点上 Promtail Docker SD 采集（见 script/docker/logging/）
+    # 作者: AI
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     deploy:
       replicas: 1
+      # AI生成注释: Promtail 通过 label logging=promtail 过滤本服务容器
+      # 作者: AI
+      labels:
+        - "logging=promtail"
+        - "app=librax"
       placement:
         preferences:
           - spread: node.id
