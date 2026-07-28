@@ -32,10 +32,14 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
+    # AI生成注释: 必须用服务级 labels（写入容器），Promtail docker_sd 读的是容器标签；
+    # deploy.labels 只挂在 Service 上，__meta_docker_container_label_* 看不到，会导致采不到日志
+    # 作者: AI
+    labels:
+      - "logging=promtail"
+      - "app=librax"
     deploy:
       replicas: 1
-      # AI生成注释: Promtail 通过 label logging=promtail 过滤本服务容器
-      # 作者: AI
       labels:
         - "logging=promtail"
         - "app=librax"
