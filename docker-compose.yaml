@@ -25,15 +25,17 @@ services:
       - REDIS_HOST=${REDIS_HOST}
       - REDIS_PORT=${REDIS_PORT:-6379}
       - REDIS_PASS=${REDIS_PASS:-}
-    # AI生成注释: 方案 A — stdout 由 json-file 保留，供节点上 Promtail Docker SD 采集（见 script/docker/logging/）
+    # AI生成注释: 方案 A — stdout → json-file；labels 写入 attrs 供 Promtail 文件采集过滤
     # 作者: AI
     logging:
       driver: json-file
       options:
         max-size: "50m"
         max-file: "5"
-    # AI生成注释: 必须用服务级 labels（写入容器），Promtail docker_sd 读的是容器标签；
-    # deploy.labels 只挂在 Service 上，__meta_docker_container_label_* 看不到，会导致采不到日志
+        # AI生成注释: 写入 json-file attrs，供 Promtail 文件采集按 logging=promtail 过滤
+        # 作者: AI
+        labels: "logging,app"
+    # AI生成注释: 必须用服务级 labels（写入容器）；deploy.labels 只挂在 Service 上
     # 作者: AI
     labels:
       - "logging=promtail"
