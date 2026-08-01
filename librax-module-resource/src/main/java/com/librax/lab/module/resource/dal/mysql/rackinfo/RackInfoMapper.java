@@ -19,7 +19,7 @@ public interface RackInfoMapper extends BaseMapperX<RackInfoDO> {
 
     default PageResult<RackInfoDO> selectPage(RackInfoPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<RackInfoDO>()
-                .eqIfPresent(RackInfoDO::getRackId, reqVO.getRackId())
+                .likeIfPresent(RackInfoDO::getRackId, reqVO.getRackId())
                 .likeIfPresent(RackInfoDO::getRackName, reqVO.getRackName())
                 .eqIfPresent(RackInfoDO::getRackType, reqVO.getRackType())
                 .eqIfPresent(RackInfoDO::getZoneCode, reqVO.getZoneCode())

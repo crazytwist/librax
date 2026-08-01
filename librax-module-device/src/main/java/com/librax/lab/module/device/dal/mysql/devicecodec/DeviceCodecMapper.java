@@ -26,7 +26,7 @@ public interface DeviceCodecMapper extends BaseMapperX<DeviceCodecDO> {
                 .eqIfPresent(DeviceCodecDO::getScriptContent, reqVO.getScriptContent())
                 .eqIfPresent(DeviceCodecDO::getUnitConversions, reqVO.getUnitConversions())
                 .eqIfPresent(DeviceCodecDO::getValidRange, reqVO.getValidRange())
-                .eqIfPresent(DeviceCodecDO::getRemark, reqVO.getRemark())
+                .likeIfPresent(DeviceCodecDO::getRemark, reqVO.getRemark())
                 .betweenIfPresent(DeviceCodecDO::getCreateTime, reqVO.getCreateTime())
                 .orderByDesc(DeviceCodecDO::getId));
     }

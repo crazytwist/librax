@@ -1,0 +1,1950 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Librax 软件详细设计说明书</title>
+<style>
+  :root {
+    --primary: #1a5276;
+    --primary-light: #2e86c1;
+    --accent: #148f77;
+    --accent-light: #1abc9c;
+    --warn: #d35400;
+    --bg: #f4f6f9;
+    --surface: #ffffff;
+    --border: #dce3ec;
+    --text: #1c2833;
+    --text-muted: #5d6d7e;
+    --code-bg: #1e272e;
+    --code-text: #dfe6e9;
+    --tag-blue: #d6eaf8;
+    --tag-green: #d5f5e3;
+    --tag-orange: #fdebd0;
+    --tag-purple: #e8daef;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 14px;
+  }
+
+  /* ── Layout ── */
+  .page-wrapper { display: flex; min-height: 100vh; }
+
+  .sidebar {
+    width: 260px;
+    min-width: 260px;
+    background: var(--primary);
+    color: #ecf0f1;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    padding-bottom: 40px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,0.2) transparent;
+  }
+
+  .sidebar-logo {
+    padding: 28px 20px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .sidebar-logo h1 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #fff;
+  }
+
+  .sidebar-logo span {
+    font-size: 11px;
+    color: rgba(255,255,255,0.5);
+    display: block;
+    margin-top: 4px;
+  }
+
+  .sidebar nav { padding: 16px 0; }
+
+  .nav-group-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.4);
+    padding: 12px 20px 6px;
+    text-transform: uppercase;
+  }
+
+  .sidebar a {
+    display: block;
+    padding: 8px 20px 8px 28px;
+    color: rgba(255,255,255,0.75);
+    text-decoration: none;
+    font-size: 13px;
+    transition: all 0.15s;
+    border-left: 2px solid transparent;
+    position: relative;
+  }
+
+  .sidebar a::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.3);
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  .sidebar a:hover, .sidebar a.active {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    border-left-color: var(--accent-light);
+  }
+
+  .sidebar a.active::before { background: var(--accent-light); }
+
+  .content {
+    flex: 1;
+    padding: 40px 48px;
+    max-width: 1100px;
+  }
+
+  /* ── Cover ── */
+  .cover {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 60%, var(--accent) 100%);
+    color: #fff;
+    border-radius: 12px;
+    padding: 56px 48px;
+    margin-bottom: 48px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cover::after {
+    content: 'LIBRAX';
+    position: absolute;
+    right: -20px; bottom: -30px;
+    font-size: 140px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.05);
+    letter-spacing: -4px;
+    pointer-events: none;
+  }
+
+  .cover-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 12px;
+    letter-spacing: 1px;
+    margin-bottom: 20px;
+  }
+
+  .cover h1 {
+    font-size: 36px;
+    font-weight: 800;
+    margin-bottom: 12px;
+    line-height: 1.2;
+  }
+
+  .cover-subtitle { font-size: 16px; color: rgba(255,255,255,0.8); margin-bottom: 36px; }
+
+  .cover-meta {
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+  }
+
+  .cover-meta-item { font-size: 13px; }
+  .cover-meta-item .label { color: rgba(255,255,255,0.5); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 2px; }
+  .cover-meta-item .value { font-weight: 600; }
+
+  /* ── Section ── */
+  section { margin-bottom: 56px; }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .section-num {
+    width: 32px; height: 32px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .section-header h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--primary);
+  }
+
+  h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--primary-light);
+    margin: 28px 0 12px;
+    padding-left: 10px;
+    border-left: 3px solid var(--primary-light);
+  }
+
+  h4 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    margin: 20px 0 8px;
+  }
+
+  p { margin-bottom: 12px; color: var(--text); }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-weight: 700;
+    font-size: 14px;
+    margin-bottom: 12px;
+    color: var(--primary);
+  }
+
+  /* ── Grid ── */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  /* ── Module Cards ── */
+  .module-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; margin-top: 16px; }
+
+  .module-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+    border-top: 3px solid var(--primary-light);
+    transition: box-shadow 0.2s;
+  }
+
+  .module-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+
+  .module-card.accent { border-top-color: var(--accent); }
+  .module-card.warn { border-top-color: var(--warn); }
+  .module-card.purple { border-top-color: #8e44ad; }
+
+  .module-card-icon { font-size: 24px; margin-bottom: 8px; }
+  .module-card h4 { margin: 0 0 8px; color: var(--text); }
+  .module-card p { font-size: 12px; color: var(--text-muted); margin: 0; }
+
+  /* ── Tag ── */
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    margin: 2px;
+  }
+
+  .tag-blue { background: var(--tag-blue); color: #1a5276; }
+  .tag-green { background: var(--tag-green); color: #1e8449; }
+  .tag-orange { background: var(--tag-orange); color: #b7770d; }
+  .tag-purple { background: var(--tag-purple); color: #6c3483; }
+  .tag-gray { background: #eaecee; color: #5d6d7e; }
+
+  /* ── Code ── */
+  pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    border-radius: 8px;
+    padding: 20px;
+    overflow-x: auto;
+    font-family: "JetBrains Mono", "Fira Code", Consolas, monospace;
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin: 12px 0 20px;
+  }
+
+  code {
+    background: #eaecee;
+    color: #c0392b;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: "JetBrains Mono", Consolas, monospace;
+    font-size: 12px;
+  }
+
+  pre code { background: none; color: inherit; padding: 0; }
+
+  /* ── Table ── */
+  .table-wrap { overflow-x: auto; margin: 16px 0; border-radius: 8px; border: 1px solid var(--border); }
+
+  table { width: 100%; border-collapse: collapse; background: var(--surface); }
+
+  thead tr { background: var(--primary); color: #fff; }
+
+  th {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    vertical-align: top;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:nth-child(even) { background: #f8fafc; }
+
+  /* ── Flow Diagram ── */
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 16px 0;
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+
+  .flow-node {
+    background: var(--primary);
+    color: #fff;
+    padding: 8px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .flow-node.green { background: var(--accent); }
+  .flow-node.orange { background: var(--warn); }
+  .flow-node.gray { background: #7f8c8d; }
+  .flow-node.purple { background: #8e44ad; }
+  .flow-node.light { background: var(--primary-light); }
+
+  .flow-arrow {
+    color: var(--text-muted);
+    font-size: 18px;
+    padding: 0 2px;
+  }
+
+  /* ── Status Badge ── */
+  .status-flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 12px 0;
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  .status-badge {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    border: 2px solid;
+  }
+
+  .sb-pending { background: #fef9e7; border-color: #f39c12; color: #d68910; }
+  .sb-running { background: #d6eaf8; border-color: #2e86c1; color: #1a5276; }
+  .sb-success { background: #d5f5e3; border-color: #27ae60; color: #1e8449; }
+  .sb-failed  { background: #fadbd8; border-color: #e74c3c; color: #c0392b; }
+  .sb-cancel  { background: #eaecee; border-color: #7f8c8d; color: #5d6d7e; }
+  .sb-comp    { background: #e8daef; border-color: #8e44ad; color: #6c3483; }
+  .sb-paused  { background: #fdebd0; border-color: #d35400; color: #b7770d; }
+
+  .status-sep { color: var(--text-muted); font-size: 18px; }
+
+  /* ── Info Box ── */
+  .info-box {
+    background: #e8f4fd;
+    border-left: 4px solid var(--primary-light);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+
+  .warn-box {
+    background: #fef9e7;
+    border-left: 4px solid var(--warn);
+    border-radius: 0 8px 8px 0;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+
+  /* ── Arch Diagram ── */
+  .arch-layer {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+
+  .arch-layer-header {
+    background: var(--primary);
+    color: #fff;
+    padding: 8px 16px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  .arch-layer.green .arch-layer-header { background: var(--accent); }
+  .arch-layer.orange .arch-layer-header { background: var(--warn); }
+  .arch-layer.purple .arch-layer-header { background: #8e44ad; }
+  .arch-layer.gray .arch-layer-header { background: #5d6d7e; }
+
+  .arch-layer-body {
+    padding: 12px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .arch-item {
+    background: #f4f6f9;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  /* ── Entity Table ── */
+  .entity-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+
+  .entity-header {
+    background: linear-gradient(90deg, var(--primary), var(--primary-light));
+    color: #fff;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .entity-header h4 { margin: 0; color: #fff; font-size: 14px; }
+
+  .entity-table-name {
+    font-size: 11px;
+    color: rgba(255,255,255,0.6);
+    font-family: monospace;
+    background: rgba(0,0,0,0.2);
+    padding: 2px 8px;
+    border-radius: 4px;
+  }
+
+  .entity-body { padding: 0; }
+
+  /* ── TOC ── */
+  .toc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+
+  .toc-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    text-decoration: none;
+    color: var(--text);
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+
+  .toc-item:hover {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+  }
+
+  .toc-num {
+    width: 24px; height: 24px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .toc-item:hover .toc-num { background: rgba(255,255,255,0.2); }
+
+  /* ── Tech Stack Pills ── */
+  .tech-grid { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+
+  .tech-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .tech-pill .version { color: var(--text-muted); font-weight: 400; }
+
+  /* ── Responsive ── */
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .content { padding: 20px; }
+    .grid-2, .grid-3, .toc-grid { grid-template-columns: 1fr; }
+  }
+
+  @media print {
+    .sidebar { display: none; }
+    .content { padding: 20px; max-width: 100%; }
+    section { page-break-inside: avoid; }
+  }
+
+  /* ── Util ── */
+  ul.clean { list-style: none; padding: 0; }
+  ul.clean li { padding: 4px 0; padding-left: 16px; position: relative; font-size: 13px; }
+  ul.clean li::before { content: '▸'; position: absolute; left: 0; color: var(--accent); font-size: 10px; top: 6px; }
+
+  .divider { border: none; border-top: 1px solid var(--border); margin: 32px 0; }
+
+  .highlight { background: #fff9c4; padding: 1px 4px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="page-wrapper">
+
+<!-- ══════════════════════════════════════════ SIDEBAR ══════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <h1>LIBRAX</h1>
+    <span>软件详细设计说明书 V1.0</span>
+  </div>
+  <nav>
+    <div class="nav-group-title">概述</div>
+    <a href="#cover">封面 & 修订历史</a>
+    <a href="#toc">目录</a>
+    <a href="#overview">1. 项目概述</a>
+    <a href="#arch">2. 系统架构设计</a>
+
+    <div class="nav-group-title">模块设计</div>
+    <a href="#module-flow">3. 流程引擎模块</a>
+    <a href="#module-device">4. 设备管理模块</a>
+    <a href="#module-lab">5. 实验室管理模块</a>
+    <a href="#module-resource">6. 资源调度模块</a>
+    <a href="#module-task">7. 任务执行模块</a>
+    <a href="#module-system">8. 系统基础模块</a>
+
+    <div class="nav-group-title">数据 & 接口</div>
+    <a href="#data-design">9. 数据库设计</a>
+    <a href="#api-design">10. 接口设计</a>
+    <a href="#websocket">11. WebSocket 通信</a>
+
+    <div class="nav-group-title">非功能</div>
+    <a href="#security">12. 安全设计</a>
+    <a href="#performance">13. 性能设计</a>
+    <a href="#deploy">14. 部署架构</a>
+    <a href="#test">15. 测试策略</a>
+  </nav>
+</aside>
+
+<!-- ══════════════════════════════════════════ MAIN ══════════════════════════════════════════ -->
+<main class="content">
+
+<!-- ── Cover ── -->
+<div class="cover" id="cover">
+  <div class="cover-badge">INTERNAL DOCUMENT · CONFIDENTIAL</div>
+  <h1>Librax 实验室自动化平台<br>软件详细设计说明书</h1>
+  <p class="cover-subtitle">Lab Research Analysis Exchange — 全流程实验室样本检测与分析系统</p>
+  <div class="cover-meta">
+    <div class="cover-meta-item">
+      <div class="label">版本</div>
+      <div class="value">V1.0</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">状态</div>
+      <div class="value">评审中</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">技术栈</div>
+      <div class="value">Spring Boot 3.5 · Java 17 · MySQL · Redis</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">编制日期</div>
+      <div class="value">2025-11</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Revision History ── -->
+<section>
+  <div class="section-header">
+    <div style="font-size:13px;color:var(--text-muted);font-weight:600;">修订历史</div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>版本</th><th>日期</th><th>修改说明</th><th>作者</th></tr></thead>
+      <tbody>
+        <tr><td>v0.1</td><td>2025-09</td><td>初始版本，整体架构定稿</td><td>yinan</td></tr>
+        <tr><td>v0.5</td><td>2025-10</td><td>补充设备管理、资源调度模块设计</td><td>yinan</td></tr>
+        <tr><td>v0.8</td><td>2025-11</td><td>单步调试、子流程、WebSocket 实时通信完善</td><td>yinan</td></tr>
+        <tr><td>V1.0</td><td>2025-11</td><td>全量设计说明书，正式发布</td><td>yinan</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ── TOC ── -->
+<section id="toc">
+  <div class="section-header">
+    <div class="section-num">≡</div>
+    <h2>目录</h2>
+  </div>
+  <div class="toc-grid">
+    <a class="toc-item" href="#overview"><span class="toc-num">1</span>项目概述与目标</a>
+    <a class="toc-item" href="#arch"><span class="toc-num">2</span>系统架构设计</a>
+    <a class="toc-item" href="#module-flow"><span class="toc-num">3</span>流程引擎模块详设</a>
+    <a class="toc-item" href="#module-device"><span class="toc-num">4</span>设备管理模块详设</a>
+    <a class="toc-item" href="#module-lab"><span class="toc-num">5</span>实验室管理模块详设</a>
+    <a class="toc-item" href="#module-resource"><span class="toc-num">6</span>资源调度模块详设</a>
+    <a class="toc-item" href="#module-task"><span class="toc-num">7</span>任务执行模块详设</a>
+    <a class="toc-item" href="#module-system"><span class="toc-num">8</span>系统基础模块详设</a>
+    <a class="toc-item" href="#data-design"><span class="toc-num">9</span>数据库设计</a>
+    <a class="toc-item" href="#api-design"><span class="toc-num">10</span>接口规范设计</a>
+    <a class="toc-item" href="#websocket"><span class="toc-num">11</span>WebSocket 通信设计</a>
+    <a class="toc-item" href="#security"><span class="toc-num">12</span>安全架构设计</a>
+    <a class="toc-item" href="#performance"><span class="toc-num">13</span>性能与可靠性设计</a>
+    <a class="toc-item" href="#deploy"><span class="toc-num">14</span>部署架构设计</a>
+    <a class="toc-item" href="#test"><span class="toc-num">15</span>测试策略</a>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 1. 项目概述 ═══════════════════════════ -->
+<section id="overview">
+  <div class="section-header">
+    <div class="section-num">1</div>
+    <h2>项目概述与目标</h2>
+  </div>
+
+  <h3>1.1 系统定位</h3>
+  <p>Librax 是一个面向实验室自动化场景的企业级综合管理平台，融合了 <strong>流程编排引擎、设备通信层、样本全生命周期管理、资源调度</strong> 和 <strong>任务执行框架</strong> 五大核心能力，旨在解决现代实验室中流程复杂、设备异构、数据割裂、人工依赖度高等核心痛点。</p>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">核心业务场景</div>
+      <ul class="clean">
+        <li>样本从签收 → 处理 → 检测 → 归档全流程数字化</li>
+        <li>多类型仪器（pH 计、浊度仪、分析仪）统一接入与调度</li>
+        <li>AGV 自动搬运与存储架位置精确管理</li>
+        <li>检测流程 DAG 编排，支持并行、条件分支、失败补偿</li>
+        <li>样本衍生追溯（原始/分裂/合并/取液）完整谱系</li>
+        <li>多区域资源共享配额与独占资源管理</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">设计目标</div>
+      <ul class="clean">
+        <li>流程定义与执行分离，支持版本化管理</li>
+        <li>步骤组件可复用，支持单步独立调试</li>
+        <li>设备协议插件化（TCP/HTTP/串口/SDK/Mock）</li>
+        <li>资源独占与共享两种模式，分布式锁保证一致性</li>
+        <li>全链路可观测：执行日志、事件追踪、关键路径分析</li>
+        <li>多租户 SaaS 模式，数据隔离，权限精细控制</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>1.2 技术栈选型</h3>
+  <div class="tech-grid">
+    <div class="tech-pill">☕ Java <span class="version">17+</span></div>
+    <div class="tech-pill">🌱 Spring Boot <span class="version">3.5.5</span></div>
+    <div class="tech-pill">🔒 Spring Security <span class="version">6.5.2</span></div>
+    <div class="tech-pill">🗄️ MyBatis Plus <span class="version">3.5.12</span></div>
+    <div class="tech-pill">🔴 Redis / Redisson <span class="version">3.35.0</span></div>
+    <div class="tech-pill">🐬 MySQL <span class="version">5.7 / 8.0</span></div>
+    <div class="tech-pill">⚡ LiteFlow <span class="version">2.10.x</span></div>
+    <div class="tech-pill">📊 JGraphT <span class="version">DAG 引擎</span></div>
+    <div class="tech-pill">🔣 Aviator <span class="version">条件表达式</span></div>
+    <div class="tech-pill">⏰ Quartz <span class="version">2.5.0</span></div>
+    <div class="tech-pill">🗺️ MapStruct <span class="version">1.6.3</span></div>
+    <div class="tech-pill">☕ Caffeine <span class="version">本地缓存</span></div>
+    <div class="tech-pill">🌐 OkHttp <span class="version">HTTP 设备客户端</span></div>
+    <div class="tech-pill">📋 EasyExcel <span class="version">导入导出</span></div>
+    <div class="tech-pill">🔭 SkyWalking <span class="version">9.5.0 APM</span></div>
+    <div class="tech-pill">📘 Springdoc <span class="version">2.8.9 OpenAPI</span></div>
+  </div>
+
+  <h3>1.3 术语定义</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>术语</th><th>英文</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>流水线</td><td>Pipeline</td><td>由若干步骤组成的 DAG 工作流定义，描述实验检测过程</td></tr>
+        <tr><td>流水线实例</td><td>PipelineExecution</td><td>一次流水线运行的完整生命周期记录</td></tr>
+        <tr><td>步骤定义</td><td>StepDefinition</td><td>可复用的原子操作模板（如 pH 测量、离心等）</td></tr>
+        <tr><td>步骤实例</td><td>StepExecution</td><td>某次执行中某步骤的单次尝试记录</td></tr>
+        <tr><td>执行上下文</td><td>ExecutionContext</td><td>流水线运行期间步骤间共享的变量空间</td></tr>
+        <tr><td>节点 ID</td><td>nodeId</td><td>流水线内步骤的唯一标识，用于 DAG 拓扑关系</td></tr>
+        <tr><td>区域</td><td>Zone</td><td>实验室物理区域划分，资源与权限管控的基本单元</td></tr>
+        <tr><td>补偿</td><td>Compensation</td><td>步骤失败后执行的回滚/撤销操作</td></tr>
+        <tr><td>任务</td><td>Task</td><td>可被设备/AGV/人/Bean 执行的工作单元</td></tr>
+        <tr><td>回调令牌</td><td>CallbackToken</td><td>用于验证外部系统回调合法性的随机字符串</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 2. 系统架构 ═══════════════════════════ -->
+<section id="arch">
+  <div class="section-header">
+    <div class="section-num">2</div>
+    <h2>系统架构设计</h2>
+  </div>
+
+  <h3>2.1 整体分层架构</h3>
+
+  <div class="arch-layer">
+    <div class="arch-layer-header">接入层 · ACCESS LAYER</div>
+    <div class="arch-layer-body">
+      <div class="arch-item">REST API (Spring MVC)</div>
+      <div class="arch-item">WebSocket (STOMP)</div>
+      <div class="arch-item">设备回调 Webhook</div>
+      <div class="arch-item">Quartz 定时触发</div>
+      <div class="arch-item">MQ 消息消费</div>
+    </div>
+  </div>
+
+  <div class="arch-layer green">
+    <div class="arch-layer-header">业务层 · BUSINESS LAYER</div>
+    <div class="arch-layer-body">
+      <div class="arch-item">librax-module-flow（流程引擎）</div>
+      <div class="arch-item">librax-module-device（设备管理）</div>
+      <div class="arch-item">librax-module-lab（实验室管理）</div>
+      <div class="arch-item">librax-module-resource（资源调度）</div>
+      <div class="arch-item">librax-module-task（任务执行）</div>
+      <div class="arch-item">librax-module-system（用户权限）</div>
+    </div>
+  </div>
+
+  <div class="arch-layer orange">
+    <div class="arch-layer-header">能力层 · CAPABILITY LAYER</div>
+    <div class="arch-layer-body">
+      <div class="arch-item">DAG 调度引擎 (JGraphT)</div>
+      <div class="arch-item">规则引擎 (Aviator)</div>
+      <div class="arch-item">流程编排 (LiteFlow)</div>
+      <div class="arch-item">分布式锁 (Redisson)</div>
+      <div class="arch-item">幂等保护 (Redis)</div>
+      <div class="arch-item">设备连接器工厂</div>
+      <div class="arch-item">Job 调度 (Quartz)</div>
+      <div class="arch-item">消息队列抽象</div>
+    </div>
+  </div>
+
+  <div class="arch-layer purple">
+    <div class="arch-layer-header">框架层 · FRAMEWORK LAYER</div>
+    <div class="arch-layer-body">
+      <div class="arch-item">Security (认证/授权)</div>
+      <div class="arch-item">Web (统一响应/异常)</div>
+      <div class="arch-item">MyBatis (ORM/分页)</div>
+      <div class="arch-item">Multi-Tenant (租户隔离)</div>
+      <div class="arch-item">Data Permission (数据权限)</div>
+      <div class="arch-item">Monitor (健康监控)</div>
+      <div class="arch-item">Excel 导入导出</div>
+    </div>
+  </div>
+
+  <div class="arch-layer gray">
+    <div class="arch-layer-header">基础设施层 · INFRASTRUCTURE LAYER</div>
+    <div class="arch-layer-body">
+      <div class="arch-item">MySQL 5.7/8.0 (主从读写分离)</div>
+      <div class="arch-item">Redis 5.0/6.0/7.0 (缓存+队列+锁)</div>
+      <div class="arch-item">RocketMQ / RabbitMQ / Kafka (异步消息)</div>
+      <div class="arch-item">MinIO / S3 (文件存储)</div>
+      <div class="arch-item">SkyWalking (链路追踪)</div>
+    </div>
+  </div>
+
+  <h3>2.2 Maven 多模块结构</h3>
+  <pre><code>librax/
+├─ librax-dependencies/          # BOM 依赖管理（版本锁定）
+├─ librax-framework/             # 横切框架能力
+│   ├─ librax-common/            # 基础工具、常量、异常
+│   ├─ librax-spring-boot-starter-web/       # Web 层封装
+│   ├─ librax-spring-boot-starter-security/  # 安全认证授权
+│   ├─ librax-spring-boot-starter-mybatis/   # MyBatis Plus 封装
+│   ├─ librax-spring-boot-starter-redis/     # Redis/Redisson 客户端
+│   ├─ librax-spring-boot-starter-job/       # Quartz 任务调度
+│   ├─ librax-spring-boot-starter-mq/        # 消息队列抽象
+│   ├─ librax-spring-boot-starter-websocket/ # WebSocket 通信
+│   ├─ librax-spring-boot-starter-monitor/   # SkyWalking/SpringAdmin
+│   ├─ librax-spring-boot-starter-protection/# 幂等/限流/分布式锁
+│   └─ librax-spring-boot-starter-excel/     # Excel 导入导出
+├─ librax-module-system/         # 用户/角色/权限/租户/字典
+├─ librax-module-infra/          # 代码生成/文件服务/配置中心
+├─ librax-module-flow/           # 流程引擎（核心模块）
+├─ librax-module-flow-api/       # 流程模块对外 API 契约
+├─ librax-module-device/         # 设备管理与通信
+├─ librax-module-device-api/     # 设备模块对外 API 契约
+├─ librax-module-lab/            # 样本/材料/容器管理
+├─ librax-module-resource/       # 资源调度与存储架管理
+├─ librax-module-task/           # 任务队列与执行框架
+└─ librax-server/                # 聚合启动入口（Spring Boot 主应用）</code></pre>
+
+  <h3>2.3 模块依赖关系</h3>
+  <div class="info-box">
+    各业务模块通过 <code>-api</code> 子模块暴露对外接口契约，避免直接依赖内部实现，降低模块耦合度。
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>模块</th><th>依赖模块</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>librax-server</code></td><td>所有业务模块</td><td>聚合部署入口</td></tr>
+        <tr><td><code>module-flow</code></td><td>infra, flow-api, device-api, job, mq, websocket</td><td>流程引擎，依赖设备回调 API</td></tr>
+        <tr><td><code>module-device</code></td><td>infra, device-api, flow-api</td><td>设备管理，依赖流程回调 API</td></tr>
+        <tr><td><code>module-lab</code></td><td>infra, flow</td><td>样本管理，关联流程执行</td></tr>
+        <tr><td><code>module-resource</code></td><td>infra</td><td>资源调度，无复杂外部依赖</td></tr>
+        <tr><td><code>module-task</code></td><td>infra</td><td>任务模型，被 flow/device 调用</td></tr>
+        <tr><td><code>module-system</code></td><td>infra</td><td>基础用户权限体系</td></tr>
+        <tr><td><code>module-infra</code></td><td>system</td><td>代码生成、文件服务等基础设施</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 3. 流程引擎 ═══════════════════════════ -->
+<section id="module-flow">
+  <div class="section-header">
+    <div class="section-num">3</div>
+    <h2>流程引擎模块 (librax-module-flow)</h2>
+  </div>
+
+  <h3>3.1 模块职责</h3>
+  <p>流程引擎是 Librax 的核心，负责实验检测流程的 <strong>定义、版本管理、调度执行、状态追踪、失败补偿</strong> 全生命周期管理。基于 DAG（有向无环图）模型，支持步骤并行执行、条件分支、子流程嵌套和单步独立调试。</p>
+
+  <h3>3.2 流水线执行状态机</h3>
+  <div class="status-flow">
+    <span class="status-badge sb-pending">PENDING</span>
+    <span class="status-sep">→</span>
+    <span class="status-badge sb-running">RUNNING</span>
+    <span class="status-sep">→</span>
+    <span class="status-badge sb-paused">PAUSED</span>
+    <span class="status-sep">↔</span>
+    <span class="status-badge sb-running">RUNNING</span>
+    <span class="status-sep">→</span>
+    <span class="status-badge sb-success">SUCCESS</span>
+  </div>
+  <div class="status-flow">
+    <span class="status-badge sb-running">RUNNING</span>
+    <span class="status-sep">→</span>
+    <span class="status-badge sb-failed">FAILED</span>
+    <span class="status-sep">→</span>
+    <span class="status-badge sb-comp">COMPENSATING</span>
+    <span class="status-sep">→</span>
+    <span class="status-badge sb-comp">COMPENSATED</span>
+  </div>
+  <div class="status-flow">
+    <span class="status-badge sb-running">RUNNING</span>
+    <span class="status-sep">→</span>
+    <span class="status-badge sb-cancel">CANCELLED</span>
+  </div>
+
+  <h3>3.3 步骤类型设计</h3>
+  <div class="module-grid">
+    <div class="module-card">
+      <div class="module-card-icon">🔬</div>
+      <h4>INSTRUMENT</h4>
+      <p>调用物理仪器，创建 Task 并等待设备回调，异步完成</p>
+    </div>
+    <div class="module-card accent">
+      <div class="module-card-icon">⚙️</div>
+      <h4>COMPUTE</h4>
+      <p>执行 Spring Bean 方法或 LiteFlow 规则链，同步返回结果</p>
+    </div>
+    <div class="module-card warn">
+      <div class="module-card-icon">🔀</div>
+      <h4>CONDITION</h4>
+      <p>使用 Aviator 表达式求值，根据结果选择后续分支路径</p>
+    </div>
+    <div class="module-card purple">
+      <div class="module-card-icon">⏳</div>
+      <h4>WAIT</h4>
+      <p>等待定时器超时或外部信号（DEVICE_CALLBACK / EXTERNAL_EVENT）</p>
+    </div>
+    <div class="module-card">
+      <div class="module-card-icon">🔔</div>
+      <h4>NOTIFY</h4>
+      <p>发送通知（短信/邮件/Webhook），不阻塞后续步骤</p>
+    </div>
+    <div class="module-card accent">
+      <div class="module-card-icon">🧬</div>
+      <h4>SAMPLE_SPLIT</h4>
+      <p>样本分裂，创建子样本并为每个子样本启动独立分支执行</p>
+    </div>
+    <div class="module-card warn">
+      <div class="module-card-icon">👤</div>
+      <h4>MANUAL</h4>
+      <p>暂停等待人工审批，支持指定审批人和截止时间</p>
+    </div>
+    <div class="module-card purple">
+      <div class="module-card-icon">🚀</div>
+      <h4>UNIT_LAUNCHER</h4>
+      <p>启动子流程（子 PipelineExecution），支持嵌套工作流</p>
+    </div>
+  </div>
+
+  <h3>3.4 DAG 调度引擎设计</h3>
+  <div class="card">
+    <div class="card-title">DagScheduler 核心逻辑</div>
+    <ol style="padding-left:20px;font-size:13px;line-height:2">
+      <li>从 <code>PipelineStepDO</code> 构建有向图（节点=stepKey，边=precedingNodeIds）</li>
+      <li>使用 <strong>JGraphT 拓扑排序</strong>验证无环性，输出执行序列</li>
+      <li>遍历就绪节点（前驱全部 SUCCESS/SKIPPED），并行提交至线程池</li>
+      <li>每个节点由 <code>StepExecutorFactory</code> 按 <code>stepType</code> 选择对应执行器</li>
+      <li>执行完成后更新 <code>StepExecutionDO</code> 状态，触发下游节点就绪检查</li>
+      <li>所有节点完成后，用 JGraphT 计算 <strong>关键路径</strong>，写入 <code>PipelineExecutionDO.criticalPath</code></li>
+    </ol>
+  </div>
+
+  <h3>3.5 执行上下文（Context）设计</h3>
+  <p>流水线执行期间，步骤间数据通过 <code>ExecutionContextDO</code> 共享，遵循以下命名空间规则：</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>命名空间</th><th>表达式示例</th><th>来源</th></tr></thead>
+      <tbody>
+        <tr><td><code>input</code></td><td><code>${input.sampleType}</code></td><td>流水线启动时传入的参数</td></tr>
+        <tr><td><code>ctx</code></td><td><code>${ctx.batchNo}</code></td><td>步骤写入的上下文变量</td></tr>
+        <tr><td><code>output.{stepKey}</code></td><td><code>${output.ph_measure.value}</code></td><td>某步骤的输出字段（由 outputFields 定义）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>3.6 失败补偿策略</h3>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">补偿策略类型</div>
+      <ul class="clean">
+        <li><strong>NONE</strong>：失败后不执行补偿，直接标记失败</li>
+        <li><strong>ON_FAIL</strong>：仅在步骤失败时触发补偿步骤</li>
+        <li><strong>ALWAYS</strong>：无论成功失败，执行结束后均触发补偿</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">补偿执行机制</div>
+      <ul class="clean">
+        <li>按逆拓扑顺序依次执行已完成步骤的 compensateStepKey</li>
+        <li>补偿步骤以 <code>runMode=COMPENSATE</code> 标识</li>
+        <li>创建新的 <code>StepExecutionDO</code> 记录补偿过程</li>
+        <li>补偿失败记录为 DEAD，人工干预</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>3.7 单步独立调试</h3>
+  <p>系统支持对任意已标记 <code>runnableStandalone=true</code> 的步骤进行独立执行，用于开发验证和问题排查，无需启动完整流水线：</p>
+  <div class="flow-diagram">
+    <div class="flow-node">调用 createStandaloneExecution</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node light">创建独立 PipelineExecution<br>(triggerType=STANDALONE)</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node green">单节点 DAG 调度</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node gray">WebSocket 推送实时状态</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node orange">返回步骤输出结果</div>
+  </div>
+  <div class="info-box">
+    Mock 模式：当设备未接入时，使用 <code>StepDefinitionDO.mockOutput</code> 模拟仪器返回数据，使调试不依赖物理设备。
+  </div>
+
+  <h3>3.8 核心数据模型</h3>
+
+  <div class="entity-section">
+    <div class="entity-header">
+      <h4>PipelineDefinitionDO — 流水线定义</h4>
+      <span class="entity-table-name">pd_pipeline_definition</span>
+    </div>
+    <div class="table-wrap" style="margin:0">
+      <table>
+        <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>pipelineKey</td><td>VARCHAR</td><td>业务唯一标识（如 <code>water_quality_test</code>），同 key 多版本</td></tr>
+          <tr><td>version</td><td>INT</td><td>版本号，同 key 递增，执行时冻结</td></tr>
+          <tr><td>failStrategy</td><td>ENUM</td><td>FAIL_FAST（一步失败整体停止）/ CONTINUE_ON_FAIL（继续其他并行步骤）</td></tr>
+          <tr><td>compensateStrategy</td><td>ENUM</td><td>NONE / ON_FAIL / ALWAYS</td></tr>
+          <tr><td>sampleMode</td><td>ENUM</td><td>REQUIRED（必须绑定样本）/ OPTIONAL / NONE</td></tr>
+          <tr><td>sampleBindNodes</td><td>JSON</td><td>需要绑定样本的节点 ID 列表</td></tr>
+          <tr><td>status</td><td>ENUM</td><td>DRAFT / ACTIVE / DISABLED（只有 ACTIVE 可触发执行）</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="entity-section">
+    <div class="entity-header">
+      <h4>StepDefinitionDO — 步骤定义（可复用组件）</h4>
+      <span class="entity-table-name">pd_step_definition</span>
+    </div>
+    <div class="table-wrap" style="margin:0">
+      <table>
+        <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>stepKey</td><td>VARCHAR</td><td>步骤唯一标识（如 <code>ph_measure</code>），跨流水线复用</td></tr>
+          <tr><td>stepType</td><td>ENUM</td><td>INSTRUMENT / COMPUTE / CONDITION / WAIT / NOTIFY / SAMPLE_SPLIT / MANUAL / UNIT_LAUNCHER</td></tr>
+          <tr><td>deviceType</td><td>VARCHAR</td><td>INSTRUMENT 类型必填，指定仪器类型（如 <code>PH_METER</code>）</td></tr>
+          <tr><td>command</td><td>VARCHAR</td><td>设备指令码（如 <code>MEASURE</code>）</td></tr>
+          <tr><td>executor</td><td>ENUM</td><td>COMPUTE 类型：BEAN（Spring Bean）/ LITEFLOW（规则链）</td></tr>
+          <tr><td>beanName / methodName</td><td>VARCHAR</td><td>BEAN 执行器：指定 Spring Bean 名和方法名</td></tr>
+          <tr><td>chainId</td><td>VARCHAR</td><td>LITEFLOW 执行器：规则链 ID</td></tr>
+          <tr><td>paramsSchema</td><td>JSON</td><td>参数 JSON Schema，供 UI 渲染表单和服务端校验</td></tr>
+          <tr><td>outputFields</td><td>JSON Array</td><td>步骤输出字段名列表，注册至上下文供后续步骤引用</td></tr>
+          <tr><td>compensateStepKey</td><td>VARCHAR</td><td>失败补偿步骤的 stepKey</td></tr>
+          <tr><td>runnableStandalone</td><td>BOOLEAN</td><td>是否支持单步独立调试</td></tr>
+          <tr><td>mockOutput</td><td>JSON</td><td>Mock 模式下返回的模拟数据</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="entity-section">
+    <div class="entity-header">
+      <h4>StepExecutionDO — 步骤执行记录</h4>
+      <span class="entity-table-name">pe_step_execution</span>
+    </div>
+    <div class="table-wrap" style="margin:0">
+      <table>
+        <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>executionId</td><td>VARCHAR</td><td>关联的流水线实例 ID</td></tr>
+          <tr><td>nodeId</td><td>VARCHAR</td><td>流水线内节点 ID（来自 PipelineStepDO）</td></tr>
+          <tr><td>attempt</td><td>INT</td><td>重试次数，每次重试新建一行记录（1-based）</td></tr>
+          <tr><td>status</td><td>ENUM</td><td>PENDING/RUNNING/SUCCESS/FAILED/SKIPPED/DEAD/COMPENSATING/COMPENSATED</td></tr>
+          <tr><td>waitingFor</td><td>ENUM</td><td>DEVICE_CALLBACK / MANUAL_APPROVE / EXTERNAL_EVENT / TIMER</td></tr>
+          <tr><td>callbackToken</td><td>VARCHAR</td><td>外部回调验证令牌（随机生成）</td></tr>
+          <tr><td>runMode</td><td>ENUM</td><td>NORMAL / STANDALONE / COMPENSATE / MOCK</td></tr>
+          <tr><td>inputSnapshot</td><td>JSON</td><td>执行时输入参数快照（含上下文解析结果）</td></tr>
+          <tr><td>outputData</td><td>JSON</td><td>步骤执行输出数据</td></tr>
+          <tr><td>waitMs / executeMs</td><td>BIGINT</td><td>排队等待耗时 / 实际执行耗时（ms）</td></tr>
+          <tr><td>deviceId</td><td>VARCHAR</td><td>分配执行的设备 ID</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 4. 设备管理 ═══════════════════════════ -->
+<section id="module-device">
+  <div class="section-header">
+    <div class="section-num">4</div>
+    <h2>设备管理模块 (librax-module-device)</h2>
+  </div>
+
+  <h3>4.1 模块职责</h3>
+  <p>设备管理模块负责实验仪器的注册、协议适配、指令执行和状态监控，采用 <strong>设备连接器工厂模式</strong>，将上层业务与底层通信协议解耦。</p>
+
+  <h3>4.2 支持协议</h3>
+  <div class="module-grid">
+    <div class="module-card">
+      <div class="module-card-icon">🌐</div>
+      <h4>HTTP</h4>
+      <p>OkHttp 客户端，支持 WEBHOOK 推送和 POLL 轮询两种回调模式，支持 Basic/Token/HMAC 认证</p>
+    </div>
+    <div class="module-card accent">
+      <div class="module-card-icon">🔌</div>
+      <h4>TCP</h4>
+      <p>原始 TCP/IP 连接，支持二进制或 ASCII 编码，适配特定厂商分析仪协议</p>
+    </div>
+    <div class="module-card warn">
+      <div class="module-card-icon">📡</div>
+      <h4>SERIAL</h4>
+      <p>串口通信（UART），可配置波特率、数据位、停止位、校验位</p>
+    </div>
+    <div class="module-card purple">
+      <div class="module-card-icon">📦</div>
+      <h4>SDK</h4>
+      <p>厂商 SDK 动态加载（反射），通过 sdkClass 全限定名 + sdkConfig JSON 初始化</p>
+    </div>
+    <div class="module-card">
+      <div class="module-card-icon">🎭</div>
+      <h4>MOCK</h4>
+      <p>测试模式，返回 DeviceCommandDO.mockOutput 预设数据，不依赖物理设备</p>
+    </div>
+  </div>
+
+  <h3>4.3 指令执行流程</h3>
+  <div class="flow-diagram">
+    <div class="flow-node">StepExecution<br>(INSTRUMENT)</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node light">创建 Task<br>(INSTRUMENT 类型)</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node green">DeviceConnectorFactory<br>选择连接器</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node orange">构建请求<br>（模板 + 参数 + Codec）</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node purple">发送至设备</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node">等待回调<br>（WEBHOOK/POLL）</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node green">验证 callbackToken<br>更新 StepExecution</div>
+  </div>
+
+  <h3>4.4 设备编码/解码（Codec）</h3>
+  <p><code>DeviceCodecDO</code> 定义了请求/响应的数据转换规则，支持 JSON 字段映射、Protobuf、Avro 等格式，将设备私有协议数据转换为平台标准 JSON 格式。</p>
+
+  <h3>4.5 设备状态监控</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>状态</th><th>含义</th><th>触发条件</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tag tag-green">ONLINE</span></td><td>设备在线，可接受指令</td><td>心跳响应正常</td></tr>
+        <tr><td><span class="tag tag-orange">OFFLINE</span></td><td>设备离线，无法通信</td><td>心跳超时，连接中断</td></tr>
+        <tr><td><span class="tag tag-purple" style="background:#fadbd8;color:#c0392b">FAULT</span></td><td>设备故障，需人工介入</td><td>多次重试失败，连续错误响应</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>4.6 核心数据模型</h3>
+  <div class="entity-section">
+    <div class="entity-header">
+      <h4>DeviceInfoDO — 设备注册信息</h4>
+      <span class="entity-table-name">lab_device_info</span>
+    </div>
+    <div class="table-wrap" style="margin:0">
+      <table>
+        <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>deviceId</td><td>VARCHAR</td><td>设备业务 ID（如 <code>PH-METER-01</code>），全局唯一</td></tr>
+          <tr><td>deviceType</td><td>VARCHAR</td><td>设备类型（如 <code>PH_METER</code>），与步骤定义关联</td></tr>
+          <tr><td>protocol</td><td>ENUM</td><td>TCP / HTTP / SERIAL / SDK / MOCK</td></tr>
+          <tr><td>callbackMode</td><td>ENUM</td><td>WEBHOOK（设备主动推送）/ POLL（平台轮询查询）</td></tr>
+          <tr><td>authType</td><td>ENUM</td><td>NONE / BASIC / TOKEN / HMAC</td></tr>
+          <tr><td>authConfig</td><td>JSON</td><td>认证配置（用户名密码、Token 等）</td></tr>
+          <tr><td>maxConcurrent</td><td>INT</td><td>最大并发指令数，超出则排队</td></tr>
+          <tr><td>heartbeatIntervalMs</td><td>BIGINT</td><td>心跳检测间隔（ms），0=不检测</td></tr>
+          <tr><td>heartbeatCommand</td><td>VARCHAR</td><td>心跳使用的指令码</td></tr>
+          <tr><td>zoneCode</td><td>VARCHAR</td><td>设备所在区域，与资源管理区域对应</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 5. 实验室管理 ═══════════════════════════ -->
+<section id="module-lab">
+  <div class="section-header">
+    <div class="section-num">5</div>
+    <h2>实验室管理模块 (librax-module-lab)</h2>
+  </div>
+
+  <h3>5.1 样本生命周期</h3>
+  <div class="flow-diagram">
+    <div class="flow-node">REGISTERED<br>签收登记</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node light">LOADED<br>上架装载</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node orange">IN_PROCESS<br>检测处理</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node green">COMPLETED<br>检测完成</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-node gray">ARCHIVED<br>归档保存</div>
+  </div>
+  <div class="status-flow">
+    <span style="font-size:12px;color:var(--text-muted)">异常状态：</span>
+    <span class="status-badge sb-failed">REJECTED</span>
+    <span class="status-badge sb-cancel">LOST</span>
+  </div>
+
+  <h3>5.2 样本衍生谱系</h3>
+  <div class="card">
+    <div class="card-title">衍生类型说明</div>
+    <div class="table-wrap" style="margin:8px 0 0">
+      <table>
+        <thead><tr><th>衍生类型</th><th>说明</th><th>父子关系</th></tr></thead>
+        <tbody>
+          <tr><td><span class="tag tag-blue">ORIGINAL</span></td><td>原始样本，直接采集</td><td>根节点，parentSampleId=NULL</td></tr>
+          <tr><td><span class="tag tag-green">SPLIT</span></td><td>分裂：一个样本拆分为多份</td><td>一父多子，子样本体积之和≤父样本</td></tr>
+          <tr><td><span class="tag tag-orange">MERGE</span></td><td>合并：多个样本合并为一份</td><td>多父一子，SampleRelationDO 记录所有父样本</td></tr>
+          <tr><td><span class="tag tag-purple">ALIQUOT</span></td><td>取液：取出一部分用于平行检测</td><td>父样本体积减少，子样本体积为取出量</td></tr>
+          <tr><td><span class="tag tag-gray">ADD_REAGENT</span></td><td>加试剂：向样本中添加化学品</td><td>同一样本，记录添加物和用量</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="info-box">
+    <strong>谱系追溯</strong>：通过 <code>rootSampleId</code> 可快速定位原始样本，通过 <code>SampleRelationDO</code> 表可还原完整的衍生关系树，满足 GLP/GMP 合规要求。
+  </div>
+
+  <h3>5.3 样本类型与容器</h3>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">支持样本类型</div>
+      <div class="tech-grid">
+        <span class="tag tag-blue">BLOOD 血液</span>
+        <span class="tag tag-green">URINE 尿液</span>
+        <span class="tag tag-orange">TISSUE 组织</span>
+        <span class="tag tag-purple">WATER 水样</span>
+        <span class="tag tag-gray">SOIL 土壤</span>
+        <span class="tag tag-blue">AIR 气体</span>
+        <span class="tag tag-green">MIXTURE 混合物</span>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">容器类型</div>
+      <div class="tech-grid">
+        <span class="tag tag-blue">TUBE 试管</span>
+        <span class="tag tag-green">PLATE 微孔板</span>
+        <span class="tag tag-orange">VIAL 小瓶</span>
+        <span class="tag tag-purple">BAG 样品袋</span>
+      </div>
+    </div>
+  </div>
+
+  <h3>5.4 材料管理</h3>
+  <p><code>MaterialDefDO</code> 定义试剂、标准品、缓冲液等实验耗材的规格信息，<code>MaterialInstanceDO</code> 跟踪实物批次、开封时间、有效期，支持危险品分级（NONE/LOW/MEDIUM/HIGH/FLAMMABLE/TOXIC）和质检规则（<code>MaterialCheckRuleDO</code>）。</p>
+</section>
+
+<!-- ═══════════════════════════ 6. 资源调度 ═══════════════════════════ -->
+<section id="module-resource">
+  <div class="section-header">
+    <div class="section-num">6</div>
+    <h2>资源调度模块 (librax-module-resource)</h2>
+  </div>
+
+  <h3>6.1 资源所有权模型</h3>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">独占资源 (EXCLUSIVE)</div>
+      <ul class="clean">
+        <li>绑定到特定区域（zoneCode），只能被该区域内的流程使用</li>
+        <li>例：ZONE-A 的 pH 计，不可被 ZONE-B 借用</li>
+        <li>无需配额限制，区域内自行管理并发</li>
+        <li>适合精密仪器、区域固定设备</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">共享资源 (SHARED)</div>
+      <ul class="clean">
+        <li>跨区域共享，任意区域可申请使用</li>
+        <li>通过 <code>ZoneQuotaDO</code> 限制每个区域的最大借用数</li>
+        <li>例：AGV 小车，多个区域均可调度，但每区域最多 2 辆</li>
+        <li>Redis 分布式锁保证原子性分配</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>6.2 资源分配算法</h3>
+  <pre><code>资源分配策略（ResourceAllocationService）:
+1. 查询步骤资源需求 (StepResourceReqDO)
+2. 优先查找同区域内的可用独占资源
+3. 独占资源不足时，检查共享资源配额
+4. 使用 Redisson 分布式锁（REDLOCK）原子性执行：
+   a. 检查 ZoneQuotaDO.maxBorrow - 当前占用 > 0
+   b. 创建 StepResourceHoldDO 记录分配关系
+   c. 更新 ResourceConfigDO.currentUsage
+5. 资源不足时：任务进入等待队列，持续轮询
+6. 步骤完成后：释放持有，通知等待队列重新分配</code></pre>
+
+  <h3>6.3 存储架位置管理</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>层级</th><th>实体</th><th>示例</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>区域</td><td>ZoneCode（逻辑）</td><td>ZONE-A</td><td>实验室物理区域</td></tr>
+        <tr><td>存储单元</td><td>RackInfoDO</td><td>RACK-A（离心机架）</td><td>含坐标信息，供 AGV 导航</td></tr>
+        <tr><td>槽位</td><td>SlotInfoDO</td><td>RACK-A-R1-C2-L1</td><td>行-列-层精确定位</td></tr>
+        <tr><td>容器</td><td>SampleInfoDO.containerCode</td><td>TUBE-001</td><td>放置于槽位的样本容器</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 7. 任务执行 ═══════════════════════════ -->
+<section id="module-task">
+  <div class="section-header">
+    <div class="section-num">7</div>
+    <h2>任务执行模块 (librax-module-task)</h2>
+  </div>
+
+  <h3>7.1 任务状态机</h3>
+  <div class="status-flow">
+    <span class="status-badge sb-pending">PENDING</span>
+    <span class="status-sep">→</span>
+    <span class="status-badge sb-running">ASSIGNED</span>
+    <span class="status-sep">→</span>
+    <span class="status-badge sb-running">EXECUTING</span>
+    <span class="status-sep">→</span>
+    <span class="status-badge sb-success">DONE</span>
+  </div>
+  <div class="status-flow">
+    <span class="status-badge sb-running">EXECUTING</span>
+    <span class="status-sep">→</span>
+    <span class="status-badge sb-failed">FAILED</span>
+    <span class="status-sep">→</span>
+    <span style="font-size:12px;color:var(--text-muted)">（重试次数未耗尽时自动重新 PENDING）</span>
+  </div>
+  <div class="status-flow">
+    <span class="status-badge sb-cancel">CANCELLED</span>
+    <span class="status-sep"> | </span>
+    <span class="status-badge sb-failed">TIMEOUT</span>
+    <span style="font-size:12px;color:var(--text-muted);margin-left:8px">终态，不可恢复</span>
+  </div>
+
+  <h3>7.2 任务类型与执行器</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>任务类型</th><th>执行器类型</th><th>执行方式</th><th>回调</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tag tag-blue">INSTRUMENT</span></td><td>DEVICE</td><td>DeviceConnector 发送仪器指令</td><td>异步（WEBHOOK/POLL）</td></tr>
+        <tr><td><span class="tag tag-green">AGV</span></td><td>AGV</td><td>调度 AGV 搬运（fromLocation→toLocation）</td><td>异步回调</td></tr>
+        <tr><td><span class="tag tag-orange">COMPUTE</span></td><td>BEAN</td><td>Spring Bean 方法同步执行</td><td>同步返回</td></tr>
+        <tr><td><span class="tag tag-purple">MANUAL</span></td><td>HUMAN</td><td>人工操作，等待人员确认完成</td><td>手动回调 API</td></tr>
+        <tr><td><span class="tag tag-gray">NOTIFY</span></td><td>BEAN</td><td>发送通知（SMS/Email/Webhook）</td><td>同步返回</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>7.3 回调验证协议</h3>
+  <pre><code>// 外部系统回调接口
+POST /flow/step-callback/{executionId}/{nodeId}
+
+Request Body:
+{
+  "callbackToken": "a3f9b2c1...",   // 与 StepExecutionDO.callbackToken 比对
+  "result": {
+    "status": "SUCCESS",
+    "output": { "value": 7.2, "unit": "pH" },
+    "errorCode": null,
+    "errorMsg": null
+  }
+}
+
+验证逻辑:
+1. 查询 StepExecutionDO（executionId + nodeId + status=RUNNING）
+2. 比对 callbackToken（防重放攻击）
+3. 幂等检查（相同 token 重复回调合并处理）
+4. 更新 StepExecution 状态，触发 DAG 调度器继续</code></pre>
+
+  <h3>7.4 任务优先级与重试</h3>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">优先级队列</div>
+      <ul class="clean">
+        <li><strong>CRITICAL (2)</strong>：紧急检测，最高优先级，插队执行</li>
+        <li><strong>URGENT (1)</strong>：加急检测，优先于普通任务</li>
+        <li><strong>NORMAL (0)</strong>：常规检测，按序执行</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">重试配置</div>
+      <ul class="clean">
+        <li><strong>retryCount</strong>：当前已重试次数</li>
+        <li><strong>maxRetry</strong>：最大允许重试次数</li>
+        <li><strong>defaultBackoffMs</strong>：重试退避间隔（指数递增）</li>
+        <li>达到 maxRetry 后标记 FAILED，触发补偿逻辑</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 8. 系统基础模块 ═══════════════════════════ -->
+<section id="module-system">
+  <div class="section-header">
+    <div class="section-num">8</div>
+    <h2>系统基础模块 (librax-module-system / infra)</h2>
+  </div>
+
+  <h3>8.1 用户权限体系</h3>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">RBAC 权限模型</div>
+      <ul class="clean">
+        <li>用户（User）→ 角色（Role）→ 菜单/按钮权限（Permission）</li>
+        <li>角色支持部门数据权限（全部/本部门/本人）</li>
+        <li>接口权限通过 <code>@PreAuthorize</code> 注解声明</li>
+        <li>数据权限通过 SQL 拦截器动态注入过滤条件</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">多租户隔离</div>
+      <ul class="clean">
+        <li>每个租户独立的数据集（tenant_id 字段过滤）</li>
+        <li>租户套餐（TenantPackage）控制功能权限边界</li>
+        <li>TenantInterceptor 从 JWT Token 提取租户 ID</li>
+        <li>所有数据库查询自动追加 WHERE tenant_id = ?</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>8.2 基础设施服务（infra 模块）</h3>
+  <div class="module-grid">
+    <div class="module-card">
+      <div class="module-card-icon">📁</div>
+      <h4>文件服务</h4>
+      <p>支持本地、S3/MinIO、阿里云 OSS、腾讯云 COS、FTP/SFTP 多种存储后端</p>
+    </div>
+    <div class="module-card accent">
+      <div class="module-card-icon">⚙️</div>
+      <h4>配置中心</h4>
+      <p>动态配置参数（ConfigDO），运行时修改无需重启，支持加密存储</p>
+    </div>
+    <div class="module-card warn">
+      <div class="module-card-icon">🔧</div>
+      <h4>代码生成</h4>
+      <p>基于 MyBatis Plus Generator，一键生成 DO/VO/Mapper/Service/Controller</p>
+    </div>
+    <div class="module-card purple">
+      <div class="module-card-icon">📊</div>
+      <h4>接口文档</h4>
+      <p>Springdoc OpenAPI 3.0，自动生成 Swagger UI，支持在线调试</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 9. 数据库设计 ═══════════════════════════ -->
+<section id="data-design">
+  <div class="section-header">
+    <div class="section-num">9</div>
+    <h2>数据库设计</h2>
+  </div>
+
+  <h3>9.1 表命名规范</h3>
+  <div class="grid-3">
+    <div class="card">
+      <div class="card-title"><code>pd_*</code></div>
+      <p>Pipeline Definition — 流水线静态配置（定义时数据）</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><code>pe_*</code></div>
+      <p>Pipeline Execution — 流水线运行时实例（执行时数据）</p>
+    </div>
+    <div class="card">
+      <div class="card-title"><code>lab_*</code></div>
+      <p>Laboratory — 实验室业务数据（样本、设备、材料、资源）</p>
+    </div>
+  </div>
+
+  <h3>9.2 通用字段规范</h3>
+  <p>所有数据表均继承 <code>BaseDO</code>，包含以下审计字段：</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td>id</td><td>BIGINT AUTO_INCREMENT</td><td>主键，雪花 ID 生成</td></tr>
+        <tr><td>creator</td><td>VARCHAR(64)</td><td>创建人（用户名）</td></tr>
+        <tr><td>create_time</td><td>DATETIME</td><td>创建时间（自动填充）</td></tr>
+        <tr><td>updater</td><td>VARCHAR(64)</td><td>最后更新人</td></tr>
+        <tr><td>update_time</td><td>DATETIME</td><td>最后更新时间（自动填充）</td></tr>
+        <tr><td>deleted</td><td>BIT(1)</td><td>逻辑删除标记（0=正常，1=已删）</td></tr>
+        <tr><td>tenant_id</td><td>BIGINT</td><td>租户 ID（多租户数据隔离）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>9.3 关键设计决策</h3>
+
+  <div class="warn-box">
+    <strong>乐观锁设计</strong>：<code>PipelineExecutionDO</code> 使用 <code>row_version</code>（整型版本号）实现乐观并发控制，状态更新时携带期望版本号：<br>
+    <code>UPDATE pe_pipeline_execution SET status=?, row_version=row_version+1 WHERE id=? AND row_version=?</code><br>
+    防止高并发下状态写入冲突（如同时触发暂停和完成）。
+  </div>
+
+  <div class="info-box">
+    <strong>每次重试独立记录</strong>：<code>StepExecutionDO.attempt</code> 字段标识重试次数，每次重试创建新行，保留完整的执行历史，不覆盖前次失败记录，便于问题回溯分析。
+  </div>
+
+  <h3>9.4 主要表结构概览</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>表名</th><th>中文名</th><th>记录特征</th><th>估算量级</th></tr></thead>
+      <tbody>
+        <tr><td><code>pd_pipeline_definition</code></td><td>流水线定义</td><td>静态配置，低频写</td><td>百级</td></tr>
+        <tr><td><code>pd_step_definition</code></td><td>步骤定义</td><td>可复用组件，低频写</td><td>千级</td></tr>
+        <tr><td><code>pd_pipeline_step</code></td><td>流水线步骤关系</td><td>每条流水线 N 条节点记录</td><td>万级</td></tr>
+        <tr><td><code>pe_pipeline_execution</code></td><td>流水线执行实例</td><td>每次触发一条，高频写</td><td>百万级</td></tr>
+        <tr><td><code>pe_step_execution</code></td><td>步骤执行记录</td><td>每实例 N 步×重试次数</td><td>千万级</td></tr>
+        <tr><td><code>pe_execution_context</code></td><td>执行上下文</td><td>每实例一条，频繁更新</td><td>百万级</td></tr>
+        <tr><td><code>pe_execution_event_log</code></td><td>执行事件日志</td><td>仅追加，全量审计</td><td>亿级（需归档）</td></tr>
+        <tr><td><code>lab_sample_info</code></td><td>样本信息</td><td>含衍生样本，高频写</td><td>千万级</td></tr>
+        <tr><td><code>lab_device_info</code></td><td>设备信息</td><td>静态配置，低频写</td><td>百级</td></tr>
+        <tr><td><code>lab_task</code></td><td>任务记录</td><td>每步骤一任务，高频写</td><td>亿级（需归档）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>9.5 索引设计原则</h3>
+  <ul class="clean">
+    <li>所有外键字段（executionId, stepKey, sampleId）建立普通索引</li>
+    <li>状态字段（status）+ 时间字段（createTime）建立联合索引，支持待处理任务扫描</li>
+    <li><code>callbackToken</code> 建立唯一索引，防止回调重复处理</li>
+    <li>事件日志表按月分表，历史数据定期归档至冷存储</li>
+    <li>执行上下文按 executionId 分区，提升并发查询效率</li>
+  </ul>
+</section>
+
+<!-- ═══════════════════════════ 10. 接口规范 ═══════════════════════════ -->
+<section id="api-design">
+  <div class="section-header">
+    <div class="section-num">10</div>
+    <h2>接口规范设计</h2>
+  </div>
+
+  <h3>10.1 URL 命名规范</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>HTTP Method</th><th>URL Pattern</th><th>操作</th></tr></thead>
+      <tbody>
+        <tr><td>POST</td><td><code>/flow/pipeline-execution/create</code></td><td>创建资源</td></tr>
+        <tr><td>PUT</td><td><code>/flow/pipeline-execution/update</code></td><td>更新资源</td></tr>
+        <tr><td>DELETE</td><td><code>/flow/pipeline-execution/delete?id=1</code></td><td>单条删除</td></tr>
+        <tr><td>DELETE</td><td><code>/flow/pipeline-execution/delete-list</code></td><td>批量删除</td></tr>
+        <tr><td>GET</td><td><code>/flow/pipeline-execution/get?id=1</code></td><td>按 ID 查询</td></tr>
+        <tr><td>GET</td><td><code>/flow/pipeline-execution/page</code></td><td>分页查询</td></tr>
+        <tr><td>GET</td><td><code>/flow/pipeline-execution/list</code></td><td>列表查询（无分页）</td></tr>
+        <tr><td>POST</td><td><code>/flow/pipeline-execution/export</code></td><td>导出 Excel</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>10.2 统一响应格式</h3>
+  <pre><code>// 成功响应
+{
+  "code": 0,
+  "msg": null,
+  "data": { ... }
+}
+
+// 分页响应
+{
+  "code": 0,
+  "data": {
+    "list": [ ... ],
+    "total": 1234
+  }
+}
+
+// 错误响应
+{
+  "code": 1002001,          // 错误码（模块ID + 错误序号）
+  "msg": "流水线定义不存在",
+  "data": null
+}</code></pre>
+
+  <h3>10.3 关键业务接口</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>接口</th><th>方法</th><th>说明</th></tr></thead>
+      <tbody>
+        <tr><td><code>/flow/pipeline-execution/create</code></td><td>POST</td><td>启动一次流水线执行（支持传入 inputParams）</td></tr>
+        <tr><td><code>/flow/pipeline-execution/pause</code></td><td>PUT</td><td>暂停正在运行的流水线</td></tr>
+        <tr><td><code>/flow/pipeline-execution/resume</code></td><td>PUT</td><td>恢复暂停的流水线</td></tr>
+        <tr><td><code>/flow/pipeline-execution/cancel</code></td><td>PUT</td><td>取消流水线（终态，不可恢复）</td></tr>
+        <tr><td><code>/flow/step-execution/standalone</code></td><td>POST</td><td>单步独立执行（调试用）</td></tr>
+        <tr><td><code>/flow/step-callback/{executionId}/{nodeId}</code></td><td>POST</td><td>外部系统回调步骤完成结果</td></tr>
+        <tr><td><code>/flow/execution-monitor/realtime</code></td><td>GET</td><td>查询执行实时状态（含各步骤进度）</td></tr>
+        <tr><td><code>/device/device-info/connect-test</code></td><td>POST</td><td>测试设备连接（不执行实际指令）</td></tr>
+        <tr><td><code>/lab/sample-info/register</code></td><td>POST</td><td>样本签收登记</td></tr>
+        <tr><td><code>/lab/sample-info/derive</code></td><td>POST</td><td>样本衍生（分裂/取液/合并）</td></tr>
+        <tr><td><code>/resource/resource-config/acquire</code></td><td>POST</td><td>申请资源占用（内部调用）</td></tr>
+        <tr><td><code>/resource/resource-config/release</code></td><td>POST</td><td>释放资源占用（内部调用）</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>10.4 分页请求参数规范</h3>
+  <pre><code>GET /flow/pipeline-execution/page?pageNo=1&pageSize=20&status=RUNNING&pipelineKey=water_quality
+
+// 所有分页接口支持的通用参数:
+pageNo    : integer  // 页码（从1开始），默认1
+pageSize  : integer  // 每页条数（最大100），默认10
+
+// 响应中 total 为总记录数，list 为当前页数据</code></pre>
+</section>
+
+<!-- ═══════════════════════════ 11. WebSocket ═══════════════════════════ -->
+<section id="websocket">
+  <div class="section-header">
+    <div class="section-num">11</div>
+    <h2>WebSocket 实时通信设计</h2>
+  </div>
+
+  <h3>11.1 设计目的</h3>
+  <p>流水线执行过程中，前端界面需要实时展示每个步骤的执行进度、状态变化和输出结果，通过 WebSocket（STOMP 协议）实现服务端主动推送，避免频繁轮询。</p>
+
+  <h3>11.2 推送事件类型</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>事件类型</th><th>触发时机</th><th>推送内容</th></tr></thead>
+      <tbody>
+        <tr><td><code>EXECUTION_STARTED</code></td><td>流水线开始执行</td><td>executionId、pipelineKey、触发人</td></tr>
+        <tr><td><code>STEP_QUEUED</code></td><td>步骤进入就绪队列</td><td>nodeId、stepKey、预计执行时间</td></tr>
+        <tr><td><code>STEP_STARTED</code></td><td>步骤开始执行</td><td>nodeId、执行设备、inputSnapshot</td></tr>
+        <tr><td><code>STEP_SUCCESS</code></td><td>步骤执行成功</td><td>nodeId、outputData、executeMs</td></tr>
+        <tr><td><code>STEP_FAILED</code></td><td>步骤执行失败</td><td>nodeId、errorCode、errorMsg、attempt</td></tr>
+        <tr><td><code>STEP_RETRYING</code></td><td>步骤开始重试</td><td>nodeId、retryCount、backoffMs</td></tr>
+        <tr><td><code>EXECUTION_SUCCESS</code></td><td>流水线整体成功</td><td>totalMs、criticalPath</td></tr>
+        <tr><td><code>EXECUTION_FAILED</code></td><td>流水线失败</td><td>failedNodeId、errorMsg</td></tr>
+        <tr><td><code>COMPENSATING</code></td><td>开始执行补偿</td><td>compensatingNodes 列表</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>11.3 订阅地址规范</h3>
+  <pre><code>// 连接端点
+ws://host:48080/ws  (STOMP over WebSocket)
+
+// 订阅特定执行实例的事件
+SUBSCRIBE /topic/execution/{executionId}
+
+// 订阅当前用户的全局通知
+SUBSCRIBE /user/queue/notify
+
+// 心跳配置
+heartbeat: [10000, 10000]  // 10s 心跳保持连接</code></pre>
+</section>
+
+<!-- ═══════════════════════════ 12. 安全设计 ═══════════════════════════ -->
+<section id="security">
+  <div class="section-header">
+    <div class="section-num">12</div>
+    <h2>安全架构设计</h2>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">认证机制</div>
+      <ul class="clean">
+        <li>JWT Token 无状态认证（RS256 签名）</li>
+        <li>AccessToken（30分钟）+ RefreshToken（7天）双 Token 机制</li>
+        <li>Token 存储于 Redis，支持强制下线（黑名单）</li>
+        <li>支持社交登录（JustAuth：微信、钉钉、企业微信）</li>
+        <li>登录日志记录（IP、设备、成功/失败）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">授权机制</div>
+      <ul class="clean">
+        <li><code>@PreAuthorize("hasAuthority('flow:execution:create')")</code> 接口级鉴权</li>
+        <li>部门数据权限过滤（MY/DEPT/DEPT_TREE/ALL）</li>
+        <li>租户数据隔离（tenant_id 强制过滤）</li>
+        <li>敏感操作双因素验证（可选）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">防护机制</div>
+      <ul class="clean">
+        <li>接口限流（基于 Redis 令牌桶，@RateLimiter）</li>
+        <li>幂等校验（@Idempotent，Redis 去重，防重复提交）</li>
+        <li>回调 Token 验证（防止伪造设备回调）</li>
+        <li>SQL 注入防护（MyBatis 参数化查询）</li>
+        <li>XSS 防护（输入过滤 + 输出转义）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">审计追踪</div>
+      <ul class="clean">
+        <li>操作日志（OperateLogDO）：记录所有写操作及操作人</li>
+        <li>登录日志（LoginLogDO）：认证记录，含失败原因</li>
+        <li>执行事件日志（ExecutionEventLog）：完整流程追踪</li>
+        <li>任务事件（TaskEventDO）：任务生命周期记录</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 13. 性能设计 ═══════════════════════════ -->
+<section id="performance">
+  <div class="section-header">
+    <div class="section-num">13</div>
+    <h2>性能与可靠性设计</h2>
+  </div>
+
+  <h3>13.1 缓存策略</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>缓存对象</th><th>缓存层</th><th>TTL</th><th>更新策略</th></tr></thead>
+      <tbody>
+        <tr><td>流水线定义</td><td>Caffeine（本地）</td><td>10分钟</td><td>版本变更时主动失效</td></tr>
+        <tr><td>步骤定义</td><td>Caffeine（本地）</td><td>10分钟</td><td>写入时主动失效</td></tr>
+        <tr><td>用户权限信息</td><td>Redis</td><td>30分钟</td><td>登出/角色变更时失效</td></tr>
+        <tr><td>租户配置</td><td>Redis</td><td>60分钟</td><td>配置更新时失效</td></tr>
+        <tr><td>设备状态</td><td>Redis</td><td>心跳周期×2</td><td>心跳更新</td></tr>
+        <tr><td>执行上下文</td><td>DB（主要）+ Redis（热数据）</td><td>执行期间</td><td>步骤完成时写 DB</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>13.2 数据库优化</h3>
+  <ul class="clean">
+    <li>Dynamic Datasource：写操作走主库，读操作走从库（读写分离）</li>
+    <li>Druid 连接池：最大连接数 100，连接有效性检测，慢 SQL 监控</li>
+    <li>MyBatis Plus 分页插件：自动 COUNT 优化，避免全表扫描</li>
+    <li>高频更新表（StepExecution、Task）：乐观锁替代悲观锁，减少锁竞争</li>
+    <li>事件日志表：定期归档（按月分表或迁移至 ClickHouse）</li>
+  </ul>
+
+  <h3>13.3 并发控制</h3>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">分布式锁使用场景</div>
+      <ul class="clean">
+        <li>资源分配（ResourceAcquireService）：防止超额分配</li>
+        <li>流水线状态转换：防止并发状态写冲突</li>
+        <li>设备并发限制：maxConcurrent 控制并行指令数</li>
+        <li>任务分配：防止同一任务被多个执行器认领</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">可靠性保障</div>
+      <ul class="clean">
+        <li>Quartz 集群模式：Job 调度高可用，防止单点故障</li>
+        <li>MQ 消息持久化：设备任务消息不丢失</li>
+        <li>死信队列处理：无法消费的消息人工干预</li>
+        <li>心跳超时检测：自动发现离线设备，告警通知</li>
+        <li>幂等执行：相同 callbackToken 多次回调安全合并</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ 14. 部署架构 ═══════════════════════════ -->
+<section id="deploy">
+  <div class="section-header">
+    <div class="section-num">14</div>
+    <h2>部署架构设计</h2>
+  </div>
+
+  <h3>14.1 容器化部署</h3>
+  <pre><code># docker-compose.yml（开发环境）
+services:
+  librax-server:
+    image: librax-server:2025.11
+    ports: ["48080:48080"]
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-local:3306/librax
+      - SPRING_REDIS_HOST=redis-local
+    depends_on: [mysql-local, redis-local]
+    networks: [librax-network]
+
+  mysql-local:
+    image: mysql:8.0
+    volumes: [./data/mysql:/var/lib/mysql]
+    environment:
+      - MYSQL_DATABASE=librax
+    networks: [librax-network]
+
+  redis-local:
+    image: redis:7.0
+    volumes: [./data/redis:/data]
+    networks: [librax-network]</code></pre>
+
+  <h3>14.2 生产环境架构</h3>
+  <div class="arch-layer">
+    <div class="arch-layer-header">负载均衡层</div>
+    <div class="arch-layer-body">
+      <div class="arch-item">Nginx / SLB</div>
+      <div class="arch-item">SSL 终止</div>
+      <div class="arch-item">WebSocket 反向代理</div>
+    </div>
+  </div>
+  <div class="arch-layer green">
+    <div class="arch-layer-header">应用层（无状态，水平扩展）</div>
+    <div class="arch-layer-body">
+      <div class="arch-item">librax-server × N 实例</div>
+      <div class="arch-item">Session 共享（Redis）</div>
+      <div class="arch-item">分布式定时任务（Quartz Cluster）</div>
+    </div>
+  </div>
+  <div class="arch-layer orange">
+    <div class="arch-layer-header">存储层</div>
+    <div class="arch-layer-body">
+      <div class="arch-item">MySQL 主从（1主2从）</div>
+      <div class="arch-item">Redis Sentinel / Cluster</div>
+      <div class="arch-item">RocketMQ Broker 集群</div>
+      <div class="arch-item">MinIO 分布式对象存储</div>
+    </div>
+  </div>
+  <div class="arch-layer gray">
+    <div class="arch-layer-header">观测层</div>
+    <div class="arch-layer-body">
+      <div class="arch-item">Spring Boot Admin（服务健康）</div>
+      <div class="arch-item">SkyWalking（链路追踪）</div>
+      <div class="arch-item">Prometheus + Grafana（指标监控）</div>
+      <div class="arch-item">ELK（集中日志）</div>
+    </div>
+  </div>
+
+  <h3>14.3 环境配置分离</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Profile</th><th>适用场景</th><th>数据库</th><th>特点</th></tr></thead>
+      <tbody>
+        <tr><td><code>local</code></td><td>本地开发</td><td>本机 MySQL</td><td>关闭安全校验，启用 SQL 打印</td></tr>
+        <tr><td><code>dev</code></td><td>Docker 开发</td><td>容器 MySQL</td><td>Docker Compose 网络，Flyway 自动迁移</td></tr>
+        <tr><td><code>prod</code></td><td>生产环境</td><td>RDS 主从</td><td>读写分离，关闭 Swagger，启用加密</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>14.4 数据库版本管理</h3>
+  <p>使用 <strong>Flyway</strong> 管理数据库变更，版本脚本命名规范：</p>
+  <pre><code>src/main/resources/db/
+├─ V1.0.0__init_schema.sql        # 初始建表
+├─ V1.0.1__seed_data.sql          # 基础数据
+├─ V1.1.0__add_sample_module.sql  # 功能迭代
+└─ V1.2.0__flow_engine_update.sql # 流程引擎更新</code></pre>
+</section>
+
+<!-- ═══════════════════════════ 15. 测试策略 ═══════════════════════════ -->
+<section id="test">
+  <div class="section-header">
+    <div class="section-num">15</div>
+    <h2>测试策略</h2>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">单元测试</div>
+      <ul class="clean">
+        <li>框架：JUnit 5 + Mockito 5</li>
+        <li>覆盖 Service 层业务逻辑，Mock 外部依赖</li>
+        <li>Mapper 层使用 H2 内存数据库验证 SQL 正确性</li>
+        <li>DAG 调度器拓扑排序、环路检测单独测试</li>
+        <li>状态机转换合法性验证测试</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">集成测试</div>
+      <ul class="clean">
+        <li>@SpringBootTest 启动完整上下文</li>
+        <li>嵌入式 Redis（Testcontainers）</li>
+        <li>@Transactional 保证测试数据隔离回滚</li>
+        <li>流水线端到端执行测试（含 Mock 设备）</li>
+        <li>回调接口幂等性测试（重复 Token 场景）</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">Mock 调试模式</div>
+      <ul class="clean">
+        <li>DeviceInfoDO.protocol=MOCK 绕过物理设备</li>
+        <li>DeviceCommandDO.mockOutput 预设仪器返回值</li>
+        <li>StepDefinitionDO.mockOutput 步骤级 Mock</li>
+        <li>支持流水线全流程 Mock 执行，不依赖实验室环境</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="card-title">单步调试验证</div>
+      <ul class="clean">
+        <li>通过 <code>/flow/step-execution/standalone</code> 独立触发</li>
+        <li>实时 WebSocket 推送执行日志</li>
+        <li>支持传入自定义 inputParams 测试不同场景</li>
+        <li>输出 outputData 和 contextData 供验证</li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>15.1 测试资源目录规范</h3>
+  <pre><code>src/test/
+├─ java/
+│   ├─ service/       # Service 单元测试
+│   ├─ dal/           # Mapper SQL 测试
+│   └─ scheduler/     # DAG 调度器测试
+└─ resources/
+    ├─ sql/
+    │   ├─ create_tables.sql   # 测试建表脚本
+    │   └─ clean.sql           # 测试清理脚本
+    └─ application-test.yaml   # 测试环境配置</code></pre>
+
+  <hr class="divider">
+
+  <div class="info-box" style="margin-top:24px">
+    <strong>文档维护说明</strong>：本文档与代码同步维护，每次迭代发布前更新修订历史。设计变更须经团队评审，并在相关模块的 <code>CHANGELOG.md</code> 中记录影响范围。接口变更需同步更新 Swagger 文档注解（<code>@Operation</code>/<code>@Schema</code>）。
+  </div>
+
+  <div style="margin-top:32px;padding:20px;background:var(--surface);border:1px solid var(--border);border-radius:10px;text-align:center;color:var(--text-muted);font-size:12px;">
+    <div style="font-weight:700;font-size:14px;color:var(--primary);margin-bottom:8px">Librax Lab Automation Platform</div>
+    软件详细设计说明书 · 版本 V1.0 · 保密文件，请勿外传<br>
+    © 2025 Librax Team · 基于 Spring Boot 3.5 构建
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+// 侧边栏高亮当前区域
+const sections = document.querySelectorAll('section[id], div[id]');
+const navLinks = document.querySelectorAll('.sidebar a');
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      navLinks.forEach(link => {
+        link.classList.toggle('active', link.getAttribute('href') === '#' + id);
+      });
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+sections.forEach(s => observer.observe(s));
+
+// 平滑滚动
+navLinks.forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+</script>
+</body>
+</html>

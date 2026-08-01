@@ -35,6 +35,12 @@ public class AgvLoadPlanDO extends BaseDO {
     private String taskType;
     private String plateType;
     private String warehouseCallbackUrl;
+    /**
+     * 每波物料如何变为"就绪"：
+     * WAREHOUSE（默认）— 逐件下发 prepareMaterials，等仓储 slot/ready 回调；
+     * DIRECT — 物料本就在源库位上（如机台间转运），跳过仓储环节直接标记就绪。
+     */
+    private String sourceReadyMode;
     /** LOADING / LOAD_COMPLETE / COMPLETED / FAILED / CANCELLED */
     private String status;
 }

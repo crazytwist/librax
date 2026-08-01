@@ -19,7 +19,7 @@ public interface DeviceInfoMapper extends BaseMapperX<DeviceInfoDO> {
 
     default PageResult<DeviceInfoDO> selectPage(DeviceInfoPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<DeviceInfoDO>()
-                .eqIfPresent(DeviceInfoDO::getDeviceId, reqVO.getDeviceId())
+                .likeIfPresent(DeviceInfoDO::getDeviceId, reqVO.getDeviceId())
                 .likeIfPresent(DeviceInfoDO::getDeviceName, reqVO.getDeviceName())
                 .eqIfPresent(DeviceInfoDO::getDeviceType, reqVO.getDeviceType())
                 .eqIfPresent(DeviceInfoDO::getZoneCode, reqVO.getZoneCode())

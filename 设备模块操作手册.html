@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设备模块操作手册</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif; font-size: 14px; color: #1f2329; background: #f5f6f7; }
+
+  /* 顶栏 */
+  .topbar { background: #1a1a2e; color: #fff; padding: 18px 40px; display: flex; align-items: center; gap: 16px; position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+  .topbar .logo { font-size: 20px; font-weight: 700; letter-spacing: .5px; color: #7eb3ff; }
+  .topbar .subtitle { font-size: 13px; color: #aab; }
+
+  /* 布局 */
+  .layout { display: flex; min-height: calc(100vh - 58px); }
+
+  /* 侧边目录 */
+  .sidebar { width: 240px; background: #fff; border-right: 1px solid #e5e8ec; padding: 24px 0; position: sticky; top: 58px; height: calc(100vh - 58px); overflow-y: auto; flex-shrink: 0; }
+  .sidebar .nav-title { font-size: 11px; font-weight: 700; color: #8f9bb3; text-transform: uppercase; letter-spacing: 1px; padding: 0 20px 8px; }
+  .sidebar a { display: block; padding: 7px 20px; color: #3d4966; text-decoration: none; font-size: 13px; border-left: 3px solid transparent; transition: all .15s; }
+  .sidebar a:hover { color: #2b6be6; background: #f0f4ff; }
+  .sidebar a.active { color: #2b6be6; border-left-color: #2b6be6; background: #f0f4ff; font-weight: 600; }
+  .sidebar .nav-section { margin-top: 18px; }
+
+  /* 主内容 */
+  .main { flex: 1; padding: 36px 48px; max-width: 960px; }
+
+  /* 章节 */
+  .section { background: #fff; border-radius: 10px; padding: 32px 36px; margin-bottom: 28px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+  .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #f0f2f5; }
+  .section-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .icon-blue { background: #e8f0fe; }
+  .icon-green { background: #e6f9f0; }
+  .icon-orange { background: #fff3e6; }
+  .icon-purple { background: #f3eeff; }
+  h1 { font-size: 22px; font-weight: 700; color: #1f2329; }
+  h2 { font-size: 17px; font-weight: 700; color: #1f2329; }
+  h3 { font-size: 14px; font-weight: 600; color: #3d4966; margin: 20px 0 10px; }
+
+  /* 引言块 */
+  .lead { background: #f0f4ff; border-left: 4px solid #2b6be6; border-radius: 0 8px 8px 0; padding: 14px 18px; color: #2b4a9c; font-size: 13.5px; line-height: 1.7; margin-bottom: 24px; }
+
+  /* 步骤流 */
+  .flow { display: flex; align-items: center; gap: 0; margin: 20px 0; flex-wrap: wrap; }
+  .flow-step { background: #f0f4ff; border: 1.5px solid #c7d8ff; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; color: #2b4a9c; white-space: nowrap; }
+  .flow-arrow { color: #aab; font-size: 18px; padding: 0 8px; }
+
+  /* 字段表 */
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  thead tr { background: #f7f8fa; }
+  th { padding: 10px 14px; text-align: left; font-weight: 600; color: #5c6b8a; border-bottom: 2px solid #e5e8ec; white-space: nowrap; }
+  td { padding: 9px 14px; border-bottom: 1px solid #f0f2f5; vertical-align: top; line-height: 1.5; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fafbfc; }
+  .field-name { font-family: "SFMono-Regular", Consolas, monospace; font-size: 12.5px; color: #c0392b; background: #fff5f5; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+  .badge-req { background: #fde8e8; color: #c0392b; }
+  .badge-opt { background: #e8f4fd; color: #2980b9; }
+  .badge-auto { background: #e8f9ef; color: #27ae60; }
+
+  /* 代码块 */
+  pre { background: #1e2430; color: #abb2bf; border-radius: 8px; padding: 18px 20px; font-size: 12.5px; line-height: 1.7; overflow-x: auto; margin: 14px 0; }
+  .code-label { font-size: 11px; font-weight: 700; color: #8f9bb3; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 4px; }
+  code { font-family: "SFMono-Regular", Consolas, monospace; }
+  .hl-key { color: #e06c75; }
+  .hl-str { color: #98c379; }
+  .hl-num { color: #d19a66; }
+  .hl-cmt { color: #5c6370; font-style: italic; }
+
+  /* 提示块 */
+  .tip { border-radius: 8px; padding: 12px 16px; margin: 16px 0; font-size: 13px; line-height: 1.6; display: flex; gap: 10px; }
+  .tip-icon { font-size: 16px; flex-shrink: 0; }
+  .tip-info { background: #e8f4fd; color: #1a5276; }
+  .tip-warn { background: #fef9e7; color: #7d6608; }
+  .tip-danger { background: #fde8e8; color: #922b21; }
+
+  /* 枚举值列表 */
+  .enum-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  .enum-item { background: #f0f2f5; border-radius: 6px; padding: 4px 12px; font-size: 12.5px; font-family: monospace; color: #3d4966; }
+  .enum-item.active { background: #e8f0fe; color: #2b6be6; }
+
+  /* 回调结构对比 */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .col-card { background: #f7f8fa; border-radius: 8px; padding: 16px; }
+  .col-card .col-title { font-size: 12px; font-weight: 700; color: #8f9bb3; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 10px; }
+
+  /* 解析类型卡片 */
+  .parse-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin: 16px 0; }
+  .parse-card { border: 1.5px solid #e5e8ec; border-radius: 10px; padding: 16px; }
+  .parse-card .parse-type { font-size: 13px; font-weight: 700; color: #2b6be6; margin-bottom: 6px; }
+  .parse-card .parse-desc { font-size: 12.5px; color: #5c6b8a; line-height: 1.6; }
+
+  /* 分割线 */
+  .divider { border: none; border-top: 1px solid #f0f2f5; margin: 24px 0; }
+
+  @media (max-width: 768px) {
+    .main { padding: 20px 16px; }
+    .two-col, .parse-grid { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- 顶栏 -->
+<div class="topbar">
+  <span class="logo">Librax</span>
+  <span style="color:#4a5568">|</span>
+  <span class="subtitle">设备模块操作手册 · Device Module</span>
+</div>
+
+<div class="layout">
+
+<!-- 侧边目录 -->
+<nav class="sidebar">
+  <div class="nav-title">目录</div>
+  <div class="nav-section">
+    <a href="#overview">模块概览</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-title">设备管理</div>
+    <a href="#device-concept">核心概念</a>
+    <a href="#device-fields">字段说明</a>
+    <a href="#device-ops">操作指引</a>
+    <a href="#protocol-config">通信协议配置</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-title">设备命令</div>
+    <a href="#command-concept">命令与指令</a>
+    <a href="#command-fields">字段说明</a>
+    <a href="#command-exec">直接执行</a>
+    <a href="#command-poll">轮询模式</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-title">回调解析规则</div>
+    <a href="#codec-concept">什么是 Codec</a>
+    <a href="#codec-parse-types">解析类型</a>
+    <a href="#codec-json">JSON 解析</a>
+    <a href="#codec-hex">HEX 解析</a>
+    <a href="#codec-regex">正则解析</a>
+    <a href="#codec-script">脚本解析</a>
+    <a href="#codec-postprocess">后处理</a>
+  </div>
+  <div class="nav-section">
+    <div class="nav-title">设备回调</div>
+    <a href="#callback-concept">回调机制</a>
+    <a href="#callback-format">回调格式</a>
+    <a href="#callback-routing">路由规则</a>
+  </div>
+</nav>
+
+<!-- 主内容 -->
+<main class="main">
+
+<!-- ═══════════════════════════════ 模块概览 ═══════════════════════════════ -->
+<div class="section" id="overview">
+  <div class="section-header">
+    <div class="section-icon icon-blue">🔧</div>
+    <h1>模块概览</h1>
+  </div>
+
+  <div class="lead">
+    设备模块负责管理实验室中所有物理仪器的接入、指令下发和结果回收。
+    它是流程引擎（INSTRUMENT 步骤）与真实仪器之间的桥梁。
+  </div>
+
+  <p style="color:#5c6b8a;line-height:1.8;margin-bottom:18px;">
+    设备模块由三张核心配置表组成，按照从"设备是什么"→"发什么指令"→"怎么解析响应"的顺序配置：
+  </p>
+
+  <div class="flow">
+    <div class="flow-step">① 设备信息<br><small style="font-weight:400;color:#5c6b8a">lab_device_info</small></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">② 设备命令<br><small style="font-weight:400;color:#5c6b8a">lab_device_command</small></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">③ 回调解析规则<br><small style="font-weight:400;color:#5c6b8a">lab_device_codec</small></div>
+  </div>
+
+  <table style="margin-top:20px;">
+    <thead>
+      <tr><th>模块</th><th>表名</th><th>解决的问题</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>设备信息</strong></td>
+        <td><code class="field-name">lab_device_info</code></td>
+        <td>设备是什么机器、在哪个区域、用什么协议连接</td>
+      </tr>
+      <tr>
+        <td><strong>设备命令</strong></td>
+        <td><code class="field-name">lab_device_command</code></td>
+        <td>向这台设备发什么指令、请求格式是什么</td>
+      </tr>
+      <tr>
+        <td><strong>回调解析规则</strong></td>
+        <td><code class="field-name">lab_device_codec</code></td>
+        <td>设备返回的原始报文怎么解析成结构化数据</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════ 设备信息 ═══════════════════════════════ -->
+<div class="section" id="device-concept">
+  <div class="section-header">
+    <div class="section-icon icon-blue">🖥️</div>
+    <h1>设备管理</h1>
+  </div>
+
+  <h2 id="device-concept">核心概念</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin:12px 0 20px;">
+    一台物理仪器在系统中对应一条 <strong>设备信息</strong> 记录。
+    流程引擎通过 <strong>设备类型（deviceType）</strong> 和 <strong>区域（zoneCode）</strong> 来查找可用设备，
+    不绑定具体设备 ID——同一类型同一区域有多台设备时，ResourcePool 会自动调度空闲的那台。
+  </p>
+
+  <div class="tip tip-info">
+    <span class="tip-icon">💡</span>
+    <span>同一区域配置多台相同类型的设备，系统会自动负载均衡，无需手动指定。</span>
+  </div>
+</div>
+
+<div class="section" id="device-fields">
+  <h2>字段说明</h2>
+
+  <h3>基础信息</h3>
+  <table>
+    <thead><tr><th>字段</th><th>必填</th><th>示例</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code class="field-name">deviceId</code></td>
+        <td><span class="badge badge-req">必填</span></td>
+        <td>PH-METER-01</td>
+        <td>设备唯一业务 ID，建议格式：类型-序号。全局唯一，创建后不建议修改</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">deviceName</code></td>
+        <td><span class="badge badge-req">必填</span></td>
+        <td>雷磁pH计1号</td>
+        <td>设备显示名称，供人识别</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">deviceType</code></td>
+        <td><span class="badge badge-req">必填</span></td>
+        <td>PH_METER</td>
+        <td>设备类型码，与流程步骤中的 <code>deviceType</code> 对应。流程引擎按此类型查找设备</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">zoneCode</code></td>
+        <td><span class="badge badge-req">必填</span></td>
+        <td>ZONE-A</td>
+        <td>所属实验区域。步骤配置中的 <code>zoneCode</code> 与此匹配才会被调度</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">protocol</code></td>
+        <td><span class="badge badge-req">必填</span></td>
+        <td>HTTP</td>
+        <td>通信协议，决定下面哪些连接参数生效。见"通信协议配置"章节</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">enabled</code></td>
+        <td><span class="badge badge-opt">可选</span></td>
+        <td>true</td>
+        <td>是否启用。禁用后此设备不会被调度，可用于临时下线维护</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">maxConcurrent</code></td>
+        <td><span class="badge badge-opt">可选</span></td>
+        <td>1</td>
+        <td>最大并发指令数。绝大多数仪器填 1，表示同时只能执行一条指令</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>状态字段（系统维护，无需手动填写）</h3>
+  <table>
+    <thead><tr><th>字段</th><th>取值</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code class="field-name">status</code></td>
+        <td>
+          <span class="badge" style="background:#e8f9ef;color:#27ae60">ONLINE</span>
+          <span class="badge" style="background:#f0f2f5;color:#5c6b8a;margin-left:4px">OFFLINE</span>
+          <span class="badge badge-req" style="margin-left:4px">FAULT</span>
+        </td>
+        <td>设备当前连接状态，由心跳机制自动更新</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section" id="protocol-config">
+  <h2 id="protocol-config">通信协议配置</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin-bottom:18px;">
+    根据选择的 <code class="field-name">protocol</code>，需要填写对应的连接参数。不同协议的字段互不干扰。
+  </p>
+
+  <!-- HTTP -->
+  <h3>HTTP 协议</h3>
+  <div class="tip tip-info">
+    <span class="tip-icon">🌐</span>
+    <span>适用于设备提供 HTTP/REST 接口的场景，是最常见的接入方式。</span>
+  </div>
+  <table>
+    <thead><tr><th>字段</th><th>必填</th><th>示例</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code class="field-name">baseUrl</code></td>
+        <td><span class="badge badge-req">必填</span></td>
+        <td>http://192.168.1.10:8080</td>
+        <td>设备 HTTP 服务的根地址，命令的 httpPath 会拼接在后面</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">callbackMode</code></td>
+        <td><span class="badge badge-req">必填</span></td>
+        <td>WEBHOOK</td>
+        <td><strong>WEBHOOK</strong>：设备完成后主动推送结果；<strong>POLL</strong>：系统定时轮询查询结果</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">pollIntervalMs</code></td>
+        <td><span class="badge badge-opt">POLL模式</span></td>
+        <td>2000</td>
+        <td>轮询间隔（毫秒），仅 POLL 模式生效</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">authType</code></td>
+        <td><span class="badge badge-opt">可选</span></td>
+        <td>TOKEN</td>
+        <td>认证方式：NONE / BASIC / TOKEN / HMAC</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">authConfig</code></td>
+        <td><span class="badge badge-opt">按需</span></td>
+        <td>{"token":"abc123"}</td>
+        <td>认证配置 JSON，TOKEN 模式填 <code>{"token":"xxx"}</code>，BASIC 填 <code>{"username":"","password":""}</code></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- TCP -->
+  <h3 style="margin-top:24px">TCP 协议</h3>
+  <table>
+    <thead><tr><th>字段</th><th>必填</th><th>示例</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code class="field-name">host</code></td>
+        <td><span class="badge badge-req">必填</span></td>
+        <td>192.168.1.20</td>
+        <td>设备 IP 地址或域名</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">port</code></td>
+        <td><span class="badge badge-req">必填</span></td>
+        <td>4001</td>
+        <td>TCP 端口号</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">connectTimeoutMs</code></td>
+        <td><span class="badge badge-opt">可选</span></td>
+        <td>5000</td>
+        <td>建立连接的超时时间（毫秒）</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">readTimeoutMs</code></td>
+        <td><span class="badge badge-opt">可选</span></td>
+        <td>10000</td>
+        <td>等待读取响应的超时时间（毫秒）</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- SERIAL -->
+  <h3 style="margin-top:24px">串口（SERIAL）协议</h3>
+  <table>
+    <thead><tr><th>字段</th><th>示例</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code class="field-name">serialPort</code></td><td>COM3 / /dev/ttyUSB0</td><td>串口设备路径</td></tr>
+      <tr><td><code class="field-name">baudRate</code></td><td>9600</td><td>波特率，常见值：9600 / 19200 / 115200</td></tr>
+      <tr><td><code class="field-name">dataBits</code></td><td>8</td><td>数据位，通常为 8</td></tr>
+      <tr><td><code class="field-name">stopBits</code></td><td>1</td><td>停止位，通常为 1</td></tr>
+      <tr><td><code class="field-name">parity</code></td><td>NONE</td><td>校验位：NONE / ODD（奇校验） / EVEN（偶校验）</td></tr>
+    </tbody>
+  </table>
+
+  <!-- 心跳 -->
+  <hr class="divider">
+  <h3>心跳配置（所有协议通用）</h3>
+  <div class="tip tip-warn">
+    <span class="tip-icon">⚠️</span>
+    <span>心跳用于检测设备是否在线，心跳超时后设备状态自动切换为 OFFLINE。</span>
+  </div>
+  <table>
+    <thead><tr><th>字段</th><th>示例</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code class="field-name">heartbeatIntervalMs</code></td><td>30000</td><td>心跳发送间隔（毫秒）。填 0 表示不发送心跳</td></tr>
+      <tr><td><code class="field-name">heartbeatCommand</code></td><td>PING</td><td>心跳使用的指令代码，引用 lab_device_command.command_code</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section" id="device-ops">
+  <h2 id="device-ops">操作指引</h2>
+  <div class="flow">
+    <div class="flow-step">新增设备</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">填写通信参数</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">配置命令</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">直接执行测试</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">加入流程步骤</div>
+  </div>
+
+  <h3 style="margin-top:20px">前端页面入口</h3>
+  <p style="color:#5c6b8a;line-height:1.8">菜单路径：<strong>实验室管理 → 设备管理 → 设备信息</strong></p>
+  <table style="margin-top:10px">
+    <thead><tr><th>操作</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><strong>新增</strong></td><td>点击右上角"新增"按钮，填写设备信息表单</td></tr>
+      <tr><td><strong>编辑</strong></td><td>点击列表行的"编辑"按钮，修改设备配置</td></tr>
+      <tr><td><strong>启用/禁用</strong></td><td>切换 enabled 字段，禁用后不参与调度</td></tr>
+      <tr><td><strong>查看详情</strong></td><td>点击"详情"按钮，查看完整配置信息</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════ 设备命令 ═══════════════════════════════ -->
+<div class="section" id="command-concept">
+  <div class="section-header">
+    <div class="section-icon icon-green">⚡</div>
+    <h1>设备命令</h1>
+  </div>
+
+  <h2>命令与指令</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin:12px 0 20px;">
+    命令（Command）定义的是"向这类设备发什么请求"——不绑定具体某台机器，而是绑定 <strong>设备类型</strong>。
+    同一设备类型可以有多条命令，如 <code>MEASURE（测量）</code>、<code>CALIBRATE（校准）</code>、<code>PING（心跳）</code>。
+  </p>
+  <p style="color:#5c6b8a;line-height:1.8;margin-bottom:20px;">
+    流程 YAML 的 INSTRUMENT 步骤通过 <code>deviceType + commandCode</code> 定位到具体的命令配置，
+    再由 DeviceGateway 选择设备、组装请求报文、发送指令。
+  </p>
+</div>
+
+<div class="section" id="command-fields">
+  <h2>字段说明</h2>
+
+  <h3>基础配置</h3>
+  <table>
+    <thead><tr><th>字段</th><th>必填</th><th>示例</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code class="field-name">deviceType</code></td>
+        <td><span class="badge badge-req">必填</span></td>
+        <td>PH_METER</td>
+        <td>关联设备类型，与 lab_device_info.device_type 对应</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">commandCode</code></td>
+        <td><span class="badge badge-req">必填</span></td>
+        <td>MEASURE</td>
+        <td>指令代码，同一设备类型内唯一。流程步骤通过此字段引用命令</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">requestTemplate</code></td>
+        <td><span class="badge badge-req">必填</span></td>
+        <td>{"action":"measure","count":${sampleCount}}</td>
+        <td>请求报文模板，<code>${参数名}</code> 在执行时被实际参数替换</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">timeoutMs</code></td>
+        <td><span class="badge badge-opt">可选</span></td>
+        <td>30000</td>
+        <td>此指令的超时时间（毫秒），覆盖设备默认超时</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">retryable</code></td>
+        <td><span class="badge badge-opt">可选</span></td>
+        <td>true</td>
+        <td>失败后是否可重试。幂等指令（如测量）可以设为 true</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">codecId</code></td>
+        <td><span class="badge badge-opt">可选</span></td>
+        <td>5</td>
+        <td>关联的回调解析规则 ID（lab_device_codec.id）。不填时原样返回设备响应</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>HTTP 专用字段</h3>
+  <table>
+    <thead><tr><th>字段</th><th>示例</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td><code class="field-name">httpMethod</code></td><td>POST</td><td>HTTP 方法：GET / POST / PUT</td></tr>
+      <tr><td><code class="field-name">httpPath</code></td><td>/api/measure</td><td>请求路径，拼接到设备的 baseUrl 后面</td></tr>
+      <tr><td><code class="field-name">contentType</code></td><td>application/json</td><td>请求 Content-Type</td></tr>
+    </tbody>
+  </table>
+
+  <h3>请求模板示例</h3>
+  <div class="code-label">JSON 格式请求模板</div>
+  <pre><code><span class="hl-cmt">// requestTemplate 字段内容</span>
+{
+  <span class="hl-key">"action"</span>: <span class="hl-str">"measure"</span>,
+  <span class="hl-key">"sampleCount"</span>: <span class="hl-str">${sampleCount}</span>,   <span class="hl-cmt">// 运行时替换为实际参数</span>
+  <span class="hl-key">"channel"</span>: <span class="hl-str">${channel}</span>
+}</code></pre>
+
+  <p style="color:#5c6b8a;font-size:13px;margin-top:8px;">
+    执行时，流程步骤的 <code>inputParams</code> 中的 <code>sampleCount</code> 和 <code>channel</code> 会自动填入模板。
+  </p>
+</div>
+
+<div class="section" id="command-exec">
+  <h2 id="command-exec">直接执行（测试用）</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin:12px 0 18px;">
+    在命令配置好之后，可以不通过流程引擎，直接在管理界面向设备发送指令，用于调试和测试设备连通性。
+  </p>
+
+  <div class="flow">
+    <div class="flow-step">点击"执行"按钮</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">填写执行参数</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">系统分配设备下发指令</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">等待设备回调</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">查看解析结果</div>
+  </div>
+
+  <h3 style="margin-top:20px">执行请求格式</h3>
+  <div class="code-label">POST /lab/device-command/execute</div>
+  <pre><code>{
+  <span class="hl-key">"deviceType"</span>: <span class="hl-str">"PH_METER"</span>,      <span class="hl-cmt">// 必填，设备类型</span>
+  <span class="hl-key">"commandCode"</span>: <span class="hl-str">"MEASURE"</span>,     <span class="hl-cmt">// 必填，指令代码</span>
+  <span class="hl-key">"params"</span>: {                     <span class="hl-cmt">// 可选，替换模板中的 ${} 占位符</span>
+    <span class="hl-key">"sampleCount"</span>: <span class="hl-num">1</span>
+  },
+  <span class="hl-key">"deviceId"</span>: <span class="hl-str">"PH-METER-01"</span>,    <span class="hl-cmt">// 可选，指定具体设备；不填则自动分配</span>
+  <span class="hl-key">"forceExec"</span>: <span class="hl-num">false</span>,           <span class="hl-cmt">// 是否强制执行（忽略设备忙碌状态）</span>
+  <span class="hl-key">"timeoutMs"</span>: <span class="hl-num">30000</span>            <span class="hl-cmt">// 可选，本次执行超时</span>
+}</code></pre>
+
+  <h3>系统返回</h3>
+  <pre><code>{
+  <span class="hl-key">"execId"</span>: <span class="hl-str">"de-a1b2c3d4e5f6"</span>,   <span class="hl-cmt">// 执行ID（de- 前缀表示直接执行）</span>
+  <span class="hl-key">"deviceId"</span>: <span class="hl-str">"PH-METER-01"</span>,   <span class="hl-cmt">// 实际分配的设备</span>
+  <span class="hl-key">"status"</span>: <span class="hl-str">"EXECUTING"</span>          <span class="hl-cmt">// 指令已下发，等待回调</span>
+}</code></pre>
+
+  <h3>查询结果</h3>
+  <div class="code-label">GET /lab/device-command/execute/result?execId=de-a1b2c3d4e5f6</div>
+  <pre><code>{
+  <span class="hl-key">"status"</span>: <span class="hl-str">"COMPLETED"</span>,
+  <span class="hl-key">"outputs"</span>: {
+    <span class="hl-key">"ph"</span>: <span class="hl-num">7.2</span>,
+    <span class="hl-key">"temperature"</span>: <span class="hl-num">25.1</span>
+  }
+}</code></pre>
+</div>
+
+<div class="section" id="command-poll">
+  <h2 id="command-poll">轮询模式配置</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin:12px 0 18px;">
+    部分设备在收到指令后，不会立即回调，而是让系统主动来查询结果（POLL 模式）。
+    此时需要在命令上配置轮询参数。
+  </p>
+  <table>
+    <thead><tr><th>字段</th><th>示例</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code class="field-name">pollPath</code></td>
+        <td>/api/result/${taskId}</td>
+        <td>轮询查询结果的 HTTP 路径，<code>${taskId}</code> 会被设备返回的任务ID替换</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">pollDoneExpr</code></td>
+        <td>$.status == "DONE"</td>
+        <td>判断设备是否完成的 JSONPath 表达式。表达式为真时停止轮询，开始解析结果</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">pollMaxTimes</code></td>
+        <td>10</td>
+        <td>最大轮询次数，超过后视为超时失败</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="tip tip-warn">
+    <span class="tip-icon">⚠️</span>
+    <span>轮询间隔由设备信息的 <code>pollIntervalMs</code> 字段控制，不在命令上配置。</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ 回调解析规则 ═══════════════════════════════ -->
+<div class="section" id="codec-concept">
+  <div class="section-header">
+    <div class="section-icon icon-orange">🔬</div>
+    <h1>回调解析规则（Codec）</h1>
+  </div>
+
+  <h2>什么是 Codec</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin:12px 0 18px;">
+    设备返回的原始报文格式各异——有 JSON、有十六进制字节流、有纯文本。
+    Codec（编解码规则）的作用就是把设备的"私有格式"翻译成系统统一的结构化 Map，
+    让流程步骤可以直接用字段名引用数据，如 <code>outputs.ph = 7.2</code>。
+  </p>
+
+  <div class="flow">
+    <div class="flow-step">设备原始响应<br><small style="font-weight:400">rawResponse</small></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">选择解析类型<br><small style="font-weight:400">JSON / HEX / REGEX / SCRIPT</small></div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">提取字段值</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">单位换算</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">范围校验</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">结构化 Map<br><small style="font-weight:400">{ph:7.2, temp:25}</small></div>
+  </div>
+
+  <div class="tip tip-info">
+    <span class="tip-icon">💡</span>
+    <span>Codec 通过 <code>codecId</code> 关联到设备命令。一条 Codec 可被多条命令复用，同类设备共享同一套解析规则。</span>
+  </div>
+</div>
+
+<div class="section" id="codec-parse-types">
+  <h2 id="codec-parse-types">解析类型总览</h2>
+  <div class="parse-grid">
+    <div class="parse-card">
+      <div class="parse-type">JSON 解析</div>
+      <div class="parse-desc">设备返回标准 JSON 格式，用 JSONPath 表达式精确提取字段。<br>最简单，推荐首选。</div>
+    </div>
+    <div class="parse-card">
+      <div class="parse-type">HEX 解析</div>
+      <div class="parse-desc">设备返回十六进制字节流（如串口仪器）。按字节偏移量和数据类型逐位解析。</div>
+    </div>
+    <div class="parse-card">
+      <div class="parse-type">REGEX 正则解析</div>
+      <div class="parse-desc">设备返回纯文本，用正则捕获组提取关键数值。适合老式仪器文本输出。</div>
+    </div>
+    <div class="parse-card">
+      <div class="parse-type">SCRIPT 脚本解析</div>
+      <div class="parse-desc">用 Groovy 或 JS 脚本处理复杂格式，入参为原始响应字符串，返回 Map。灵活但需要编写代码。</div>
+    </div>
+  </div>
+</div>
+
+<div class="section" id="codec-json">
+  <h2>JSON 解析配置</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin:12px 0 16px;">
+    使用 JSONPath 表达式从 JSON 响应中提取字段。<code>fieldMapping</code> 是一个 JSON 对象，
+    key 是输出字段名，value 是 JSONPath 表达式。
+  </p>
+
+  <div class="code-label">fieldMapping 格式</div>
+  <pre><code>{
+  <span class="hl-key">"ph"</span>: <span class="hl-str">"$.result.ph"</span>,           <span class="hl-cmt">// 从 result.ph 提取，输出为 ph</span>
+  <span class="hl-key">"temperature"</span>: <span class="hl-str">"$.result.temp"</span>,   <span class="hl-cmt">// 从 result.temp 提取，输出为 temperature</span>
+  <span class="hl-key">"timestamp"</span>: <span class="hl-str">"$.ts"</span>            <span class="hl-cmt">// 从根节点 ts 提取</span>
+}</code></pre>
+
+  <div class="two-col" style="margin-top:16px">
+    <div class="col-card">
+      <div class="col-title">设备原始响应</div>
+      <pre style="margin:0"><code>{
+  <span class="hl-key">"result"</span>: {
+    <span class="hl-key">"ph"</span>: <span class="hl-num">7.23</span>,
+    <span class="hl-key">"temp"</span>: <span class="hl-num">25.1</span>
+  },
+  <span class="hl-key">"ts"</span>: <span class="hl-num">1748000000</span>
+}</code></pre>
+    </div>
+    <div class="col-card">
+      <div class="col-title">解析后输出</div>
+      <pre style="margin:0"><code>{
+  <span class="hl-key">"ph"</span>: <span class="hl-num">7.23</span>,
+  <span class="hl-key">"temperature"</span>: <span class="hl-num">25.1</span>,
+  <span class="hl-key">"timestamp"</span>: <span class="hl-num">1748000000</span>
+}</code></pre>
+    </div>
+  </div>
+</div>
+
+<div class="section" id="codec-hex">
+  <h2>HEX 解析配置</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin:12px 0 16px;">
+    <code>hexRules</code> 是一个 JSON 数组，每个元素描述如何从字节流中提取一个字段。
+  </p>
+
+  <div class="code-label">hexRules 格式</div>
+  <pre><code>[
+  {
+    <span class="hl-key">"fieldName"</span>: <span class="hl-str">"weight"</span>,    <span class="hl-cmt">// 输出字段名</span>
+    <span class="hl-key">"byteOffset"</span>: <span class="hl-num">0</span>,          <span class="hl-cmt">// 从第0字节开始读</span>
+    <span class="hl-key">"byteLength"</span>: <span class="hl-num">4</span>,          <span class="hl-cmt">// 读4个字节</span>
+    <span class="hl-key">"dataType"</span>: <span class="hl-str">"FLOAT"</span>       <span class="hl-cmt">// 解释为32位浮点数</span>
+  },
+  {
+    <span class="hl-key">"fieldName"</span>: <span class="hl-str">"status"</span>,
+    <span class="hl-key">"byteOffset"</span>: <span class="hl-num">4</span>,
+    <span class="hl-key">"byteLength"</span>: <span class="hl-num">1</span>,
+    <span class="hl-key">"dataType"</span>: <span class="hl-str">"INT8"</span>
+  }
+]</code></pre>
+
+  <h3>支持的数据类型</h3>
+  <div class="enum-list">
+    <span class="enum-item">INT8</span>
+    <span class="enum-item">INT16</span>
+    <span class="enum-item">INT32</span>
+    <span class="enum-item">UINT16</span>
+    <span class="enum-item">FLOAT（32位）</span>
+    <span class="enum-item">DOUBLE（64位）</span>
+  </div>
+</div>
+
+<div class="section" id="codec-regex">
+  <h2>正则解析配置</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin:12px 0 16px;">
+    <code>regexRules</code> 是一个 JSON 对象，key 是输出字段名，value 是带捕获组的正则表达式。第一个捕获组的内容作为字段值。
+  </p>
+
+  <div class="two-col">
+    <div class="col-card">
+      <div class="col-title">设备原始文本</div>
+      <pre style="margin:0"><code>PH:7.23 TEMP:25.1 STATUS:OK</code></pre>
+    </div>
+    <div class="col-card">
+      <div class="col-title">regexRules 配置</div>
+      <pre style="margin:0"><code>{
+  <span class="hl-key">"ph"</span>: <span class="hl-str">"PH:([\\d.]+)"</span>,
+  <span class="hl-key">"temperature"</span>: <span class="hl-str">"TEMP:([\\d.]+)"</span>
+}</code></pre>
+    </div>
+  </div>
+</div>
+
+<div class="section" id="codec-script">
+  <h2>脚本解析配置</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin:12px 0 16px;">
+    当设备响应格式过于特殊，前三种方式无法处理时，使用脚本。
+    脚本入参为原始响应字符串 <code>raw</code>，返回一个 Map。
+  </p>
+
+  <div class="two-col">
+    <div class="col-card">
+      <div class="col-title">Groovy 示例</div>
+      <pre style="margin:0"><code><span class="hl-cmt">// scriptEngine: groovy</span>
+def parts = raw.split(",")
+return [
+  <span class="hl-key">"ph"</span>: parts[<span class="hl-num">0</span>] as Double,
+  <span class="hl-key">"temp"</span>: parts[<span class="hl-num">1</span>] as Double
+]</code></pre>
+    </div>
+    <div class="col-card">
+      <div class="col-title">JavaScript 示例</div>
+      <pre style="margin:0"><code><span class="hl-cmt">// scriptEngine: js</span>
+var parts = raw.split(",");
+return {
+  ph: parseFloat(parts[0]),
+  temp: parseFloat(parts[1])
+};</code></pre>
+    </div>
+  </div>
+</div>
+
+<div class="section" id="codec-postprocess">
+  <h2>后处理：单位换算与范围校验</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin:12px 0 18px;">
+    无论使用哪种解析类型，解析完成后都可以追加两步后处理。
+  </p>
+
+  <h3>单位换算（unitConversions）</h3>
+  <p style="color:#5c6b8a;line-height:1.8;margin:8px 0 10px;">
+    公式：<code>输出值 = 原始值 × factor + offset</code>
+  </p>
+  <div class="code-label">示例：摄氏度转华氏度</div>
+  <pre><code>{
+  <span class="hl-key">"temperature"</span>: {
+    <span class="hl-key">"factor"</span>: <span class="hl-num">1.8</span>,
+    <span class="hl-key">"offset"</span>: <span class="hl-num">32.0</span>
+  },
+  <span class="hl-key">"ph"</span>: {                   <span class="hl-cmt">// 不需要换算，factor=1 offset=0</span>
+    <span class="hl-key">"factor"</span>: <span class="hl-num">1.0</span>,
+    <span class="hl-key">"offset"</span>: <span class="hl-num">0.0</span>
+  }
+}</code></pre>
+
+  <h3 style="margin-top:20px">有效范围校验（validRange）</h3>
+  <p style="color:#5c6b8a;line-height:1.8;margin:8px 0 10px;">
+    超出范围的字段会从输出 Map 中移除（不是报错，而是静默丢弃）。
+  </p>
+  <div class="code-label">示例：pH 值必须在 0~14 之间</div>
+  <pre><code>{
+  <span class="hl-key">"ph"</span>: { <span class="hl-key">"min"</span>: <span class="hl-num">0</span>, <span class="hl-key">"max"</span>: <span class="hl-num">14</span> },
+  <span class="hl-key">"temperature"</span>: { <span class="hl-key">"min"</span>: <span class="hl-num">-50</span>, <span class="hl-key">"max"</span>: <span class="hl-num">150</span> }
+}</code></pre>
+
+  <div class="tip tip-warn">
+    <span class="tip-icon">⚠️</span>
+    <span>范围校验超出后字段被丢弃，后续步骤引用该字段会得到 null。建议在步骤中对关键字段做空值检查。</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ 设备回调 ═══════════════════════════════ -->
+<div class="section" id="callback-concept">
+  <div class="section-header">
+    <div class="section-icon icon-purple">📡</div>
+    <h1>设备回调机制</h1>
+  </div>
+
+  <h2>回调机制</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin:12px 0 18px;">
+    系统向设备下发指令后进入等待状态。设备完成任务后，通过 HTTP 请求主动回调系统，
+    将结果推送回来。系统收到回调后，经 Codec 解析，推进流程 DAG 或更新直接执行记录。
+  </p>
+
+  <div class="flow">
+    <div class="flow-step">系统下发指令</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">设备执行</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">POST 回调接口</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">Codec 解析</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">释放设备 / 推进流程</div>
+  </div>
+</div>
+
+<div class="section" id="callback-format">
+  <h2 id="callback-format">回调格式</h2>
+
+  <div class="two-col">
+    <div class="col-card">
+      <div class="col-title">方式一：结构化数据（设备已自行解析）</div>
+      <pre style="margin:0"><code>POST /app-api/device/callback/{execId}/{nodeId}
+
+{
+  <span class="hl-key">"callbackToken"</span>: <span class="hl-str">"token-abc"</span>,  <span class="hl-cmt">// 必须携带</span>
+  <span class="hl-key">"success"</span>: <span class="hl-num">true</span>,
+  <span class="hl-key">"data"</span>: {
+    <span class="hl-key">"ph"</span>: <span class="hl-num">7.2</span>,
+    <span class="hl-key">"temperature"</span>: <span class="hl-num">25.1</span>
+  }
+}</code></pre>
+    </div>
+    <div class="col-card">
+      <div class="col-title">方式二：原始报文（系统通过 Codec 解析）</div>
+      <pre style="margin:0"><code>POST /app-api/device/callback/{execId}/{nodeId}
+
+{
+  <span class="hl-key">"callbackToken"</span>: <span class="hl-str">"token-abc"</span>,
+  <span class="hl-key">"success"</span>: <span class="hl-num">true</span>,
+  <span class="hl-key">"rawResponse"</span>: <span class="hl-str">"{'result':{'ph':7.2}}"</span>,
+  <span class="hl-key">"deviceType"</span>: <span class="hl-str">"PH_METER"</span>,  <span class="hl-cmt">// 用于查找 Codec</span>
+  <span class="hl-key">"commandCode"</span>: <span class="hl-str">"MEASURE"</span>
+}</code></pre>
+    </div>
+  </div>
+
+  <h3 style="margin-top:16px">失败回调格式</h3>
+  <pre><code>{
+  <span class="hl-key">"callbackToken"</span>: <span class="hl-str">"token-abc"</span>,
+  <span class="hl-key">"success"</span>: <span class="hl-num">false</span>,
+  <span class="hl-key">"errorCode"</span>: <span class="hl-str">"DEVICE_ERROR"</span>,
+  <span class="hl-key">"errorMsg"</span>: <span class="hl-str">"传感器读数超量程"</span>
+}</code></pre>
+</div>
+
+<div class="section" id="callback-routing">
+  <h2 id="callback-routing">回调路由规则</h2>
+  <p style="color:#5c6b8a;line-height:1.8;margin:12px 0 16px;">
+    系统通过回调 URL 中的 <code>execId</code> 前缀区分回调来源，自动路由到不同的处理逻辑。
+  </p>
+  <table>
+    <thead><tr><th>execId 格式</th><th>来源</th><th>处理方式</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><code class="field-name">de-xxxxxx</code></td>
+        <td>直接执行（测试）</td>
+        <td>更新 Redis 中的执行记录，可通过 execute/result 接口查询</td>
+      </tr>
+      <tr>
+        <td><code class="field-name">xxxxxxxx</code>（无前缀）</td>
+        <td>流程引擎步骤</td>
+        <td>解析结果后推进流程 DAG，触发下一步骤调度</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="tip tip-danger">
+    <span class="tip-icon">🔒</span>
+    <span><strong>安全说明</strong>：回调请求必须携带 <code>callbackToken</code>，该 Token 在下发指令时生成，每次执行唯一。Token 不匹配时回调会被拒绝，防止伪造。</span>
+  </div>
+</div>
+
+<!-- 底部 -->
+<div style="text-align:center;color:#aab;font-size:12px;padding:32px 0 16px;">
+  Librax · 设备模块操作手册 · 2026
+</div>
+
+</main>
+</div>
+
+</body>
+</html>

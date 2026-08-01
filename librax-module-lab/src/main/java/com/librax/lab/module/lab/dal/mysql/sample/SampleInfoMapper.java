@@ -21,11 +21,11 @@ public interface SampleInfoMapper extends BaseMapperX<SampleInfoDO> {
 
     default PageResult<SampleInfoDO> selectPage(SampleInfoPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<SampleInfoDO>()
-                .eqIfPresent(SampleInfoDO::getSampleId, reqVO.getSampleId())
+                .likeIfPresent(SampleInfoDO::getSampleId, reqVO.getSampleId())
                 .eqIfPresent(SampleInfoDO::getDeriveType, reqVO.getDeriveType())
                 .eqIfPresent(SampleInfoDO::getSampleType, reqVO.getSampleType())
                 .likeIfPresent(SampleInfoDO::getSampleName, reqVO.getSampleName())
-                .eqIfPresent(SampleInfoDO::getContainerCode, reqVO.getContainerCode())
+                .likeIfPresent(SampleInfoDO::getContainerCode, reqVO.getContainerCode())
                 .eqIfPresent(SampleInfoDO::getStatus, reqVO.getStatus())
                 .eqIfPresent(SampleInfoDO::getLocationCode, reqVO.getLocationCode())
                 .eqIfPresent(SampleInfoDO::getBatchNo, reqVO.getBatchNo())

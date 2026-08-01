@@ -1,0 +1,1134 @@
+{
+  "info": {
+    "name": "Librax 设备指令 Mock 测试集",
+    "_postman_id": "librax-device-mock-v1",
+    "description": "设备指令直接执行功能完整测试集合\n\n包含三个模块：\n1. 【设备 Mock 服务】模拟物理设备 HTTP 接口（ph计/AGV/通用设备）\n2. 【系统接口测试】测试 /execute 和 /execute/result\n3. 【完整链路测试】自动触发回调，端到端验证",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// =====================================================",
+          "// Collection 级别前置脚本：自动检测 Token 有效性",
+          "// 所有请求发送前都会经过此脚本",
+          "// =====================================================",
+          "",
+          "const token     = pm.collectionVariables.get('token');",
+          "const expiresAt = pm.collectionVariables.get('token_expires_at');",
+          "const now       = Date.now();",
+          "",
+          "// 跳过登录接口本身，避免死循环",
+          "const requestUrl = pm.request.url.toString();",
+          "if (requestUrl.includes('/auth/login')) { return; }",
+          "",
+          "// Token 不存在 或 距过期不足 2 分钟 → 自动刷新",
+          "const needRefresh = !token || !expiresAt || (parseInt(expiresAt) - now < 2 * 60 * 1000);",
+          "",
+          "if (needRefresh) {",
+          "    const loginUrl  = pm.collectionVariables.get('base_url') + '/app-api/member/auth/login';",
+          "    const username  = pm.collectionVariables.get('username');",
+          "    const password  = pm.collectionVariables.get('password');",
+          "",
+          "    if (!username || !password) {",
+          "        console.warn('⚠️  username / password 变量未配置，请先在集合变量中填写');",
+          "        return;",
+          "    }",
+          "",
+          "    console.log('🔄 Token 不存在或即将过期，自动登录中...');",
+          "",
+          "    pm.sendRequest({",
+          "        url:    loginUrl,",
+          "        method: 'POST',",
+          "        header: [{ key: 'Content-Type', value: 'application/json' }],",
+          "        body: {",
+          "            mode: 'raw',",
+          "            raw: JSON.stringify({ username: username, password: password })",
+          "        }",
+          "    }, (err, resp) => {",
+          "        if (err) { console.error('❌ 自动登录失败:', err.message); return; }",
+          "",
+          "        const body = resp.json();",
+          "        // 兼容两种响应结构：{ data: { access_token } } 或 { access_token }",
+          "        const accessToken = (body.data && body.data.access_token) || body.access_token;",
+          "",
+          "        if (accessToken) {",
+          "            pm.collectionVariables.set('token', accessToken);",
+          "            // 默认 30 分钟过期，与服务端保持一致",
+          "            pm.collectionVariables.set('token_expires_at', String(Date.now() + 30 * 60 * 1000));",
+          "            console.log('✅ Token 已自动刷新');",
+          "        } else {",
+          "            console.error('❌ 登录响应中未找到 access_token，请检查登录接口响应格式');",
+          "            console.log('响应内容:', JSON.stringify(body));",
+          "        }",
+          "    });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:48080",
+      "description": "Librax 系统地址"
+    },
+    {
+      "key": "device_mock_url",
+      "value": "http://localhost:4523/mock/librax-device",
+      "description": "Apifox Mock 服务地址（启用 Mock 后自动生成）"
+    },
+    {
+      "key": "username",
+      "value": "admin",
+      "description": "登录账号"
+    },
+    {
+      "key": "password",
+      "value": "admin123",
+      "description": "登录密码"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "description": "访问令牌，由登录接口自动填充，无需手动填写"
+    },
+    {
+      "key": "token_expires_at",
+      "value": "",
+      "description": "Token 过期时间戳（ms），前置脚本用于判断是否需要刷新"
+    },
+    {
+      "key": "exec_id",
+      "value": "",
+      "description": "执行ID，由 /execute 接口返回后自动填充"
+    },
+    {
+      "key": "callback_token",
+      "value": "",
+      "description": "回调令牌，由 /execute 接口返回后自动填充"
+    },
+    {
+      "key": "task_id",
+      "value": "",
+      "description": "设备侧任务ID"
+    }
+  ],
+  "item": [
+
+    {
+      "name": "【0】登录认证",
+      "description": "获取并管理访问令牌。\n\n设计说明：\n- Collection 级别已配置 Bearer Auth（使用 {{token}} 变量）\n- Collection 前置脚本会在 Token 不存在或即将过期时自动调用登录接口刷新\n- 正常情况下只需手动运行一次「登录」，后续接口自动携带 Token\n- 如需切换账号或强制刷新，手动运行「登录」接口即可",
+      "item": [
+        {
+          "name": "登录（手动触发 / 获取 Token）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "pm.test('登录成功', () => pm.expect(pm.response.code).to.equal(200));",
+                  "",
+                  "// 兼容两种响应结构",
+                  "const accessToken = (resp.data && resp.data.access_token) || resp.access_token;",
+                  "const tokenType   = (resp.data && resp.data.token_type)   || resp.token_type || 'Bearer';",
+                  "",
+                  "if (accessToken) {",
+                  "    pm.collectionVariables.set('token', accessToken);",
+                  "    // 30 分钟后过期（与服务端配置保持一致）",
+                  "    pm.collectionVariables.set('token_expires_at', String(Date.now() + 30 * 60 * 1000));",
+                  "    console.log('✅ Token 已保存，类型:', tokenType);",
+                  "    console.log('   Token 预览:', accessToken.substring(0, 20) + '...');",
+                  "    console.log('   过期时间:', new Date(Date.now() + 30 * 60 * 1000).toLocaleTimeString());",
+                  "} else {",
+                  "    pm.test('响应中包含 access_token', () => { throw new Error('未找到 access_token，请检查响应格式'); });",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/app-api/member/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["app-api", "member", "auth", "login"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "使用账号密码登录，获取 JWT Token。\n\n成功后 Token 自动保存到集合变量 {{token}}，后续所有接口自动携带 Authorization: Bearer {{token}}。\n\n账号密码在集合变量 username / password 中配置。"
+          },
+          "response": [
+            {
+              "name": "✅ 登录成功",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"code\": 0,\n  \"data\": {\n    \"access_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTcwNzExOTA5NX0.xxx\",\n    \"token_type\": \"Bearer\",\n    \"expires_in\": 1800\n  }\n}"
+            },
+            {
+              "name": "❌ 账号或密码错误",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"code\": 401,\n  \"msg\": \"账号或密码不正确\"\n}"
+            }
+          ]
+        },
+
+        {
+          "name": "验证 Token 有效性",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "if (pm.response.code === 401 || resp.code === 401) {",
+                  "    console.warn('⚠️  Token 已失效，请重新运行「登录」接口');",
+                  "    pm.collectionVariables.set('token', '');",
+                  "    pm.collectionVariables.set('token_expires_at', '');",
+                  "} else {",
+                  "    console.log('✅ Token 有效');",
+                  "    const expiresAt = pm.collectionVariables.get('token_expires_at');",
+                  "    if (expiresAt) {",
+                  "        const remaining = Math.round((parseInt(expiresAt) - Date.now()) / 1000 / 60);",
+                  "        console.log('   剩余有效期约', remaining, '分钟');",
+                  "    }",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/app-api/member/user/get",
+              "host": ["{{base_url}}"],
+              "path": ["app-api", "member", "user", "get"]
+            },
+            "description": "用当前 Token 请求一个需要认证的接口，验证 Token 是否仍然有效。\n401 = Token 已过期，请重新登录。"
+          },
+          "response": []
+        }
+      ]
+    },
+
+    {
+      "name": "【1】设备 Mock 服务（模拟物理设备）",
+      "description": "模拟物理设备暴露的 HTTP 接口。\n将 lab_device_info.base_url 指向 Apifox Mock 地址后，HttpDeviceDriver 会真实调用这些接口。",
+      "item": [
+
+        {
+          "name": "pH 计 - 测量指令（接收平台请求 + 自动回调）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// =====================================================",
+                  "// 模拟设备行为：收到指令 → 处理 → 自动回调给平台",
+                  "// =====================================================",
+                  "// 说明：Apifox Mock 服务器收到平台的指令请求后，",
+                  "// 本脚本模拟设备「处理完成」并主动回调平台系统。",
+                  "// 平台在 requestTemplate 中会带上 callbackUrl / executionId / callbackToken，",
+                  "// 设备（即本脚本）解析后向平台发起回调。",
+                  "// =====================================================",
+                  "",
+                  "// 1. 从请求 body 中解析平台传入的回调参数",
+                  "let reqBody = {};",
+                  "try { reqBody = JSON.parse(pm.request.body.raw || '{}'); } catch(e) {}",
+                  "",
+                  "const callbackUrl   = reqBody.callbackUrl;    // 平台回调地址",
+                  "const callbackToken = reqBody.callbackToken;  // 平台回调令牌",
+                  "",
+                  "if (!callbackUrl) {",
+                  "    console.log('⚠️  请求体中未包含 callbackUrl，跳过自动回调。');",
+                  "    console.log('   → 请检查 lab_device_command.requestTemplate 是否包含 ${callbackUrl}');",
+                  "    return;",
+                  "}",
+                  "",
+                  "// 2. 模拟设备处理耗时（800ms），然后发起回调",
+                  "setTimeout(() => {",
+                  "    const mockResult = {",
+                  "        value:       parseFloat((6.5 + Math.random()).toFixed(2)),",
+                  "        unit:        'pH',",
+                  "        temperature: parseFloat((24.0 + Math.random()).toFixed(1)),",
+                  "        measuredAt:  new Date().toISOString()",
+                  "    };",
+                  "",
+                  "    pm.sendRequest({",
+                  "        url:    callbackUrl,",
+                  "        method: 'POST',",
+                  "        header: [{ key: 'Content-Type', value: 'application/json' }],",
+                  "        body: {",
+                  "            mode: 'raw',",
+                  "            raw: JSON.stringify({",
+                  "                callbackToken: callbackToken || '',",
+                  "                success:       true,",
+                  "                data:          mockResult",
+                  "            })",
+                  "        }",
+                  "    }, (err, resp) => {",
+                  "        if (err) {",
+                  "            console.error('❌ 回调失败:', err.message);",
+                  "        } else {",
+                  "            console.log('✅ 设备回调已发送 → 平台响应:', resp.code, '| 测量值:', JSON.stringify(mockResult));",
+                  "        }",
+                  "    });",
+                  "}, 800);",
+                  "",
+                  "pm.test('Mock 设备接收指令成功', () => pm.expect(pm.response.code).to.equal(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Callback-Token", "value": "{{callback_token}}", "description": "平台传入的回调令牌，原样返回" }
+            ],
+            "url": {
+              "raw": "{{device_mock_url}}/api/ph/measure",
+              "host": ["{{device_mock_url}}"],
+              "path": ["api", "ph", "measure"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"sampleCount\": 1,\n  \"unit\": \"pH\",\n  \"callbackUrl\": \"{{base_url}}/device/callback/{{exec_id}}/direct\",\n  \"callbackToken\": \"{{callback_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "【平台 → 设备】pH 计接收测量指令接口。\n\n后置脚本会模拟设备处理完成后，自动回调平台：\nPOST {{base_url}}/device/callback/{execId}/direct\n\n⚠️ 前提：lab_device_command.requestTemplate 需包含 callbackUrl 和 callbackToken 占位符：\n{\n  \"sampleCount\": ${sampleCount},\n  \"callbackUrl\": \"http://your-server/device/callback/${executionId}/direct\",\n  \"callbackToken\": \"${callbackToken}\"\n}"
+          },
+          "response": [
+            {
+              "name": "✅ 成功响应 - 返回 taskId",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"taskId\": \"PH-TASK-{{$randomUUID}}\",\n  \"status\": \"ACCEPTED\",\n  \"message\": \"测量任务已接受\"\n}"
+            },
+            {
+              "name": "❌ 设备忙碌",
+              "status": "Service Unavailable",
+              "code": 503,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"error\": \"DEVICE_BUSY\",\n  \"message\": \"设备正在执行其他任务\"\n}"
+            }
+          ]
+        },
+
+        {
+          "name": "【设备 → 平台】WEBHOOK 回调接口文档",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/device/callback/:executionId/:nodeId",
+              "host": ["{{base_url}}"],
+              "path": ["device", "callback", ":executionId", ":nodeId"],
+              "variable": [
+                {
+                  "key": "executionId",
+                  "value": "{{exec_id}}",
+                  "description": "流程执行ID（直接执行时格式为 de-{uuid}，流水线执行时为 pipeline executionId）"
+                },
+                {
+                  "key": "nodeId",
+                  "value": "direct",
+                  "description": "步骤节点ID（直接执行固定为 direct，流水线执行时为 nodeId）"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"callbackToken\": \"{{callback_token}}\",\n  \"success\": true,\n  \"data\": {\n    \"value\": 7.23,\n    \"unit\": \"pH\",\n    \"temperature\": 25.1\n  },\n  \"errorCode\": null,\n  \"errorMsg\": null,\n  \"deviceType\": \"PH_METER\",\n  \"commandCode\": \"MEASURE\",\n  \"rawResponse\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "【设备端主动调用平台的接口】\n\n这是 DeviceCallbackController 暴露的接口，由物理设备（或本 Mock）在任务完成后主动调用。\n\n字段说明：\n- callbackToken   ：必填，创建任务时生成，设备原样返回，平台用于验证合法性\n- success         ：是否成功\n- data            ：结构化输出数据（与 CodecExecutor 无关，直接写入结果）\n- rawResponse     ：原始报文（可选，存在时触发 CodecExecutor 解析）\n- deviceType      ：设备类型（rawResponse 存在时必填，用于查找 codec 配置）\n- commandCode     ：指令代码（rawResponse 存在时必填）\n\nnodeId 约定：\n- 直接执行（DeviceDirectExec）：固定为 direct\n- 流水线步骤执行：为对应的 DAG nodeId"
+          },
+          "response": [
+            {
+              "name": "✅ 回调处理成功",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"code\": 0,\n  \"data\": true\n}"
+            },
+            {
+              "name": "❌ Token 验证失败",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"code\": 1,\n  \"msg\": \"回调令牌不匹配\"\n}"
+            },
+            {
+              "name": "❌ 执行记录不存在",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"code\": 1,\n  \"msg\": \"执行记录不存在或已过期\"\n}"
+            }
+          ]
+        },
+
+        {
+          "name": "pH 计 - 校准指令（接收平台请求 + 自动回调）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let reqBody = {};",
+                  "try { reqBody = JSON.parse(pm.request.body.raw || '{}'); } catch(e) {}",
+                  "const callbackUrl   = reqBody.callbackUrl;",
+                  "const callbackToken = reqBody.callbackToken;",
+                  "if (!callbackUrl) { console.log('⚠️ 无 callbackUrl，跳过自动回调'); return; }",
+                  "",
+                  "// 校准耗时较长，模拟 1.5 秒",
+                  "setTimeout(() => {",
+                  "    pm.sendRequest({",
+                  "        url: callbackUrl, method: 'POST',",
+                  "        header: [{ key: 'Content-Type', value: 'application/json' }],",
+                  "        body: {",
+                  "            mode: 'raw',",
+                  "            raw: JSON.stringify({",
+                  "                callbackToken: callbackToken || '',",
+                  "                success: true,",
+                  "                data: { calibrated: true, buffer: reqBody.buffer || 7.0, offsetMv: parseFloat((Math.random() * 2 - 1).toFixed(2)) }",
+                  "            })",
+                  "        }",
+                  "    }, (err, resp) => {",
+                  "        console.log(err ? '❌ 回调失败:' + err.message : '✅ 校准回调已发送 → 响应:' + resp.code);",
+                  "    });",
+                  "}, 1500);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Callback-Token", "value": "{{callback_token}}" }
+            ],
+            "url": {
+              "raw": "{{device_mock_url}}/api/ph/calibrate",
+              "host": ["{{device_mock_url}}"],
+              "path": ["api", "ph", "calibrate"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"buffer\": 7.0,\n  \"temperature\": 25,\n  \"callbackUrl\": \"{{base_url}}/device/callback/{{exec_id}}/direct\",\n  \"callbackToken\": \"{{callback_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": [
+            {
+              "name": "✅ 校准任务已接受",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"taskId\": \"CAL-TASK-{{$randomUUID}}\",\n  \"status\": \"ACCEPTED\"\n}"
+            }
+          ]
+        },
+
+        {
+          "name": "pH 计 - 重置指令（同步完成 + 自动回调）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "let reqBody = {};",
+                  "try { reqBody = JSON.parse(pm.request.body.raw || '{}'); } catch(e) {}",
+                  "const callbackUrl   = reqBody.callbackUrl;",
+                  "const callbackToken = reqBody.callbackToken;",
+                  "if (!callbackUrl) { console.log('⚠️ 无 callbackUrl，跳过自动回调'); return; }",
+                  "",
+                  "// 重置较快，200ms 后回调",
+                  "setTimeout(() => {",
+                  "    pm.sendRequest({",
+                  "        url: callbackUrl, method: 'POST',",
+                  "        header: [{ key: 'Content-Type', value: 'application/json' }],",
+                  "        body: {",
+                  "            mode: 'raw',",
+                  "            raw: JSON.stringify({",
+                  "                callbackToken: callbackToken || '',",
+                  "                success: true,",
+                  "                data: { reset: true, message: '设备已重置' }",
+                  "            })",
+                  "        }",
+                  "    }, (err, resp) => {",
+                  "        console.log(err ? '❌ 回调失败:' + err.message : '✅ 重置回调已发送 → 响应:' + resp.code);",
+                  "    });",
+                  "}, 200);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Callback-Token", "value": "{{callback_token}}" }
+            ],
+            "url": {
+              "raw": "{{device_mock_url}}/api/ph/reset",
+              "host": ["{{device_mock_url}}"],
+              "path": ["api", "ph", "reset"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"callbackUrl\": \"{{base_url}}/device/callback/{{exec_id}}/direct\",\n  \"callbackToken\": \"{{callback_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": [
+            {
+              "name": "✅ 重置成功（同步返回）",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"taskId\": \"RESET-TASK-{{$randomUUID}}\",\n  \"status\": \"DONE\",\n  \"message\": \"设备已重置\"\n}"
+            }
+          ]
+        },
+
+        {
+          "name": "通用设备 - 状态查询（心跳）",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{device_mock_url}}/api/device/status",
+              "host": ["{{device_mock_url}}"],
+              "path": ["api", "device", "status"]
+            },
+            "description": "心跳检测接口，DeviceHeartbeatWatchdog 定时调用"
+          },
+          "response": [
+            {
+              "name": "✅ 设备在线",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"status\": \"IDLE\",\n  \"deviceId\": \"PH-METER-01\",\n  \"temperature\": 25.1,\n  \"uptime\": 3600\n}"
+            },
+            {
+              "name": "❌ 设备离线",
+              "status": "Service Unavailable",
+              "code": 503,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"status\": \"OFFLINE\"\n}"
+            }
+          ]
+        },
+
+        {
+          "name": "POLL 模式 - 查询任务结果",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{device_mock_url}}/api/result/{{task_id}}",
+              "host": ["{{device_mock_url}}"],
+              "path": ["api", "result", "{{task_id}}"],
+              "variable": [
+                { "key": "task_id", "value": "{{task_id}}", "description": "设备侧任务ID" }
+              ]
+            },
+            "description": "POLL 模式下，平台定时轮询设备任务结果。\n对应 DeviceCommandDO.pollPath = /api/result/${taskId}\n对应 DeviceCommandDO.pollDoneExpr = $.status == \"DONE\""
+          },
+          "response": [
+            {
+              "name": "✅ 任务完成",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"taskId\": \"{{task_id}}\",\n  \"status\": \"DONE\",\n  \"result\": {\n    \"value\": 7.23,\n    \"unit\": \"pH\",\n    \"temperature\": 25.1,\n    \"measuredAt\": \"{{$isoTimestamp}}\"\n  }\n}"
+            },
+            {
+              "name": "⏳ 任务进行中",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"taskId\": \"{{task_id}}\",\n  \"status\": \"RUNNING\",\n  \"progress\": 60\n}"
+            }
+          ]
+        },
+
+        {
+          "name": "AGV - 搬运指令",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "X-Callback-Token", "value": "{{callback_token}}" }
+            ],
+            "url": {
+              "raw": "{{device_mock_url}}/api/agv/move",
+              "host": ["{{device_mock_url}}"],
+              "path": ["api", "agv", "move"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fromLocation\": \"RACK-A-R1-C2-L1\",\n  \"toLocation\": \"BENCH-01-R1-C1-L1\",\n  \"itemId\": \"SAMPLE-001\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": [
+            {
+              "name": "✅ 搬运任务已接受",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"taskId\": \"AGV-TASK-{{$randomUUID}}\",\n  \"status\": \"ACCEPTED\",\n  \"estimatedSeconds\": 30\n}"
+            }
+          ]
+        }
+
+      ]
+    },
+
+    {
+      "name": "【2】系统接口测试",
+      "description": "测试 Librax 系统的直接执行相关接口",
+      "item": [
+
+        {
+          "name": "触发设备指令执行（自动选择设备）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "pm.test('响应码为 0', () => pm.expect(resp.code).to.eql(0));",
+                  "pm.test('返回 execId', () => pm.expect(resp.data.execId).to.match(/^de-/));",
+                  "pm.test('状态为 EXECUTING 或 FAILED', () => {",
+                  "    pm.expect(resp.data.status).to.be.oneOf(['EXECUTING', 'FAILED']);",
+                  "});",
+                  "",
+                  "// 自动保存 execId 和 callbackToken 到环境变量",
+                  "if (resp.data && resp.data.execId) {",
+                  "    pm.collectionVariables.set('exec_id', resp.data.execId);",
+                  "    console.log('✅ execId 已保存:', resp.data.execId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/lab/device-command/execute",
+              "host": ["{{base_url}}"],
+              "path": ["lab", "device-command", "execute"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceType\": \"PH_METER\",\n  \"commandCode\": \"MEASURE\",\n  \"params\": {\n    \"sampleCount\": 1,\n    \"unit\": \"pH\"\n  },\n  \"timeoutMs\": 30000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "不指定 deviceId，系统自动从 PH_METER 类型中选择空闲设备"
+          },
+          "response": [
+            {
+              "name": "✅ 执行已提交",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"code\": 0,\n  \"data\": {\n    \"execId\": \"de-a1b2c3d4e5f6a7b8\",\n    \"status\": \"EXECUTING\",\n    \"deviceId\": \"PH-METER-01\",\n    \"taskId\": \"PH-TASK-xyz\"\n  }\n}"
+            },
+            {
+              "name": "❌ 无可用设备",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"code\": 0,\n  \"data\": {\n    \"execId\": \"de-a1b2c3d4e5f6a7b8\",\n    \"status\": \"FAILED\",\n    \"errorCode\": \"SEND_ERROR\",\n    \"errorMsg\": \"无可用设备: PH_METER\"\n  }\n}"
+            }
+          ]
+        },
+
+        {
+          "name": "触发设备指令执行（指定设备ID）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "pm.test('响应码为 0', () => pm.expect(resp.code).to.eql(0));",
+                  "if (resp.data && resp.data.execId) {",
+                  "    pm.collectionVariables.set('exec_id', resp.data.execId);",
+                  "    console.log('✅ execId:', resp.data.execId, '| deviceId:', resp.data.deviceId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/lab/device-command/execute",
+              "host": ["{{base_url}}"],
+              "path": ["lab", "device-command", "execute"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"PH-METER-01\",\n  \"deviceType\": \"PH_METER\",\n  \"commandCode\": \"MEASURE\",\n  \"params\": {\n    \"sampleCount\": 1,\n    \"unit\": \"pH\"\n  },\n  \"timeoutMs\": 30000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "指定 deviceId=PH-METER-01，走 sendCommandToDevice 直接发送"
+          },
+          "response": []
+        },
+
+        {
+          "name": "查询执行结果（轮询）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "pm.test('响应码为 0', () => pm.expect(resp.code).to.eql(0));",
+                  "",
+                  "const status = resp.data.status;",
+                  "console.log('📊 当前状态:', status);",
+                  "",
+                  "if (status === 'SUCCESS') {",
+                  "    pm.test('有输出数据', () => pm.expect(resp.data.output).to.not.be.null);",
+                  "    console.log('✅ 执行成功，输出:', JSON.stringify(resp.data.output));",
+                  "} else if (status === 'FAILED') {",
+                  "    console.log('❌ 执行失败:', resp.data.errorCode, resp.data.errorMsg);",
+                  "} else if (status === 'EXECUTING') {",
+                  "    console.log('⏳ 仍在执行中，可继续轮询...');",
+                  "} else if (status === 'TIMEOUT') {",
+                  "    console.log('⌛ 执行超时');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/lab/device-command/execute/result?execId={{exec_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["lab", "device-command", "execute", "result"],
+              "query": [{ "key": "execId", "value": "{{exec_id}}" }]
+            },
+            "description": "轮询执行状态。EXECUTING 时继续轮询，SUCCESS/FAILED/TIMEOUT 为终态。"
+          },
+          "response": [
+            {
+              "name": "✅ 执行成功",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"code\": 0,\n  \"data\": {\n    \"execId\": \"de-a1b2c3d4e5f6a7b8\",\n    \"status\": \"SUCCESS\",\n    \"deviceId\": \"PH-METER-01\",\n    \"taskId\": \"PH-TASK-xyz\",\n    \"output\": {\n      \"value\": 7.23,\n      \"unit\": \"pH\",\n      \"temperature\": 25.1\n    },\n    \"rawResponse\": null,\n    \"errorCode\": null,\n    \"errorMsg\": null,\n    \"executeMs\": 1340\n  }\n}"
+            },
+            {
+              "name": "⏳ 执行中",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"code\": 0,\n  \"data\": {\n    \"execId\": \"de-a1b2c3d4e5f6a7b8\",\n    \"status\": \"EXECUTING\",\n    \"deviceId\": \"PH-METER-01\",\n    \"taskId\": \"PH-TASK-xyz\",\n    \"output\": null,\n    \"executeMs\": 0\n  }\n}"
+            },
+            {
+              "name": "❌ 执行失败",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"code\": 0,\n  \"data\": {\n    \"execId\": \"de-a1b2c3d4e5f6a7b8\",\n    \"status\": \"FAILED\",\n    \"errorCode\": \"DEVICE_ERROR\",\n    \"errorMsg\": \"传感器异常，无法完成测量\",\n    \"executeMs\": 520\n  }\n}"
+            },
+            {
+              "name": "⌛ 执行超时",
+              "status": "OK",
+              "code": 200,
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": "{\n  \"code\": 0,\n  \"data\": {\n    \"execId\": \"de-a1b2c3d4e5f6a7b8\",\n    \"status\": \"TIMEOUT\",\n    \"errorCode\": \"EXEC_TIMEOUT\",\n    \"errorMsg\": \"设备未在规定时间内回调，执行已超时\"\n  }\n}"
+            }
+          ]
+        },
+
+        {
+          "name": "校准指令执行",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/lab/device-command/execute",
+              "host": ["{{base_url}}"],
+              "path": ["lab", "device-command", "execute"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"PH-METER-01\",\n  \"deviceType\": \"PH_METER\",\n  \"commandCode\": \"CALIBRATE\",\n  \"params\": {\n    \"buffer\": 7.0,\n    \"temperature\": 25\n  },\n  \"timeoutMs\": 60000\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+
+        {
+          "name": "重置指令执行",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/lab/device-command/execute",
+              "host": ["{{base_url}}"],
+              "path": ["lab", "device-command", "execute"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceId\": \"PH-METER-01\",\n  \"deviceType\": \"PH_METER\",\n  \"commandCode\": \"RESET\",\n  \"params\": {},\n  \"timeoutMs\": 10000\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        }
+
+      ]
+    },
+
+    {
+      "name": "【3】模拟设备回调",
+      "description": "手动或通过脚本触发设备回调，模拟设备完成指令后通知系统。\n实际联调时由设备自动调用，测试时手工触发。",
+      "item": [
+
+        {
+          "name": "✅ 模拟设备成功回调（结构化数据）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "pm.test('回调接收成功', () => pm.expect(resp.code).to.eql(0));",
+                  "console.log('📡 回调已发送，可查询 /execute/result 确认状态');"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/device/callback/{{exec_id}}/direct",
+              "host": ["{{base_url}}"],
+              "path": ["device", "callback", "{{exec_id}}", "direct"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"callbackToken\": \"{{callback_token}}\",\n  \"success\": true,\n  \"data\": {\n    \"value\": 7.23,\n    \"unit\": \"pH\",\n    \"temperature\": 25.1,\n    \"measuredAt\": \"2025-11-01T10:00:00\"\n  }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "模拟设备完成测量后的 WEBHOOK 回调。\ncallbackToken 必须与 /execute 时生成的一致（当前变量已自动填充）。"
+          },
+          "response": []
+        },
+
+        {
+          "name": "❌ 模拟设备失败回调",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/device/callback/{{exec_id}}/direct",
+              "host": ["{{base_url}}"],
+              "path": ["device", "callback", "{{exec_id}}", "direct"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"callbackToken\": \"{{callback_token}}\",\n  \"success\": false,\n  \"errorCode\": \"SENSOR_ERROR\",\n  \"errorMsg\": \"传感器读数异常，请检查电极状态\"\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+
+        {
+          "name": "模拟携带原始报文回调（触发 Codec 解析）",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/device/callback/{{exec_id}}/direct",
+              "host": ["{{base_url}}"],
+              "path": ["device", "callback", "{{exec_id}}", "direct"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"callbackToken\": \"{{callback_token}}\",\n  \"success\": true,\n  \"deviceType\": \"PH_METER\",\n  \"commandCode\": \"MEASURE\",\n  \"rawResponse\": \"{\\\"raw_ph\\\": 7.23, \\\"raw_temp\\\": 25100, \\\"status\\\": 0}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "携带原始报文时，系统会通过 CodecExecutor 按 DeviceCodecDO 配置解析后再写入结果"
+          },
+          "response": []
+        }
+
+      ]
+    },
+
+    {
+      "name": "【4】完整链路测试（自动触发回调）",
+      "description": "一次请求完成完整链路验证：execute → 自动触发回调 → 查询结果",
+      "item": [
+
+        {
+          "name": "🔗 端到端测试 - pH 计测量（自动回调）",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "pm.test('执行提交成功', () => pm.expect(resp.code).to.eql(0));",
+                  "",
+                  "const data = resp.data;",
+                  "if (!data || !data.execId) { console.error('❌ 未获取到 execId'); return; }",
+                  "",
+                  "pm.collectionVariables.set('exec_id', data.execId);",
+                  "console.log('📤 execId:', data.execId, '| deviceId:', data.deviceId);",
+                  "",
+                  "// 等待 500ms 后自动触发成功回调（模拟设备处理时间）",
+                  "setTimeout(() => {",
+                  "    pm.sendRequest({",
+                  "        url: pm.collectionVariables.get('base_url') + '/device/callback/' + data.execId + '/direct',",
+                  "        method: 'POST',",
+                  "        header: [{ key: 'Content-Type', value: 'application/json' }],",
+                  "        body: {",
+                  "            mode: 'raw',",
+                  "            raw: JSON.stringify({",
+                  "                callbackToken: '',",
+                  "                success: true,",
+                  "                data: {",
+                  "                    value: (6.5 + Math.random()).toFixed(2),",
+                  "                    unit: 'pH',",
+                  "                    temperature: (24 + Math.random()).toFixed(1)",
+                  "                }",
+                  "            })",
+                  "        }",
+                  "    }, (err, callbackResp) => {",
+                  "        if (err) { console.error('❌ 回调发送失败:', err); return; }",
+                  "        console.log('📡 回调已发送，响应:', callbackResp.code);",
+                  "        ",
+                  "        // 再等 300ms 查询结果",
+                  "        setTimeout(() => {",
+                  "            pm.sendRequest({",
+                  "                url: pm.collectionVariables.get('base_url') + '/lab/device-command/execute/result?execId=' + data.execId,",
+                  "                method: 'GET',",
+                  "                header: [{ key: 'Authorization', value: 'Bearer ' + pm.collectionVariables.get('token') }]",
+                  "            }, (err2, resultResp) => {",
+                  "                if (err2) { console.error('❌ 查询结果失败:', err2); return; }",
+                  "                const result = resultResp.json();",
+                  "                console.log('📊 最终状态:', result.data.status);",
+                  "                console.log('📈 测量结果:', JSON.stringify(result.data.output));",
+                  "                pm.test('最终状态为 SUCCESS', () => {",
+                  "                    pm.expect(result.data.status).to.eql('SUCCESS');",
+                  "                });",
+                  "            });",
+                  "        }, 300);",
+                  "    });",
+                  "}, 500);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/lab/device-command/execute",
+              "host": ["{{base_url}}"],
+              "path": ["lab", "device-command", "execute"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceType\": \"PH_METER\",\n  \"commandCode\": \"MEASURE\",\n  \"params\": {\n    \"sampleCount\": 1,\n    \"unit\": \"pH\"\n  },\n  \"timeoutMs\": 30000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "🔗 完整链路一键测试\n\n后置脚本自动执行：\n1. 保存 execId\n2. 500ms 后自动发起设备成功回调（模拟 pH 计测量完成）\n3. 再 300ms 后自动查询结果并断言 status=SUCCESS\n\n整个链路在一次请求的测试脚本中完成，无需手动操作。"
+          },
+          "response": []
+        },
+
+        {
+          "name": "🔗 端到端测试 - 设备失败场景",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "pm.test('执行提交成功', () => pm.expect(resp.code).to.eql(0));",
+                  "",
+                  "const data = resp.data;",
+                  "if (!data || !data.execId) return;",
+                  "pm.collectionVariables.set('exec_id', data.execId);",
+                  "",
+                  "// 500ms 后触发失败回调",
+                  "setTimeout(() => {",
+                  "    pm.sendRequest({",
+                  "        url: pm.collectionVariables.get('base_url') + '/device/callback/' + data.execId + '/direct',",
+                  "        method: 'POST',",
+                  "        header: [{ key: 'Content-Type', value: 'application/json' }],",
+                  "        body: {",
+                  "            mode: 'raw',",
+                  "            raw: JSON.stringify({",
+                  "                callbackToken: '',",
+                  "                success: false,",
+                  "                errorCode: 'SENSOR_ERROR',",
+                  "                errorMsg: '传感器读数异常，请检查电极状态'",
+                  "            })",
+                  "        }",
+                  "    }, (err, cbResp) => {",
+                  "        setTimeout(() => {",
+                  "            pm.sendRequest({",
+                  "                url: pm.collectionVariables.get('base_url') + '/lab/device-command/execute/result?execId=' + data.execId,",
+                  "                method: 'GET'",
+                  "            }, (err2, resultResp) => {",
+                  "                const result = resultResp.json();",
+                  "                console.log('📊 最终状态:', result.data.status, '| 错误码:', result.data.errorCode);",
+                  "                pm.test('最终状态为 FAILED', () => pm.expect(result.data.status).to.eql('FAILED'));",
+                  "                pm.test('错误码正确', () => pm.expect(result.data.errorCode).to.eql('SENSOR_ERROR'));",
+                  "            });",
+                  "        }, 300);",
+                  "    });",
+                  "}, 500);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/lab/device-command/execute",
+              "host": ["{{base_url}}"],
+              "path": ["lab", "device-command", "execute"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceType\": \"PH_METER\",\n  \"commandCode\": \"MEASURE\",\n  \"params\": { \"sampleCount\": 1 },\n  \"timeoutMs\": 30000\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          },
+          "response": []
+        },
+
+        {
+          "name": "🔗 端到端测试 - 超时场景",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const resp = pm.response.json();",
+                  "pm.test('执行提交成功', () => pm.expect(resp.code).to.eql(0));",
+                  "const data = resp.data;",
+                  "if (!data || !data.execId) return;",
+                  "pm.collectionVariables.set('exec_id', data.execId);",
+                  "console.log('⌛ 超时测试：timeoutMs=2000，2.5秒后查询应返回 TIMEOUT');",
+                  "",
+                  "// 2500ms 后查询（此时已超过 2000ms 超时，不触发回调）",
+                  "setTimeout(() => {",
+                  "    pm.sendRequest({",
+                  "        url: pm.collectionVariables.get('base_url') + '/lab/device-command/execute/result?execId=' + data.execId,",
+                  "        method: 'GET'",
+                  "    }, (err, resultResp) => {",
+                  "        const result = resultResp.json();",
+                  "        console.log('📊 超时检测结果:', result.data.status);",
+                  "        pm.test('最终状态为 TIMEOUT', () => pm.expect(result.data.status).to.eql('TIMEOUT'));",
+                  "    });",
+                  "}, 2500);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/lab/device-command/execute",
+              "host": ["{{base_url}}"],
+              "path": ["lab", "device-command", "execute"]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deviceType\": \"PH_METER\",\n  \"commandCode\": \"MEASURE\",\n  \"params\": { \"sampleCount\": 1 },\n  \"timeoutMs\": 2000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "description": "timeoutMs 故意设为 2000ms，脚本不发回调，2.5秒后查询结果应为 TIMEOUT"
+          },
+          "response": []
+        }
+
+      ]
+    }
+
+  ]
+}

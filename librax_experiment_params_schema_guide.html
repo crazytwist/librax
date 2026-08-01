@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Librax Experiment Params Schema 参数管理方案</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    color: #202636;
+    background: #f5f6f8;
+    line-height: 1.75;
+  }
+  .topbar {
+    background: #171a2a;
+    color: #fff;
+    padding: 18px 40px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    box-shadow: 0 2px 10px rgba(0,0,0,.24);
+  }
+  .logo { font-size: 20px; font-weight: 800; letter-spacing: .4px; color: #7eb3ff; }
+  .subtitle { font-size: 13px; color: #aeb7cc; }
+  .layout { display: flex; min-height: calc(100vh - 58px); }
+  .sidebar {
+    width: 278px;
+    background: #fff;
+    border-right: 1px solid #e4e8ef;
+    padding: 24px 0;
+    position: sticky;
+    top: 58px;
+    height: calc(100vh - 58px);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .nav-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: #8994aa;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 0 22px 8px;
+  }
+  .sidebar a {
+    display: block;
+    padding: 7px 22px;
+    color: #3d4966;
+    text-decoration: none;
+    font-size: 13px;
+    border-left: 3px solid transparent;
+  }
+  .sidebar a:hover { color: #2868d8; background: #f0f5ff; border-left-color: #9ab9ff; }
+  .nav-section { margin-top: 18px; }
+  .main { flex: 1; padding: 36px 48px 80px; max-width: 1220px; }
+  .section {
+    background: #fff;
+    border: 1px solid #e8ebf1;
+    border-radius: 10px;
+    padding: 32px 36px;
+    margin-bottom: 28px;
+    box-shadow: 0 1px 4px rgba(15,23,42,.05);
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 22px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #f0f2f5;
+  }
+  .section-num {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #e8f0fe;
+    color: #2868d8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  h1 { font-size: 23px; font-weight: 800; color: #171a2a; }
+  h2 { font-size: 18px; font-weight: 800; color: #171a2a; margin: 26px 0 10px; }
+  h3 { font-size: 15px; font-weight: 750; color: #2f3b57; margin: 22px 0 10px; }
+  p { color: #4b5874; margin: 10px 0; }
+  ul { padding-left: 20px; color: #4b5874; }
+  li { margin: 4px 0; }
+  .lead {
+    background: #f0f5ff;
+    border-left: 4px solid #2868d8;
+    border-radius: 0 8px 8px 0;
+    padding: 15px 18px;
+    color: #244a92;
+    margin-bottom: 20px;
+  }
+  .note {
+    border-radius: 8px;
+    padding: 13px 16px;
+    margin: 16px 0;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .note.info { background: #eaf4ff; color: #20547d; border: 1px solid #cde4fb; }
+  .note.warn { background: #fff8e6; color: #74540c; border: 1px solid #f2dfad; }
+  .note.ok { background: #eaf8ef; color: #205d37; border: 1px solid #c6e8d0; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 16px 0; }
+  .card {
+    background: #fafbfc;
+    border: 1px solid #e5e9f0;
+    border-radius: 9px;
+    padding: 16px;
+  }
+  .card-title { color: #1f2a44; font-weight: 800; margin-bottom: 8px; }
+  .card p, .card li { color: #5c6b83; font-size: 13px; }
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(136px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+  .flow-step {
+    position: relative;
+    min-height: 104px;
+    padding: 14px;
+    border: 1.5px solid #c9d9ff;
+    border-radius: 9px;
+    background: #f5f8ff;
+  }
+  .flow-step:after {
+    content: ">";
+    position: absolute;
+    right: -11px;
+    top: 38px;
+    color: #9aa6bb;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-weight: 700;
+  }
+  .flow-step:last-child:after { content: ""; }
+  .step-title { color: #244a92; font-weight: 800; margin-bottom: 5px; }
+  .step-desc { color: #5e6b85; font-size: 12.5px; line-height: 1.55; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 13px 0 22px;
+    font-size: 13px;
+    border: 1px solid #e4e8ef;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  thead tr { background: #f7f8fb; }
+  th {
+    padding: 10px 13px;
+    text-align: left;
+    color: #53617a;
+    font-weight: 800;
+    border-bottom: 2px solid #e4e8ef;
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px 13px;
+    border-bottom: 1px solid #edf0f4;
+    vertical-align: top;
+    color: #3f4b63;
+  }
+  tr:last-child td { border-bottom: none; }
+  code, .field {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 12.5px;
+    color: #b42318;
+    background: #fff3f2;
+    padding: 1px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  pre {
+    background: #1e2430;
+    color: #d7dde8;
+    border-radius: 8px;
+    padding: 16px 18px;
+    font-size: 12.5px;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin: 12px 0 18px;
+  }
+  .code-label {
+    font-size: 11px;
+    font-weight: 800;
+    color: #8994aa;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    margin: 16px 0 5px;
+  }
+  .tag {
+    display: inline-block;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 11px;
+    font-weight: 750;
+    margin-right: 5px;
+    margin-bottom: 4px;
+  }
+  .tag.scope { color: #245ec2; background: #e8f0ff; }
+  .tag.todo { color: #9a3412; background: #fff1e6; }
+  .tag.done { color: #16803c; background: #e7f8ed; }
+  .tag.warn { color: #b42318; background: #ffe9e7; }
+  .small { color: #6b768c; font-size: 12.5px; }
+  @media (max-width: 980px) {
+    .sidebar { display: none; }
+    .main { padding: 22px 16px 60px; }
+    .section { padding: 24px 18px; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .flow { grid-template-columns: 1fr; }
+    .flow-step:after { content: ""; }
+  }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo">Librax</div>
+  <div class="subtitle">Experiment Params Schema 参数管理方案 · 基于现有 Flow / Device / Task / Lab / Resource 底座</div>
+</div>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="nav-title">目录</div>
+    <a href="#summary">设计结论</a>
+    <a href="#problem">当前问题</a>
+    <a href="#principle">核心原则</a>
+    <a href="#schema">Schema 标准</a>
+    <a href="#mapping">底座映射</a>
+    <a href="#sample">样本参数</a>
+    <a href="#step">步骤参数</a>
+    <a href="#device">设备模板</a>
+    <a href="#runtime">运行时组装</a>
+    <a href="#postprocessor">后处理示例</a>
+    <a href="#agv">AGV 示例</a>
+    <a href="#ui">参数管理页面</a>
+    <a href="#todo">改造清单</a>
+    <a href="#roadmap">落地路线</a>
+  </aside>
+
+  <main class="main">
+    <section class="section" id="summary">
+      <div class="section-header">
+        <div class="section-num">01</div>
+        <h1>设计结论</h1>
+      </div>
+      <div class="lead">
+        Librax 的参数管理不应该以“设备最终报文”为中心，而应该以 <strong>Experiment Params Schema</strong> 为统一参数源。流程、步骤、样本、载具、设备、运行时计算结果都按作用域进入同一个结构，最终设备 payload 只是运行时渲染产物。
+      </div>
+      <div class="grid-3">
+        <div class="card">
+          <div class="card-title">参数源分层</div>
+          <p>区分全局参数、载具参数、步骤参数、样本参数、设备模板和运行时参数，避免所有字段平铺到一个上下文里。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">按 stepKey 生效</div>
+          <p>样本参数和步骤参数都按 <code>stepKey</code> 组织。流程运行到某个节点时，只提取这个节点需要的参数片段。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">设备报文运行时组装</div>
+          <p>后处理机台、AGV 等最终 payload 由 Compute 节点和设备命令模板组装，不建议用户直接维护大 JSON。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="problem">
+      <div class="section-header">
+        <div class="section-num">02</div>
+        <h1>当前问题</h1>
+      </div>
+      <table>
+        <thead>
+        <tr><th>问题</th><th>表现</th><th>风险</th><th>建议</th></tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td>参数平铺</td>
+          <td>样本参数、步骤参数、设备参数、运行时参数容易混在一起。</td>
+          <td>字段来源不清，后续流程一多会难以维护。</td>
+          <td>引入 <code>experimentParams.v1</code>，明确作用域。</td>
+        </tr>
+        <tr>
+          <td>设备报文和配置耦合</td>
+          <td>用户容易直接配置 <code>tasks/sampleInfos/stations</code> 这种最终设备结构。</td>
+          <td>设备协议一变，样本和流程配置都被牵动。</td>
+          <td>设备模块维护命令模板，Compute 节点负责组装。</td>
+        </tr>
+        <tr>
+          <td>样本参数无 step 归属</td>
+          <td>样本表里有很多字段，但不是每个步骤都会使用。</td>
+          <td>节点执行时可能拿到不属于自己的字段。</td>
+          <td>样本参数使用 <code>common + stepParams</code>。</td>
+        </tr>
+        <tr>
+          <td>深层路径解析不足</td>
+          <td>表达式如 <code>${experiment.stepParams.postProcessor.stations}</code> 需要稳定支持。</td>
+          <td>复杂参数只能靠 Compute 手工取值。</td>
+          <td>增强表达式解析器，支持嵌套 path。</td>
+        </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="principle">
+      <div class="section-header">
+        <div class="section-num">03</div>
+        <h1>核心原则</h1>
+      </div>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="step-title">定义参数</div>
+          <div class="step-desc">用 Schema 定义字段归属、类型、必填、默认值和生效 stepKey。</div>
+        </div>
+        <div class="flow-step">
+          <div class="step-title">绑定流程</div>
+          <div class="step-desc">流程只声明本次实验需要哪些参数包、载具、样本和步骤。</div>
+        </div>
+        <div class="flow-step">
+          <div class="step-title">节点取参</div>
+          <div class="step-desc">节点根据 stepKey 从全局上下文中取自己的参数片段。</div>
+        </div>
+        <div class="flow-step">
+          <div class="step-title">运行时计算</div>
+          <div class="step-desc">库位、载具位置、AGV 指令等由 Compute 节点计算。</div>
+        </div>
+        <div class="flow-step">
+          <div class="step-title">模板渲染</div>
+          <div class="step-desc">设备命令模板引用系统参数、步骤参数和运行时结果。</div>
+        </div>
+        <div class="flow-step">
+          <div class="step-title">设备下发</div>
+          <div class="step-desc">Device 节点只负责执行命令和处理回调，不再理解业务参数来源。</div>
+        </div>
+      </div>
+      <div class="note ok">
+        推荐规则：配置阶段维护“参数定义”和“参数来源”，运行阶段产生“设备报文”。不要把最终设备 JSON 反向当成参数管理的主模型。
+      </div>
+    </section>
+
+    <section class="section" id="schema">
+      <div class="section-header">
+        <div class="section-num">04</div>
+        <h1>Experiment Params Schema 标准</h1>
+      </div>
+      <p>建议统一使用 <code>experimentParams.v1</code> 作为流程启动、样本绑定、节点取参和设备组装的公共结构。</p>
+      <div class="code-label">recommended skeleton</div>
+      <pre>{
+  "schemaVersion": "experimentParams.v1",
+  "globalParams": {},
+  "carrierParams": {},
+  "stepParams": {},
+  "sampleParams": {},
+  "deviceParams": {},
+  "runtimeParams": {}
+}</pre>
+      <table>
+        <thead>
+        <tr><th>分区</th><th>归属</th><th>示例字段</th><th>维护位置</th><th>使用者</th></tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td><code>globalParams</code></td>
+          <td>流程级公共参数</td>
+          <td><code>experimentNo</code>、<code>batchNo</code>、<code>zoneCode</code>、<code>operator</code></td>
+          <td>流程启动入参或流程定义默认值</td>
+          <td>所有节点</td>
+        </tr>
+        <tr>
+          <td><code>carrierParams</code></td>
+          <td>载具、托盘、盘号、库位</td>
+          <td><code>carrierNo</code>、<code>carrierType</code>、<code>currentLocation</code>、<code>targetLocation</code></td>
+          <td>启动入参、物料/库位查询结果</td>
+          <td>AGV、后处理机台、上下料节点</td>
+        </tr>
+        <tr>
+          <td><code>stepParams</code></td>
+          <td>步骤级工艺参数</td>
+          <td><code>postProcessor.stations</code>、<code>agvMove.taskType</code></td>
+          <td>步骤定义默认值 + 流程节点覆盖值</td>
+          <td>对应 stepKey 的节点</td>
+        </tr>
+        <tr>
+          <td><code>sampleParams</code></td>
+          <td>样本公共参数和样本步骤参数</td>
+          <td><code>samples[].common</code>、<code>samples[].stepParams.postProcessor</code></td>
+          <td>样本表 <code>experiment_params</code> 或样本参数配置模块</td>
+          <td>样本绑定节点、设备 payload builder</td>
+        </tr>
+        <tr>
+          <td><code>deviceParams</code></td>
+          <td>设备命令、协议、模板引用</td>
+          <td><code>POST_PROCESSOR.startTask</code>、<code>AGV.startTask</code></td>
+          <td>Device 模块或参数模板表</td>
+          <td>设备网关、设备节点</td>
+        </tr>
+        <tr>
+          <td><code>runtimeParams</code></td>
+          <td>流程执行中产生的结果</td>
+          <td><code>carrierLocation</code>、<code>agvCommand</code>、<code>postProcessorPayload</code></td>
+          <td>Execution Context / 节点输出</td>
+          <td>后续节点</td>
+        </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="mapping">
+      <div class="section-header">
+        <div class="section-num">05</div>
+        <h1>和现有 Librax 底座的映射</h1>
+      </div>
+      <table>
+        <thead>
+        <tr><th>现有能力</th><th>建议承载内容</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td><code>pd_pipeline_definition.default_input_params</code></td>
+          <td><code>schemaVersion</code>、<code>globalParams</code> 默认结构</td>
+          <td>定义流程级默认参数，不放具体设备最终报文。</td>
+        </tr>
+        <tr>
+          <td><code>pd_step_definition.default_params</code></td>
+          <td>某类步骤的默认 <code>stepParams</code></td>
+          <td>比如后处理步骤默认站点参数、AGV 步骤默认任务类型。</td>
+        </tr>
+        <tr>
+          <td><code>pd_pipeline_step.params_override</code></td>
+          <td>某个流程节点对默认步骤参数的覆盖</td>
+          <td>同一个 StepDefine 在不同流程里可以配置不同目标点位、不同工艺默认值。</td>
+        </tr>
+        <tr>
+          <td><code>pd_pipeline_step.input_mapping</code></td>
+          <td>节点入参和上下文路径的映射关系</td>
+          <td>声明节点从 <code>experiment</code>、<code>runtime</code>、<code>sys</code> 中取什么。</td>
+        </tr>
+        <tr>
+          <td><code>lab_sample_info.experiment_params</code></td>
+          <td><code>sampleParams.samples[].common</code> 和 <code>sampleParams.samples[].stepParams</code></td>
+          <td>样本表只维护样本自身参数，不直接维护设备下发 JSON。</td>
+        </tr>
+        <tr>
+          <td>Execution Context / Node Output</td>
+          <td><code>runtimeParams</code></td>
+          <td>库位查询、载具绑定、AGV 指令、机台 payload 等运行时结果进入这里。</td>
+        </tr>
+        </tbody>
+      </table>
+      <div class="note warn">
+        现阶段可以先通过规范约束这些表的 JSON 结构；后续再补 Schema 校验、深层 path 解析和参数预览能力。
+      </div>
+    </section>
+
+    <section class="section" id="sample">
+      <div class="section-header">
+        <div class="section-num">06</div>
+        <h1>样本参数标准</h1>
+      </div>
+      <p>样本参数不要直接保存设备最终需要的 <code>sampleInfos</code>，而是保存样本公共参数和按步骤生效的参数。</p>
+      <div class="code-label">sample experiment_params example</div>
+      <pre>{
+  "schemaVersion": "sampleParams.v1",
+  "common": {
+    "sampleId": "SAMPLE-001",
+    "sampleNo": "SAMPLE-001",
+    "carrierNo": "PP-4-1",
+    "hole": 1
+  },
+  "stepParams": {
+    "postProcessor": {
+      "filterTimeSec": 10,
+      "nitrogenBlowingStepCount": 2,
+      "liquidSteps": [
+        {
+          "index": 1,
+          "stepType": "quench",
+          "solventCode": "1",
+          "volumeUl": 1000
+        },
+        {
+          "index": 2,
+          "stepType": "wash",
+          "solventCode": "1",
+          "volumeUl": 1000
+        },
+        {
+          "index": 3,
+          "stepType": "recovery",
+          "solventCode": "1",
+          "volumeUl": 1000
+        }
+      ]
+    }
+  }
+}</pre>
+      <table>
+        <thead>
+        <tr><th>字段</th><th>归属</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td><code>common.sampleId</code>、<code>common.hole</code></td>
+          <td><span class="tag scope">样本公共参数</span></td>
+          <td>任何需要识别样本和孔位的节点都可以使用。</td>
+        </tr>
+        <tr>
+          <td><code>stepParams.postProcessor.filterTimeSec</code></td>
+          <td><span class="tag scope">样本步骤参数</span></td>
+          <td>只在后处理步骤组装机台 payload 时使用。</td>
+        </tr>
+        <tr>
+          <td><code>stepParams.postProcessor.liquidSteps</code></td>
+          <td><span class="tag scope">样本步骤参数</span></td>
+          <td>用于生成设备报文中的 <code>sampleInfos[].steps</code>。</td>
+        </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="step">
+      <div class="section-header">
+        <div class="section-num">07</div>
+        <h1>步骤参数标准</h1>
+      </div>
+      <p>步骤参数描述“这个节点怎么运行”，不是“这个设备最终收到什么”。同一个步骤的默认参数放在 StepDefine，某条流程的差异放在 PipelineStep override。</p>
+      <div class="code-label">stepParams example</div>
+      <pre>{
+  "stepParams": {
+    "postProcessor": {
+      "stations": [
+        {
+          "stationCode": "quench",
+          "tempC": 20,
+          "timeSec": 20,
+          "rpm": 300,
+          "flowAir": 0,
+          "steps": []
+        },
+        {
+          "stationCode": "nitrogenBlowing",
+          "tempC": 20,
+          "timeSec": 0,
+          "rpm": 0,
+          "flowAir": 30,
+          "steps": [
+            {
+              "index": 1,
+              "blowAir": false,
+              "moveLengthMm": 45,
+              "moveTimeSec": 5,
+              "waitTimeSec": 0
+            }
+          ]
+        }
+      ]
+    },
+    "agvMoveToPostProcessor": {
+      "taskType": "1",
+      "plateType": "Plate_5",
+      "targetStation": "AP5",
+      "targetArea": "POST_PROCESSOR",
+      "targetPos": "1"
+    }
+  }
+}</pre>
+      <div class="note info">
+        建议所有步骤都拥有稳定的 <code>stepKey</code>。样本参数、步骤参数、设备模板和 Compute 节点都用这个 <code>stepKey</code> 对齐。
+      </div>
+    </section>
+
+    <section class="section" id="device">
+      <div class="section-header">
+        <div class="section-num">08</div>
+        <h1>设备命令模板</h1>
+      </div>
+      <p>设备模块应该维护接口协议和命令模板。模板引用上下文路径，不直接包含业务计算逻辑。</p>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">后处理机台 startTask 模板</div>
+          <pre>{
+  "deviceType": "POST_PROCESSOR",
+  "commandCode": "startTask",
+  "schemaVersion": "postProcessor.startTask.v1",
+  "payloadTemplate": {
+    "callbackToken": "${sys.callbackToken}",
+    "callbackUrl": "${sys.callbackUrl}",
+    "executionId": "${sys.executionId}",
+    "nodeId": "${sys.nodeId}",
+    "tasks": "${runtime.postProcessor.tasks}"
+  }
+}</pre>
+        </div>
+        <div class="card">
+          <div class="card-title">AGV startTask 模板</div>
+          <pre>{
+  "deviceType": "AGV",
+  "commandCode": "startTask",
+  "schemaVersion": "agv.startTask.v1",
+  "payloadTemplate": {
+    "taskId": "${runtime.agv.taskId}",
+    "agvCmdList": "${runtime.agv.agvCmdList}"
+  }
+}</pre>
+        </div>
+      </div>
+      <div class="note ok">
+        设备模板的职责是“把已经准备好的上下文字段渲染成接口报文”。比如 AGV 的 <code>sourceArea</code>、<code>sourcePos</code> 应该在调用 AGV 前由库位查询和命令构建节点准备好。
+      </div>
+    </section>
+
+    <section class="section" id="runtime">
+      <div class="section-header">
+        <div class="section-num">09</div>
+        <h1>运行时组装模型</h1>
+      </div>
+      <p>Compute 节点负责把结构化参数转换成设备可识别的运行时 payload。推荐每个复杂设备都有专门的 Payload Builder。</p>
+      <table>
+        <thead>
+        <tr><th>Compute 节点</th><th>输入</th><th>输出</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td><code>carrierSampleQuery</code></td>
+          <td><code>carrierNo</code></td>
+          <td><code>runtime.carrierSamples</code></td>
+          <td>查询载具下的样本和孔位。</td>
+        </tr>
+        <tr>
+          <td><code>carrierLocationQuery</code></td>
+          <td><code>carrierNo</code></td>
+          <td><code>runtime.carrierLocation</code></td>
+          <td>查询载具当前库位，用于 AGV source 参数。</td>
+        </tr>
+        <tr>
+          <td><code>agvCommandBuilder</code></td>
+          <td><code>carrierLocation</code>、<code>stepParams.agv*</code></td>
+          <td><code>runtime.agv.agvCmdList</code></td>
+          <td>生成 AGV <code>startTask</code> 报文主体。</td>
+        </tr>
+        <tr>
+          <td><code>processorTaskPayloadBuilder</code></td>
+          <td><code>carrier</code>、<code>samples</code>、<code>stepParams.postProcessor</code></td>
+          <td><code>runtime.postProcessor.tasks</code></td>
+          <td>生成后处理机台 <code>tasks</code> 内容。</td>
+        </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="postprocessor">
+      <div class="section-header">
+        <div class="section-num">10</div>
+        <h1>后处理机台示例</h1>
+      </div>
+      <p>后处理机台最终 payload 中的 <code>sampleInfos</code> 来自样本步骤参数，<code>stations</code> 来自步骤参数，<code>trayInfo</code> 来自载具/库位运行时结果。</p>
+      <div class="code-label">runtime assembled payload</div>
+      <pre>{
+  "callbackToken": "690f83dfde754e0698b5f565ca1d989c",
+  "callbackUrl": "http://localhost:48080/app-api/device/callback/...",
+  "executionId": "8bbc817bd4ad42deb0ff6bacfbfb59d8",
+  "nodeId": "s_start_post_processor",
+  "tasks": [
+    {
+      "trayInfo": {
+        "typeCode": "1",
+        "address": "13",
+        "needRetain": true
+      },
+      "stations": "${experiment.stepParams.postProcessor.stations}",
+      "sampleInfos": [
+        {
+          "sampleId": "SAMPLE-001",
+          "hole": 1,
+          "filterTimeSec": 10,
+          "nitrogenBlowingStepCount": 2,
+          "steps": "${sample.stepParams.postProcessor.liquidSteps}"
+        }
+      ]
+    }
+  ]
+}</pre>
+      <table>
+        <thead>
+        <tr><th>最终字段</th><th>来源</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td><code>tasks[].trayInfo</code></td>
+          <td><code>runtime.carrierLocation</code> + <code>carrierParams</code></td>
+          <td>载具类型、当前位置、是否保留固体等。</td>
+        </tr>
+        <tr>
+          <td><code>tasks[].stations</code></td>
+          <td><code>stepParams.postProcessor.stations</code></td>
+          <td>机台站点公共工艺参数。</td>
+        </tr>
+        <tr>
+          <td><code>tasks[].sampleInfos</code></td>
+          <td><code>sampleParams.samples[].common</code> + <code>stepParams.postProcessor</code></td>
+          <td>每个样本的孔位、过滤时间、液体步骤等。</td>
+        </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="agv">
+      <div class="section-header">
+        <div class="section-num">11</div>
+        <h1>AGV 示例</h1>
+      </div>
+      <p>AGV 推荐按原子动作拆分：每次 <code>agvCmdList</code> 中一个命令只激活 <code>step1</code>、<code>step2</code>、<code>step3</code> 中的一个。这样方便等待、重试、位置更新和异常恢复。</p>
+      <div class="code-label">step1 load to agv</div>
+      <pre>{
+  "taskId": "TASK_20260609_001",
+  "agvCmdList": [
+    {
+      "taskType": "1",
+      "plateType": "Plate_5",
+      "step1": {
+        "taskName": "C_2",
+        "sourceArea": "C_2",
+        "sourcePos": "1",
+        "agvArea": "HC_2",
+        "agvPos": "1",
+        "sourceStartPos": "1",
+        "count": "1",
+        "destinationStartPos": "1"
+      },
+      "step2": null,
+      "step3": null
+    }
+  ]
+}</pre>
+      <div class="code-label">step2 move agv</div>
+      <pre>{
+  "taskId": "TASK_20260609_002",
+  "agvCmdList": [
+    {
+      "taskType": "1",
+      "plateType": "Plate_5",
+      "step1": null,
+      "step2": {
+        "taskName": "AgvMove",
+        "agvStationName": "AP5"
+      },
+      "step3": null
+    }
+  ]
+}</pre>
+      <div class="code-label">step3 unload from agv</div>
+      <pre>{
+  "taskId": "TASK_20260609_003",
+  "agvCmdList": [
+    {
+      "taskType": "1",
+      "plateType": "Plate_5",
+      "step1": null,
+      "step2": null,
+      "step3": {
+        "taskName": "C_1",
+        "agvArea": "HC_1",
+        "agvPos": "1",
+        "desArea": "C_1",
+        "desPos": "1",
+        "sourceArea": "A区",
+        "sourcePos": "A-01",
+        "sourceStartPos": "1",
+        "count": "10",
+        "destinationStartPos": "1"
+      }
+    }
+  ]
+}</pre>
+      <div class="note info">
+        如果 AGV 厂商确认支持 step1、step2、step3 合并在一个命令里，后续可以在适配层合并；Librax 内部仍建议按原子动作建模。
+      </div>
+    </section>
+
+    <section class="section" id="ui">
+      <div class="section-header">
+        <div class="section-num">12</div>
+        <h1>参数管理页面建议</h1>
+      </div>
+      <p>页面不要让用户直接编辑最终 payload，而是分层管理参数，并提供最终报文预览。</p>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">参数模板库</div>
+          <ul>
+            <li>维护 <code>experimentParams.v1</code> 标准字段。</li>
+            <li>字段类型、单位、默认值、必填、说明。</li>
+            <li>字段归属：全局、载具、步骤、样本、设备、运行时。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">流程参数配置</div>
+          <ul>
+            <li>配置流程级 <code>globalParams</code>。</li>
+            <li>选择载具、样本、步骤参数包。</li>
+            <li>绑定每个节点的 <code>stepKey</code>。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">样本参数矩阵</div>
+          <ul>
+            <li>按样本、孔位、步骤维护参数。</li>
+            <li>支持批量编辑液体步骤、体积、过滤时间。</li>
+            <li>只展示当前流程会消费的字段。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">参数预览和校验</div>
+          <ul>
+            <li>预览每个节点最终入参。</li>
+            <li>预览设备最终下发 payload。</li>
+            <li>提示缺失字段、未消费字段、类型错误。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="todo">
+      <div class="section-header">
+        <div class="section-num">13</div>
+        <h1>需要补齐的能力</h1>
+      </div>
+      <table>
+        <thead>
+        <tr><th>事项</th><th>优先级</th><th>说明</th><th>建议落点</th></tr>
+        </thead>
+        <tbody>
+        <tr>
+          <td>定义 <code>experimentParams.v1</code> 文档和示例</td>
+          <td><span class="tag done">P0</span></td>
+          <td>先把标准固定下来，作为流程、样本、设备配置的共同语言。</td>
+          <td>参考文档 + SQL 示例 + 前端说明</td>
+        </tr>
+        <tr>
+          <td>支持深层路径表达式</td>
+          <td><span class="tag todo">P0</span></td>
+          <td>支持 <code>${experiment.stepParams.postProcessor.stations}</code> 这类嵌套路径。</td>
+          <td>ExecutionContext 表达式解析</td>
+        </tr>
+        <tr>
+          <td>样本参数改为 <code>common + stepParams</code></td>
+          <td><span class="tag todo">P0</span></td>
+          <td>避免样本参数平铺注入上下文。</td>
+          <td>SampleBindHook / SampleContextSpi / 样本配置页面</td>
+        </tr>
+        <tr>
+          <td>设备命令模板化</td>
+          <td><span class="tag todo">P1</span></td>
+          <td>设备模块维护 command schema 和 payloadTemplate。</td>
+          <td>Device 模块参数模板表</td>
+        </tr>
+        <tr>
+          <td>参数预览接口</td>
+          <td><span class="tag todo">P1</span></td>
+          <td>流程启动前预览节点入参和设备 payload。</td>
+          <td>Flow API + Compute dry-run</td>
+        </tr>
+        <tr>
+          <td>Schema 校验</td>
+          <td><span class="tag todo">P1</span></td>
+          <td>启动流程前校验必填、类型、单位、枚举值。</td>
+          <td>参数模板模块 / Flow 启动入口</td>
+        </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="roadmap">
+      <div class="section-header">
+        <div class="section-num">14</div>
+        <h1>落地路线</h1>
+      </div>
+      <h2>第一阶段：先统一规则</h2>
+      <ul>
+        <li>把 <code>experimentParams.v1</code> 作为新流程默认参数结构。</li>
+        <li>后处理流程和 AGV 流程先按新结构配置。</li>
+        <li>样本参数先约定 <code>common + stepParams</code>，不再继续新增平铺字段。</li>
+      </ul>
+      <h2>第二阶段：增强底座能力</h2>
+      <ul>
+        <li>增强表达式解析，支持嵌套 path。</li>
+        <li>调整样本参数注入方式，避免无作用域平铺合并。</li>
+        <li>把后处理和 AGV payload builder 接入统一 Schema。</li>
+      </ul>
+      <h2>第三阶段：做参数管理模块</h2>
+      <ul>
+        <li>建设参数模板库、设备命令模板、样本参数矩阵。</li>
+        <li>增加参数预览、校验、字段来源追踪。</li>
+        <li>让业务配置人员能看到“这个字段来自哪里、流向哪里、最终长什么样”。</li>
+      </ul>
+      <div class="note ok">
+        最终目标：所有流程参数都从统一上下文中获取；所有设备报文都从模板和运行时上下文中生成；所有样本差异都按 stepKey 管理。
+      </div>
+    </section>
+  </main>
+</div>
+</body>
+</html>

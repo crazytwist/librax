@@ -32,7 +32,7 @@ public interface MaterialCheckRuleMapper extends BaseMapperX<MaterialCheckRuleDO
                 .eqIfPresent(MaterialCheckRuleDO::getMinCount, reqVO.getMinCount())
                 .eqIfPresent(MaterialCheckRuleDO::getZoneCode, reqVO.getZoneCode())
                 .eqIfPresent(MaterialCheckRuleDO::getSortOrder, reqVO.getSortOrder())
-                .eqIfPresent(MaterialCheckRuleDO::getRemark, reqVO.getRemark())
+                .likeIfPresent(MaterialCheckRuleDO::getRemark, reqVO.getRemark())
                 .betweenIfPresent(MaterialCheckRuleDO::getCreateTime, reqVO.getCreateTime())
                 .orderByDesc(MaterialCheckRuleDO::getId));
     }

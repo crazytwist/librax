@@ -36,7 +36,7 @@ public interface SlotInfoMapper extends BaseMapperX<SlotInfoDO> {
 
     default PageResult<SlotInfoDO> selectPage(SlotInfoPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<SlotInfoDO>()
-                .eqIfPresent(SlotInfoDO::getSlotId, reqVO.getSlotId())
+                .likeIfPresent(SlotInfoDO::getSlotId, reqVO.getSlotId())
                 .likeIfPresent(SlotInfoDO::getSlotName, reqVO.getSlotName())
                 .eqIfPresent(SlotInfoDO::getSlotType, reqVO.getSlotType())
                 .eqIfPresent(SlotInfoDO::getZoneCode, reqVO.getZoneCode())

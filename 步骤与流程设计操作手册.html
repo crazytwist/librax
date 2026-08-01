@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>步骤与流程设计操作手册</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f6fa; color: #2c3e50; line-height: 1.7; }
+  .container { max-width: 1160px; margin: 0 auto; padding: 40px 24px; }
+  h1 { font-size: 2rem; font-weight: 700; color: #1a1a2e; border-bottom: 3px solid #2980b9; padding-bottom: 12px; margin-bottom: 8px; }
+  .subtitle { color: #7f8c8d; font-size: 0.95rem; margin-bottom: 40px; }
+  h2 { font-size: 1.4rem; font-weight: 700; color: #1a1a2e; margin: 44px 0 16px; padding-left: 12px; border-left: 4px solid #2980b9; }
+  h3 { font-size: 1.1rem; font-weight: 600; color: #2c3e50; margin: 28px 0 12px; }
+  h4 { font-size: 0.95rem; font-weight: 600; color: #34495e; margin: 20px 0 8px; }
+  p { margin: 10px 0; color: #4a5568; }
+
+  .card { background: #fff; border-radius: 10px; padding: 28px 32px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.87rem; margin: 14px 0; }
+  th { background: #2980b9; color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; }
+  td { padding: 9px 14px; border-bottom: 1px solid #ecf0f1; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f0f6ff; }
+  td:first-child { font-weight: 600; color: #2c3e50; white-space: nowrap; }
+  td code { background: #e8f4fd; color: #1a5276; padding: 1px 6px; border-radius: 3px; font-size: 0.82rem; }
+
+  pre { background: #1e2b3a; color: #a8d8a8; padding: 20px 24px; border-radius: 8px; font-size: 0.82rem; line-height: 1.75; overflow-x: auto; margin: 14px 0; }
+  .c { color: #6a8fa8; }
+  .k { color: #ff9d6c; }
+  .s { color: #a5d6a7; }
+  .n { color: #f0c27f; }
+  .b { color: #79c0ff; }
+  code { font-family: "JetBrains Mono", "Fira Code", Consolas, monospace; }
+  p code, li code { background: #e8f4fd; color: #1a5276; padding: 1px 6px; border-radius: 3px; font-size: 0.85rem; }
+
+  .tip  { background: #eafaf1; border-left: 4px solid #27ae60; padding: 14px 18px; border-radius: 8px; margin: 16px 0; font-size: 0.9rem; }
+  .warn { background: #fef9e7; border-left: 4px solid #f39c12; padding: 14px 18px; border-radius: 8px; margin: 16px 0; font-size: 0.9rem; }
+  .info { background: #eaf4fb; border-left: 4px solid #2980b9; padding: 14px 18px; border-radius: 8px; margin: 16px 0; font-size: 0.9rem; }
+  .tip strong, .warn strong, .info strong { display: block; margin-bottom: 4px; }
+
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; margin: 2px; }
+  .bg  { background: #d5f5e3; color: #1e8449; }
+  .bb  { background: #d6eaf8; color: #1a5276; }
+  .bo  { background: #fdebd0; color: #784212; }
+  .br  { background: #fadbd8; color: #922b21; }
+  .bp  { background: #e8daef; color: #4a235a; }
+  .by  { background: #fef9e7; color: #7d6608; }
+  .bgr { background: #eaecee; color: #566573; }
+
+  .flow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 16px 0; }
+  .fb { background: #eaf4fb; border: 1.5px solid #2980b9; border-radius: 8px; padding: 8px 16px; font-size: 0.88rem; font-weight: 600; color: #1a5276; }
+  .fa { color: #2980b9; font-size: 1.2rem; font-weight: 700; }
+
+  .toc { background: #fff; border-radius: 10px; padding: 24px 28px; margin-bottom: 32px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+  .toc h3 { margin-top: 0; color: #2980b9; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 6px 0; }
+  .toc a { color: #2980b9; text-decoration: none; font-size: 0.92rem; }
+  .toc a:hover { text-decoration: underline; }
+
+  ul, ol { padding-left: 22px; margin: 8px 0; }
+  li { margin: 4px 0; color: #4a5568; font-size: 0.92rem; }
+
+  .section-num { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: #2980b9; color: #fff; border-radius: 50%; font-weight: 700; font-size: 0.95rem; margin-right: 10px; }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 16px 0; }
+  @media(max-width:700px){ .grid2 { grid-template-columns: 1fr; } }
+
+  .layer-box { border-radius: 10px; padding: 20px 24px; margin-bottom: 16px; }
+  .layer-1 { background: #eaf4fb; border: 2px solid #2980b9; }
+  .layer-2 { background: #eafaf1; border: 2px solid #27ae60; }
+  .layer-3 { background: #fef9e7; border: 2px solid #f39c12; }
+  .layer-title { font-weight: 700; font-size: 1rem; margin-bottom: 8px; }
+  .layer-1 .layer-title { color: #1a5276; }
+  .layer-2 .layer-title { color: #1e8449; }
+  .layer-3 .layer-title { color: #784212; }
+
+  .priority-bar { display: flex; gap: 2px; margin: 16px 0; align-items: stretch; }
+  .pri-item { flex: 1; padding: 12px 10px; text-align: center; font-size: 0.82rem; font-weight: 600; border-radius: 6px; }
+  .pri-1 { background: #d5f5e3; color: #1e8449; }
+  .pri-2 { background: #d6eaf8; color: #1a5276; }
+  .pri-3 { background: #fdebd0; color: #784212; }
+  .pri-4 { background: #eaecee; color: #566573; }
+  .pri-arrow { display: flex; align-items: center; color: #aaa; font-size: 1.1rem; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>步骤与流程设计操作手册</h1>
+<p class="subtitle">Librax 实验室信息系统 · Step & Pipeline Design · v1.0</p>
+
+<div class="toc">
+  <h3>目录</h3>
+  <ol>
+    <li><a href="#overview">三层架构概览</a></li>
+    <li><a href="#step-def">步骤定义（pd_step_definition）— 步骤模板库</a></li>
+    <li><a href="#pipeline-def">流程定义（pd_pipeline_definition）— 全局配置</a></li>
+    <li><a href="#pipeline-step">步骤绑定（pd_pipeline_step）— 关联与覆盖</a></li>
+    <li><a href="#override">字段归属与覆盖优先级</a></li>
+    <li><a href="#execution">执行层（pe_step_execution）</a></li>
+    <li><a href="#workflow">完整操作流程：从编写步骤到串起流程</a></li>
+    <li><a href="#examples">典型配置示例</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="overview"><span class="section-num">1</span>三层架构概览</h2>
+
+<div class="card">
+  <p>整个设计分三层，每一层职责明确，下层可覆盖上层的默认值：</p>
+
+  <div class="layer-box layer-1">
+    <div class="layer-title">Layer 1 — 步骤定义 pd_step_definition（可复用模板）</div>
+    <p style="font-size:0.88rem;margin:0">描述"一种步骤能做什么"：设备类型、执行器、默认参数、超时、重试策略等。一次定义，多个流程复用。</p>
+  </div>
+  <div style="text-align:center;color:#aaa;font-size:1.3rem;margin:-8px 0">↕ 绑定 + 选择性覆盖</div>
+  <div class="layer-box layer-2">
+    <div class="layer-title">Layer 2 — 流程定义 pd_pipeline_definition（全局配置）</div>
+    <p style="font-size:0.88rem;margin:0">描述"一条流程的整体策略"：失败策略、补偿策略、全局默认超时/重试。不涉及具体步骤。</p>
+  </div>
+  <div style="text-align:center;color:#aaa;font-size:1.3rem;margin:-8px 0">↕ 绑定 + 节点编排</div>
+  <div class="layer-box layer-3">
+    <div class="layer-title">Layer 3 — 步骤绑定 pd_pipeline_step（关联 + 覆盖 + 编排）</div>
+    <p style="font-size:0.88rem;margin:0">将步骤定义"装入"流程，定义节点 ID、DAG 依赖关系、参数覆盖、输入/输出映射、资源配置。这是前端"流程编辑器"操作的核心表。</p>
+  </div>
+
+  <br>
+  <p><strong>数据流向：</strong></p>
+  <div class="flow">
+    <div class="fb">pd_step_definition<br><small>模板默认值</small></div>
+    <div class="fa">+</div>
+    <div class="fb">pd_pipeline_definition<br><small>全局策略</small></div>
+    <div class="fa">+</div>
+    <div class="fb">pd_pipeline_step<br><small>节点覆盖</small></div>
+    <div class="fa">→ 合并 →</div>
+    <div class="fb">StepNode<br><small>执行时最终配置</small></div>
+    <div class="fa">→</div>
+    <div class="fb">pe_step_execution<br><small>执行快照</small></div>
+  </div>
+
+  <div class="info">
+    <strong>前端页面边界</strong>
+    步骤定义页面：维护"步骤模板库"，改一次全局生效。<br>
+    流程定义页面：配置流程基本信息和全局策略。<br>
+    流程编辑器（画布）：操作 pd_pipeline_step，绑定步骤、连线、覆盖参数。<br>
+    执行监控页面：查看 pe_step_execution，只读。
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="step-def"><span class="section-num">2</span>步骤定义（pd_step_definition）— 步骤模板库</h2>
+
+<div class="card">
+  <p>步骤定义是可复用的"步骤模板"，与具体流程无关。改这里会影响所有引用该步骤的流程（除非绑定时指定了具体版本）。</p>
+
+  <h3>身份字段（创建后不可改）</h3>
+  <table>
+    <tr><th>字段</th><th>说明</th><th>示例</th></tr>
+    <tr><td>step_key</td><td>步骤唯一标识，小写下划线命名，全局唯一</td><td><code>ph_measure</code></td></tr>
+    <tr><td>version</td><td>版本号（从 1 开始递增），(stepKey, version) 联合唯一</td><td><code>1</code></td></tr>
+    <tr><td>name</td><td>显示名称</td><td><code>PH检测</code></td></tr>
+    <tr><td>description</td><td>步骤说明</td><td></td></tr>
+    <tr><td>status</td><td><span class="badge bg">ACTIVE</span> <span class="badge bgr">DISABLED</span></td><td></td></tr>
+  </table>
+
+  <h3>步骤类型（决定执行器路由）</h3>
+  <table>
+    <tr><th>step_type</th><th>含义</th><th>需要配置的字段</th></tr>
+    <tr><td><span class="badge bb">INSTRUMENT</span></td><td>调用物理设备</td><td>device_type + command</td></tr>
+    <tr><td><span class="badge bg">COMPUTE</span></td><td>调用 Spring Bean 或 LiteFlow 链</td><td>executor + bean_name/chain_id</td></tr>
+    <tr><td><span class="badge bo">CONDITION</span></td><td>条件分支节点（在绑定层配 conditionExpr）</td><td>无特殊字段，分支配置在 pd_pipeline_step</td></tr>
+    <tr><td><span class="badge bp">WAIT</span></td><td>等待外部事件/定时</td><td>default_timeout_ms</td></tr>
+    <tr><td><span class="badge br">UNIT_LAUNCHER</span></td><td>为每个样本启动子流程</td><td>default_params（指定子 pipelineKey）</td></tr>
+    <tr><td><span class="badge bgr">MANUAL</span></td><td>需人工确认才继续</td><td>无特殊字段</td></tr>
+    <tr><td><span class="badge by">NOTIFY</span></td><td>通知节点</td><td>bean_name（通知实现类）</td></tr>
+    <tr><td><span class="badge bgr">SAMPLE_SPLIT</span></td><td>样本拆分</td><td>default_params（拆分规则）</td></tr>
+  </table>
+
+  <h3>设备执行字段（INSTRUMENT 类型专用）</h3>
+  <table>
+    <tr><th>字段</th><th>说明</th><th>是否可被绑定层覆盖</th></tr>
+    <tr><td>device_type</td><td>设备类型，如 <code>PH_METER</code>、<code>AGV</code></td><td>不可覆盖（由步骤决定）</td></tr>
+    <tr><td>command</td><td>默认设备指令，如 <code>MEASURE</code></td><td>不可覆盖</td></tr>
+  </table>
+
+  <h3>计算执行字段（COMPUTE 类型专用）</h3>
+  <table>
+    <tr><th>字段</th><th>说明</th></tr>
+    <tr><td>executor</td><td><code>BEAN</code> = 调 Spring Bean；<code>LITEFLOW</code> = 走 LiteFlow 规则链</td></tr>
+    <tr><td>bean_name</td><td>Spring Bean 名称（executor=BEAN 时必填）</td></tr>
+    <tr><td>method_name</td><td>Bean 方法名</td></tr>
+    <tr><td>chain_id</td><td>LiteFlow 链 ID（executor=LITEFLOW 时必填）</td></tr>
+  </table>
+
+  <h3>可在绑定层覆盖的默认值</h3>
+  <p>以下字段是"步骤级默认值"，可在 pd_pipeline_step 中针对某个流程节点单独覆盖：</p>
+  <table>
+    <tr><th>字段</th><th>说明</th><th>默认值</th></tr>
+    <tr><td>default_params</td><td>默认参数（JSON），绑定层用 params_override 做增量覆盖</td><td><code>{}</code></td></tr>
+    <tr><td>params_schema</td><td>参数表单 schema（JSON Schema），供前端渲染动态表单</td><td>null</td></tr>
+    <tr><td>output_fields</td><td>输出字段声明（JSON 数组），如 <code>["ph","temperature"]</code>，供后续节点 inputMapping 引用</td><td>null</td></tr>
+    <tr><td>default_timeout_ms</td><td>默认超时毫秒数</td><td>null（继续往上找）</td></tr>
+    <tr><td>default_max_attempts</td><td>默认最大重试次数</td><td>null</td></tr>
+    <tr><td>default_backoff_ms</td><td>默认重试退避间隔（ms）</td><td>null</td></tr>
+    <tr><td>compensate_step_key</td><td>默认补偿步骤 key</td><td>null</td></tr>
+    <tr><td>compensate_params</td><td>补偿步骤默认参数（JSON）</td><td>null</td></tr>
+    <tr><td>runnable_standalone</td><td>是否可独立运行/测试</td><td>true</td></tr>
+    <tr><td>mock_output</td><td>独立测试时的模拟输出（JSON）</td><td>null</td></tr>
+  </table>
+
+  <div class="tip">
+    <strong>output_fields 是连接上下游的关键</strong>
+    声明 <code>output_fields: ["ph", "temperature"]</code> 后，下游节点可在 inputMapping 中写 <code>"${s_ph.ph}"</code> 引用这个值。前端编辑器可据此做自动补全提示。
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="pipeline-def"><span class="section-num">3</span>流程定义（pd_pipeline_definition）— 全局配置</h2>
+
+<div class="card">
+  <p>流程定义描述整条流程的"全局策略"，不涉及具体步骤节点，但它的默认值会作为兜底供节点继承。</p>
+
+  <h3>身份字段</h3>
+  <table>
+    <tr><th>字段</th><th>说明</th><th>示例</th></tr>
+    <tr><td>pipeline_key</td><td>流程唯一标识，小写下划线</td><td><code>water_quality_test</code></td></tr>
+    <tr><td>version</td><td>版本号，(pipelineKey, version) 联合唯一</td><td><code>1</code></td></tr>
+    <tr><td>name</td><td>显示名称</td><td><code>水质检测流程</code></td></tr>
+    <tr><td>description</td><td>流程说明</td><td></td></tr>
+    <tr><td>status</td><td><span class="badge by">DRAFT</span> <span class="badge bg">ACTIVE</span> <span class="badge bgr">DISABLED</span></td><td>只有 ACTIVE 状态才能被启动</td></tr>
+    <tr><td>published_at</td><td>发布时间（status 变为 ACTIVE 时记录）</td><td></td></tr>
+  </table>
+
+  <h3>全局策略字段（作为节点兜底值）</h3>
+  <table>
+    <tr><th>字段</th><th>取值</th><th>说明</th></tr>
+    <tr><td>fail_strategy</td><td><span class="badge br">FAIL_FAST</span> <span class="badge bo">CONTINUE_ON_FAIL</span></td><td>任意节点失败时的全局策略：FAIL_FAST=整条流程终止；CONTINUE_ON_FAIL=跳过失败节点继续</td></tr>
+    <tr><td>compensate_strategy</td><td><span class="badge bgr">NONE</span> <span class="badge bo">ON_FAIL</span> <span class="badge br">ALWAYS</span></td><td>全局补偿触发时机</td></tr>
+    <tr><td>default_timeout_ms</td><td>整数（ms）</td><td>节点没配 timeout 时的兜底值</td></tr>
+    <tr><td>default_max_attempts</td><td>整数</td><td>节点没配 maxAttempts 时的兜底值</td></tr>
+    <tr><td>default_backoff_ms</td><td>整数（ms）</td><td>节点没配 backoffMs 时的兜底值</td></tr>
+  </table>
+
+  <h3>样本绑定字段</h3>
+  <table>
+    <tr><th>字段</th><th>说明</th></tr>
+    <tr><td>sample_mode</td><td>样本绑定模式，当前固定为 <code>REQUIRED</code></td></tr>
+    <tr><td>sample_bind_nodes</td><td>触发样本绑定的节点 ID 列表（JSON 数组）</td></tr>
+  </table>
+
+  <div class="info">
+    <strong>流程定义与步骤定义的关系</strong>
+    流程定义本身不包含任何步骤信息。步骤是通过 pd_pipeline_step 关联进来的。
+    前端"流程定义"页面只需管理上面这些字段，步骤的编排在画布/编辑器里完成。
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="pipeline-step"><span class="section-num">4</span>步骤绑定（pd_pipeline_step）— 关联与覆盖</h2>
+
+<div class="card">
+  <p>这是最核心的关联表，一行 = 流程中的一个节点。它同时承担三个职责：①把步骤定义"装入"流程；②定义 DAG 拓扑（前后依赖）；③按需覆盖步骤定义的默认值。</p>
+
+  <h3>4.1 创建关联时必须传递的字段（最小必填集）</h3>
+  <div class="warn">
+    <strong>在流程编辑器中绑定步骤时，以下字段必须明确配置</strong>
+  </div>
+  <table>
+    <tr><th>字段</th><th>说明</th><th>示例</th></tr>
+    <tr><td>pipeline_key</td><td>所属流程的 key</td><td><code>water_quality_test</code></td></tr>
+    <tr><td>pipeline_version</td><td>所属流程的版本号</td><td><code>1</code></td></tr>
+    <tr><td>node_id</td><td>节点在此流程中的唯一 ID，小写下划线，建议以 <code>s_</code> 开头</td><td><code>s_ph</code></td></tr>
+    <tr><td>step_key</td><td>引用的步骤定义 key</td><td><code>ph_measure</code></td></tr>
+    <tr><td>depends_on</td><td>前置节点 ID 列表（JSON 数组或逗号分隔），入口节点填 <code>[]</code> 或 null</td><td><code>["s_sample_in"]</code></td></tr>
+  </table>
+
+  <h3>4.2 步骤自己拥有的字段（绑定层独有，步骤定义中不存在）</h3>
+  <table>
+    <tr><th>字段</th><th>说明</th><th>何时配置</th></tr>
+    <tr><td>node_id</td><td>节点实例 ID，同一流程内唯一</td><td>必填</td></tr>
+    <tr><td>step_version</td><td>固定引用步骤的具体版本；NULL = 自动用最新 ACTIVE 版本</td><td>需要锁定版本时填</td></tr>
+    <tr><td>depends_on</td><td>前置节点依赖（DAG 拓扑）</td><td>必填</td></tr>
+    <tr><td>dispatch_mode</td><td><span class="badge bg">DIRECT</span> 直接执行 / <span class="badge bb">QUEUED</span> 入区域队列</td><td>默认 DIRECT</td></tr>
+    <tr><td>task_type</td><td>任务路由类型（dispatch_mode=QUEUED 时有效）</td><td>按需配置</td></tr>
+    <tr><td>input_mapping</td><td>从执行上下文取值注入参数，如 <code>{"phValue":"${s_ph.ph}"}</code></td><td>需要引用上游输出时填</td></tr>
+    <tr><td>output_mapping</td><td>将设备/计算结果的字段映射到上下文 key，如 <code>{"ph":"$.result.phValue"}</code></td><td>需要把结果传给下游时填</td></tr>
+    <tr><td>condition_expr</td><td>CONDITION 节点的判断表达式，如 <code>${s_ph.ph} >= 6.5</code></td><td>step_type=CONDITION 时必填</td></tr>
+    <tr><td>true_branch</td><td>条件为 true 时跳转的 node_id</td><td>CONDITION 节点</td></tr>
+    <tr><td>false_branch</td><td>条件为 false 时跳转的 node_id</td><td>CONDITION 节点</td></tr>
+    <tr><td>branches</td><td>N 路分支，JSON 对象 <code>{"GRADE_A":"s_arch_a","*":"s_retest"}</code>，"*" 为默认分支</td><td>多路条件分支时用</td></tr>
+    <tr><td>on_failure</td><td>节点级失败策略，覆盖流程级 fail_strategy</td><td>需要局部不同策略时填</td></tr>
+    <tr><td>compensate_node_id</td><td>引用同一流程中已有节点作为补偿节点</td><td>需要补偿时填其一</td></tr>
+    <tr><td>compensate_on</td><td>触发补偿的时机：ON_FAIL / ON_TIMEOUT / ALWAYS</td><td>配补偿时填</td></tr>
+    <tr><td>resource_enabled</td><td>是否启用资源调度（设备占用）</td><td>INSTRUMENT 节点通常开启</td></tr>
+    <tr><td>zone_code</td><td>节点所在区域，资源调度和物料检查都按此区域匹配</td><td>多区域场景必填</td></tr>
+    <tr><td>resource_wait_timeout_ms</td><td>等待资源的超时时间（ms），默认 300000（5分钟）</td><td>按需调整</td></tr>
+    <tr><td>sort_order</td><td>在 UI 上的显示顺序，不影响执行</td><td>前端用</td></tr>
+    <tr><td>ui_position</td><td>画布坐标 JSON <code>{"x":200,"y":100}</code></td><td>前端画布用</td></tr>
+  </table>
+
+  <h3>4.3 可覆盖步骤定义默认值的字段</h3>
+  <p>以下字段在步骤定义中有默认值，绑定层可针对特定流程节点单独覆盖，不影响其他流程：</p>
+  <table>
+    <tr><th>绑定层字段</th><th>覆盖的步骤定义字段</th><th>覆盖规则</th></tr>
+    <tr><td>params_override</td><td>default_params</td><td>增量 JSON 合并：base=defaultParams，override=paramsOverride，只需填要改的 key</td></tr>
+    <tr><td>step_type</td><td>step_type</td><td>非空时完全替换，空则继承步骤定义</td></tr>
+    <tr><td>timeout_ms</td><td>default_timeout_ms</td><td>非 null 时使用此值，否则继续往上找流程级默认值</td></tr>
+    <tr><td>max_attempts</td><td>default_max_attempts</td><td>同上</td></tr>
+    <tr><td>backoff_ms</td><td>default_backoff_ms</td><td>同上</td></tr>
+    <tr><td>compensate_step_key</td><td>compensate_step_key</td><td>非空时覆盖步骤定义的补偿步骤</td></tr>
+    <tr><td>compensate_params</td><td>compensate_params</td><td>覆盖补偿参数</td></tr>
+    <tr><td>runnable_standalone</td><td>runnable_standalone</td><td>覆盖是否可独立运行</td></tr>
+    <tr><td>mock_output</td><td>mock_output</td><td>覆盖独立测试模拟输出</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="override"><span class="section-num">5</span>字段归属与覆盖优先级</h2>
+
+<div class="card">
+  <h3>5.1 覆盖优先级（Coalesce 链）</h3>
+  <p>执行引擎在构建 StepNode 时，对每个参数依次查找，取第一个非 null 值：</p>
+
+  <div class="priority-bar">
+    <div class="pri-item pri-1">pd_pipeline_step<br><small>节点级覆盖</small><br><small style="font-size:0.75rem">最高优先级</small></div>
+    <div class="pri-arrow">→</div>
+    <div class="pri-item pri-2">pd_step_definition<br><small>步骤级默认值</small></div>
+    <div class="pri-arrow">→</div>
+    <div class="pri-item pri-3">pd_pipeline_definition<br><small>流程级全局默认</small></div>
+    <div class="pri-arrow">→</div>
+    <div class="pri-item pri-4">系统硬编码<br><small>最终兜底</small><br><small style="font-size:0.75rem">如 backoff=2000ms</small></div>
+  </div>
+
+  <pre><span class="c">// PipelineGraphBuilder.assembleNode() 核心逻辑（伪代码）</span>
+timeoutMs    = <span class="k">coalesce</span>(ps.timeoutMs,   sd.defaultTimeoutMs,   pd.defaultTimeoutMs,  <span class="n">null</span>)
+maxAttempts  = <span class="k">coalesce</span>(ps.maxAttempts, sd.defaultMaxAttempts, pd.defaultMaxAttempts, <span class="n">1</span>)
+backoffMs    = <span class="k">coalesce</span>(ps.backoffMs,   sd.defaultBackoffMs,   pd.defaultBackoffMs,   <span class="n">2000</span>)
+onFailure    = <span class="k">coalesce</span>(ps.onFailure,   pd.failStrategy)
+stepType     = <span class="k">coalesce</span>(ps.stepType,    sd.stepType)            <span class="c">// 非空优先</span>
+
+<span class="c">// 参数合并：base + delta</span>
+params = merge(sd.defaultParams, ps.paramsOverride)             <span class="c">// paramsOverride 只需填要改的 key</span>
+
+<span class="c">// 布尔字段：绑定层 > 步骤层 > true（默认可运行）</span>
+runnableStandalone = <span class="k">coalesce</span>(ps.runnableStandalone, sd.runnableStandalone, <span class="n">true</span>)</pre>
+
+  <h3>5.2 字段归属速查表</h3>
+  <table>
+    <tr><th>字段</th><th>步骤定义</th><th>流程定义</th><th>步骤绑定</th><th>说明</th></tr>
+    <tr><td>step_key / pipeline_key</td><td>✓</td><td>✓</td><td>引用</td><td>各自的唯一标识</td></tr>
+    <tr><td>version</td><td>✓</td><td>✓</td><td>step_version（可选）</td><td>绑定可固定版本或浮动到最新</td></tr>
+    <tr><td>node_id</td><td>—</td><td>—</td><td>✓（独有）</td><td>步骤在此流程中的实例 ID</td></tr>
+    <tr><td>step_type</td><td>✓（主定义）</td><td>—</td><td>✓（可覆盖）</td><td>绑定层非空时覆盖</td></tr>
+    <tr><td>device_type / command</td><td>✓</td><td>—</td><td>—</td><td>仅在步骤层定义，不可覆盖</td></tr>
+    <tr><td>executor / bean_name</td><td>✓</td><td>—</td><td>—</td><td>仅在步骤层定义，不可覆盖</td></tr>
+    <tr><td>params_schema / output_fields</td><td>✓</td><td>—</td><td>—</td><td>仅在步骤层，供前端渲染</td></tr>
+    <tr><td>default_params</td><td>✓（基础层）</td><td>—</td><td>params_override（增量）</td><td>合并后使用</td></tr>
+    <tr><td>input_mapping / output_mapping</td><td>—</td><td>—</td><td>✓（独有）</td><td>上下游数据传递，只在绑定层</td></tr>
+    <tr><td>depends_on</td><td>—</td><td>—</td><td>✓（独有）</td><td>DAG 依赖，只在绑定层</td></tr>
+    <tr><td>condition_expr / branches</td><td>—</td><td>—</td><td>✓（独有）</td><td>条件分支，只在绑定层</td></tr>
+    <tr><td>timeout_ms</td><td>default_timeout_ms</td><td>default_timeout_ms</td><td>timeout_ms（覆盖）</td><td>三级 coalesce</td></tr>
+    <tr><td>max_attempts</td><td>default_max_attempts</td><td>default_max_attempts</td><td>max_attempts（覆盖）</td><td>三级 coalesce</td></tr>
+    <tr><td>backoff_ms</td><td>default_backoff_ms</td><td>default_backoff_ms</td><td>backoff_ms（覆盖）</td><td>三级 coalesce</td></tr>
+    <tr><td>fail_strategy</td><td>—</td><td>✓（全局）</td><td>on_failure（节点级覆盖）</td><td>节点可局部覆盖全局策略</td></tr>
+    <tr><td>compensate_strategy</td><td>—</td><td>✓（全局）</td><td>compensate_on（节点级）</td><td>节点可局部设置补偿时机</td></tr>
+    <tr><td>zone_code</td><td>—</td><td>—</td><td>✓（独有）</td><td>节点所在区域，资源调度用</td></tr>
+    <tr><td>resource_enabled</td><td>—</td><td>—</td><td>✓（独有）</td><td>是否启用资源占用</td></tr>
+    <tr><td>sort_order / ui_position</td><td>—</td><td>—</td><td>✓（独有）</td><td>纯 UI 字段，不影响执行</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="execution"><span class="section-num">6</span>执行层（pe_step_execution）</h2>
+
+<div class="card">
+  <p>执行层是只追加、不修改的快照记录，每次重试创建新行，完整保留历史。</p>
+
+  <div class="grid2">
+    <div>
+      <h3>身份字段</h3>
+      <table>
+        <tr><th>字段</th><th>说明</th></tr>
+        <tr><td>execution_id</td><td>所属流程执行 ID</td></tr>
+        <tr><td>node_id</td><td>对应 pd_pipeline_step.node_id</td></tr>
+        <tr><td>step_key</td><td>冗余存储，便于统计</td></tr>
+        <tr><td>attempt</td><td>第几次尝试（从 1 开始），重试不覆盖旧记录</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>状态字段</h3>
+      <table>
+        <tr><th>status</th><th>含义</th></tr>
+        <tr><td><span class="badge bgr">PENDING</span></td><td>等待依赖完成</td></tr>
+        <tr><td><span class="badge bb">RUNNING</span></td><td>执行中</td></tr>
+        <tr><td><span class="badge bg">SUCCESS</span></td><td>成功</td></tr>
+        <tr><td><span class="badge br">FAILED</span></td><td>失败</td></tr>
+        <tr><td><span class="badge bgr">SKIPPED</span></td><td>被跳过</td></tr>
+        <tr><td><span class="badge br">DEAD</span></td><td>超出最大重试</td></tr>
+        <tr><td><span class="badge bp">COMPENSATING</span></td><td>补偿执行中</td></tr>
+        <tr><td><span class="badge bp">COMPENSATED</span></td><td>补偿完成</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <h3>执行快照字段（执行时注入，前端只读）</h3>
+  <table>
+    <tr><th>字段</th><th>说明</th><th>注入时机</th></tr>
+    <tr><td>input_snapshot</td><td>执行前的最终输入参数（经 inputMapping 解析后）</td><td>PENDING→RUNNING 时</td></tr>
+    <tr><td>output_data</td><td>步骤输出（写入执行上下文，供下游引用）</td><td>SUCCESS 时</td></tr>
+    <tr><td>callback_token</td><td>设备回调安全令牌，防止重放</td><td>PENDING→RUNNING 时</td></tr>
+    <tr><td>device_id</td><td>实际分配的设备 ID（INSTRUMENT 类型）</td><td>资源调度成功后</td></tr>
+    <tr><td>zone_code</td><td>冗余区域码，用于追溯</td><td>执行时</td></tr>
+    <tr><td>resource_acquired</td><td>0=未占用，1=已持有（用于崩溃恢复）</td><td>资源获取后</td></tr>
+    <tr><td>run_mode</td><td>NORMAL / STANDALONE / COMPENSATE / MOCK</td><td>调度时</td></tr>
+    <tr><td>waiting_for</td><td>DEVICE_CALLBACK / MANUAL_APPROVE / EXTERNAL_EVENT / TIMER</td><td>进入等待状态时</td></tr>
+    <tr><td>queued_at / started_at / finished_at</td><td>关键时间戳</td><td>状态转换时</td></tr>
+    <tr><td>wait_ms / execute_ms</td><td>排队等待耗时 / 实际执行耗时（ms）</td><td>计算得出</td></tr>
+    <tr><td>error_code / error_msg</td><td>失败时的错误码和详情</td><td>FAILED 时</td></tr>
+    <tr><td>compensate_execution_id</td><td>触发的补偿执行 ID</td><td>触发补偿时</td></tr>
+  </table>
+
+  <div class="tip">
+    <strong>前端提示</strong>
+    执行层所有字段均为只读显示，无需用户填写。前端监控页面按 <code>(execution_id, node_id)</code> 查询所有 attempt 记录即可展示重试历史。
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="workflow"><span class="section-num">7</span>完整操作流程：从编写步骤到串起流程</h2>
+
+<div class="card">
+
+  <h3>Step 1：定义步骤（步骤模板库）</h3>
+  <p>进入<strong>步骤定义管理</strong>，新增步骤模板。关键决策：</p>
+  <ol>
+    <li>确定 <code>step_key</code>（全局唯一，建议 <code>动词_名词</code> 格式，如 <code>measure_ph</code>）</li>
+    <li>选择 <code>step_type</code>（INSTRUMENT / COMPUTE / CONDITION 等）</li>
+    <li>填写类型专属字段（INSTRUMENT 填 device_type+command，COMPUTE 填 executor+bean_name）</li>
+    <li>声明 <code>output_fields</code>（后续步骤 inputMapping 引用的字段名）</li>
+    <li>填写 <code>default_params</code>（步骤参数的默认值 JSON）</li>
+    <li>可选：填写 <code>params_schema</code>（供前端渲染动态表单）</li>
+    <li>设置合理的 <code>default_timeout_ms</code>、<code>default_max_attempts</code></li>
+  </ol>
+  <div class="tip">步骤定义好后 status 设为 ACTIVE，才能被流程引用。</div>
+
+  <h3>Step 2：定义流程基本信息</h3>
+  <p>进入<strong>流程定义管理</strong>，新增流程。关键决策：</p>
+  <ol>
+    <li>确定 <code>pipeline_key</code>（全局唯一）</li>
+    <li>选择 <code>fail_strategy</code>：实验流程通常用 <code>FAIL_FAST</code>（缺料/设备故障立即停止）</li>
+    <li>设置全局默认 timeout / maxAttempts（作为兜底，节点没配时使用）</li>
+    <li>此时 status 保持 <code>DRAFT</code>，待所有节点配好后再发布</li>
+  </ol>
+
+  <h3>Step 3：在流程中绑定步骤（画布编辑器）</h3>
+  <p>进入<strong>流程编辑器</strong>，每添加一个节点都会创建一条 pd_pipeline_step 记录：</p>
+  <ol>
+    <li><strong>选择步骤</strong>：从步骤模板库中选 step_key，分配唯一 node_id（如 <code>s_ph</code>）</li>
+    <li><strong>连线</strong>：拖动建立依赖，对应填写 depends_on（入口节点留空）</li>
+    <li><strong>配置 inputMapping</strong>：引用上游节点输出，如 <code>{"sampleId":"${input.sampleId}"}</code></li>
+    <li><strong>配置 outputMapping</strong>：将设备回调字段映射到上下文 key</li>
+    <li><strong>按需覆盖</strong>：只改和步骤默认值不同的参数（paramsOverride、timeout 等）</li>
+    <li><strong>配置资源</strong>：INSTRUMENT 节点开启 resource_enabled，填 zone_code</li>
+    <li><strong>CONDITION 节点</strong>：填 condition_expr、true_branch、false_branch</li>
+  </ol>
+
+  <h3>Step 4：发布流程</h3>
+  <p>所有节点配置完成后，将流程 status 改为 <code>ACTIVE</code>，记录 published_at。</p>
+  <div class="warn">
+    <strong>发布后修改</strong>
+    ACTIVE 流程建议创建新版本（version+1）而非直接修改，避免影响正在执行的实例。
+    正在执行的实例绑定的是启动时的版本，不受新版本影响。
+  </div>
+
+  <h3>Step 5：启动流程</h3>
+  <p>调用 <code>POST /flow/pipeline-execution/start</code>，传入：</p>
+  <pre>{
+  <span class="b">"pipelineKey"</span>:    <span class="s">"water_quality_test"</span>,
+  <span class="b">"pipelineVersion"</span>: <span class="n">1</span>,              <span class="c">// null 则自动用最新 ACTIVE 版本</span>
+  <span class="b">"inputParams"</span>: {
+    <span class="b">"sampleId"</span>: <span class="s">"S-20260611-001"</span>  <span class="c">// 步骤通过 ${input.sampleId} 引用</span>
+  },
+  <span class="b">"triggerType"</span>:     <span class="s">"MANUAL"</span>,
+  <span class="b">"triggeredBy"</span>:     <span class="s">"admin"</span>
+}</pre>
+
+  <h3>Step 6：执行监控</h3>
+  <p>查询 <code>pe_step_execution</code> 实时跟踪每个节点状态，支持：</p>
+  <ul>
+    <li>查看 input_snapshot（该节点实际收到的参数）</li>
+    <li>查看 output_data（该节点的输出，可被下游引用）</li>
+    <li>查看 wait_ms / execute_ms（排队/执行耗时分析）</li>
+    <li>重试历史（同一 node_id 的多条 attempt 记录）</li>
+  </ul>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="examples"><span class="section-num">8</span>典型配置示例</h2>
+
+<div class="card">
+  <h3>示例 1：pH 检测步骤绑定</h3>
+  <p>步骤定义中已有默认超时 30s，此节点需要 60s，且要引用上游采样步骤的 sampleId：</p>
+  <pre><span class="c">// pd_pipeline_step 核心字段</span>
+{
+  <span class="b">"pipelineKey"</span>:    <span class="s">"water_quality_test"</span>,
+  <span class="b">"pipelineVersion"</span>: <span class="n">1</span>,
+  <span class="b">"nodeId"</span>:          <span class="s">"s_ph"</span>,
+  <span class="b">"stepKey"</span>:         <span class="s">"measure_ph"</span>,
+  <span class="b">"dependsOn"</span>:       [<span class="s">"s_sample_in"</span>],
+  <span class="b">"inputMapping"</span>:    { <span class="b">"sampleId"</span>: <span class="s">"${input.sampleId}"</span> },
+  <span class="b">"outputMapping"</span>:   { <span class="b">"ph"</span>: <span class="s">"$.result.phValue"</span> },
+  <span class="b">"timeoutMs"</span>:       <span class="n">60000</span>,       <span class="c">// 覆盖步骤默认 30000</span>
+  <span class="b">"paramsOverride"</span>:  { <span class="b">"channel"</span>: <span class="s">"2"</span> },  <span class="c">// 只改 channel，其他参数用步骤默认值</span>
+  <span class="b">"resourceEnabled"</span>: <span class="k">true</span>,
+  <span class="b">"zoneCode"</span>:        <span class="s">"ZONE-A"</span>
+}</pre>
+
+  <h3>示例 2：条件分支节点</h3>
+  <p>pH 合格（6.5~8.5）走归档，否则走复测：</p>
+  <pre>{
+  <span class="b">"nodeId"</span>:        <span class="s">"s_ph_check"</span>,
+  <span class="b">"stepKey"</span>:       <span class="s">"condition_check"</span>,
+  <span class="b">"stepType"</span>:      <span class="s">"CONDITION"</span>,        <span class="c">// 覆盖步骤定义的默认类型（此处就是 CONDITION）</span>
+  <span class="b">"dependsOn"</span>:     [<span class="s">"s_ph"</span>],
+  <span class="b">"conditionExpr"</span>: <span class="s">"${s_ph.ph} >= 6.5 && ${s_ph.ph} &lt;= 8.5"</span>,
+  <span class="b">"trueBranch"</span>:    <span class="s">"s_archive"</span>,
+  <span class="b">"falseBranch"</span>:   <span class="s">"s_retest"</span>
+}</pre>
+
+  <h3>示例 3：参数合并逻辑</h3>
+  <pre><span class="c">// pd_step_definition.default_params</span>
+{ <span class="b">"channel"</span>: <span class="s">"1"</span>, <span class="b">"unit"</span>: <span class="s">"pH"</span>, <span class="b">"calibrate"</span>: <span class="k">true</span>, <span class="b">"retryOnError"</span>: <span class="k">false</span> }
+
+<span class="c">// pd_pipeline_step.params_override（只填要改的）</span>
+{ <span class="b">"channel"</span>: <span class="s">"2"</span>, <span class="b">"retryOnError"</span>: <span class="k">true</span> }
+
+<span class="c">// → 合并后 StepNode.params（执行时实际使用）</span>
+{ <span class="b">"channel"</span>: <span class="s">"2"</span>, <span class="b">"unit"</span>: <span class="s">"pH"</span>, <span class="b">"calibrate"</span>: <span class="k">true</span>, <span class="b">"retryOnError"</span>: <span class="k">true</span> }</pre>
+
+  <h3>示例 4：input/output 上下文传递</h3>
+  <pre><span class="c">// s_sample_in（采样步骤）output_mapping</span>
+{ <span class="b">"sampleVolume"</span>: <span class="s">"$.result.volumeUl"</span> }
+<span class="c">// → 写入上下文 key: "s_sample_in.sampleVolume"</span>
+
+<span class="c">// s_dilute（稀释步骤）input_mapping</span>
+{ <span class="b">"inputVolume"</span>: <span class="s">"${s_sample_in.sampleVolume}"</span> }
+<span class="c">// → 执行时将上下文中 s_sample_in.sampleVolume 的值注入 inputVolume 参数</span>
+
+<span class="c">// 流程启动时的 inputParams 也可以引用</span>
+{ <span class="b">"sampleId"</span>: <span class="s">"${input.sampleId}"</span> }
+<span class="c">// → 从 start() 时传入的 inputParams.sampleId 取值</span></pre>
+</div>
+
+<div style="margin-top: 48px; padding: 20px; text-align: center; color: #aaa; font-size: 0.82rem; border-top: 1px solid #eee;">
+  Librax 步骤与流程设计操作手册 · 最后更新 2026-06-11 · 适用版本 v1.0
+</div>
+
+</div>
+</body>
+</html>

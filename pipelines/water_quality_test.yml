@@ -1,0 +1,66 @@
+pipeline:
+  key: water_quality_test
+  version: 1
+  name: 水质检测
+  description: PH + 浊度双检，综合评分判断是否复检
+  status: DRAFT
+  zone: ZONE-A
+  timeout_ms: 1800000
+  on_failure: FAIL_FAST
+
+steps:
+  - id: s_load_sample
+    type: INSTRUMENT
+    name: 样本上样
+    step_key: sample_loader
+    resource:
+      type: LOADER
+      zone: ZONE-A
+    output_mapping:
+      sample_id: $.data.sampleId
+
+  - id: s_ph
+    type: INSTRUMENT
+    name: PH检测
+    step_key: ph_measure
+    depends_on: [s_load_sample]
+    resource:
+      type: PH_METER
+    input_mapping:
+      sample_id: ${s_load_sample.sample_id}
+    output_mapping:
+      ph_value: $.data.phValue
+    timeout_ms: 30000
+    max_attempts: 3
+    backoff_ms: 2000
+
+  - id: s_calc
+    type: COMPUTE
+    name: 综合评分
+    bean: waterQualityCalcBean
+    depends_on: [s_ph]
+    input_mapping:
+      ph: ${s_ph.ph_value}
+    output_mapping:
+      score: $.score
+
+  - id: s_judge
+    type: CONDITION
+    name: 合格判断
+    depends_on: [s_calc]
+    condition:
+      expr: "${s_calc.score} >= 80"
+      true_to: s_archive
+      false_to: s_notify
+
+  - id: s_archive
+    type: COMPUTE
+    name: 归档
+    bean: archiveBean
+    depends_on: [s_judge]
+
+  - id: s_notify
+    type: NOTIFY
+    name: 复检通知
+    depends_on: [s_judge]
+    on_failure: SKIP

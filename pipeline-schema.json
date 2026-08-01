@@ -1,0 +1,351 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://librax/pipeline-schema.json",
+  "title": "Librax Pipeline YAML Schema",
+  "description": "Schema for librax pipeline definition YAML files",
+  "oneOf": [
+    { "$ref": "#/definitions/singlePipeline" },
+    { "$ref": "#/definitions/multiPipeline" }
+  ],
+  "definitions": {
+    "singlePipeline": {
+      "type": "object",
+      "required": ["pipeline", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "pipeline": { "$ref": "#/definitions/pipelineMeta" },
+        "steps":    { "$ref": "#/definitions/stepList" }
+      }
+    },
+    "multiPipeline": {
+      "type": "object",
+      "required": ["pipelines"],
+      "additionalProperties": false,
+      "properties": {
+        "pipelines": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/definitions/singlePipeline" }
+        }
+      }
+    },
+    "pipelineMeta": {
+      "type": "object",
+      "required": ["key", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "流程唯一标识，小写下划线格式，如 water_quality_test"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "版本号，从 1 开始递增"
+        },
+        "name": {
+          "type": "string",
+          "description": "流程显示名称"
+        },
+        "description": {
+          "type": "string",
+          "description": "流程描述"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["DRAFT", "ACTIVE", "INACTIVE"],
+          "default": "DRAFT",
+          "description": "流程状态，默认 DRAFT"
+        },
+        "zone": {
+          "type": "string",
+          "description": "默认资源区域，如 ZONE-A。各步骤未指定时继承此值"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1000,
+          "default": 3600000,
+          "description": "流程级超时（毫秒），默认 3600000（1小时）"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "description": "timeout_ms 的 camelCase 别名"
+        },
+        "on_failure": {
+          "$ref": "#/definitions/failStrategy",
+          "description": "失败策略，默认 FAIL_FAST"
+        },
+        "onFailure": {
+          "$ref": "#/definitions/failStrategy",
+          "description": "on_failure 的 camelCase 别名"
+        }
+      }
+    },
+    "stepList": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/definitions/stepDef" }
+    },
+    "stepDef": {
+      "type": "object",
+      "required": ["id", "type"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "步骤唯一ID，小写下划线格式，同一流程内唯一，如 s_ph_measure"
+        },
+        "name": {
+          "type": "string",
+          "description": "步骤显示名称"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["INSTRUMENT", "COMPUTE", "CONDITION", "MANUAL", "WAIT", "UNIT_LAUNCHER", "NOTIFY", "SAMPLE_SPLIT"],
+          "description": "步骤类型"
+        },
+        "step_key": {
+          "type": "string",
+          "description": "步骤定义 key，引用 StepDefinition 配置（设备类型、指令代码等）"
+        },
+        "stepKey": {
+          "type": "string",
+          "description": "step_key 的 camelCase 别名"
+        },
+        "dispatch": {
+          "type": "string",
+          "enum": ["QUEUED", "DIRECT"],
+          "description": "调度模式。INSTRUMENT/MANUAL 默认 QUEUED，其余默认 DIRECT"
+        },
+        "bean": {
+          "type": "string",
+          "description": "Spring Bean 名称，COMPUTE 步骤 dispatch=DIRECT 时使用"
+        },
+        "depends_on": {
+          "$ref": "#/definitions/dependsOn"
+        },
+        "dependsOn": {
+          "$ref": "#/definitions/dependsOn"
+        },
+        "resource": {
+          "$ref": "#/definitions/resourceDef"
+        },
+        "condition": {
+          "$ref": "#/definitions/conditionDef"
+        },
+        "unit": {
+          "$ref": "#/definitions/unitDef"
+        },
+        "params": {
+          "type": "object",
+          "description": "步骤自定义参数，键值对",
+          "additionalProperties": true
+        },
+        "input_mapping": {
+          "$ref": "#/definitions/inputMapping"
+        },
+        "inputMapping": {
+          "$ref": "#/definitions/inputMapping"
+        },
+        "output_mapping": {
+          "$ref": "#/definitions/outputMapping"
+        },
+        "outputMapping": {
+          "$ref": "#/definitions/outputMapping"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 100,
+          "description": "步骤超时（毫秒），不填则继承流程级配置"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 100,
+          "description": "timeout_ms 的 camelCase 别名"
+        },
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "default": 1,
+          "description": "最大重试次数，默认 1（不重试）"
+        },
+        "maxAttempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "max_attempts 的 camelCase 别名"
+        },
+        "backoff_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "重试退避时间（毫秒），默认 0"
+        },
+        "backoffMs": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "backoff_ms 的 camelCase 别名"
+        },
+        "on_failure": {
+          "$ref": "#/definitions/failStrategy"
+        },
+        "onFailure": {
+          "$ref": "#/definitions/failStrategy"
+        },
+        "sort_order": {
+          "type": "integer",
+          "description": "UI 显示排序，不影响执行顺序"
+        },
+        "sortOrder": {
+          "type": "integer",
+          "description": "sort_order 的 camelCase 别名"
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "CONDITION" } }, "required": ["type"] },
+          "then": {
+            "required": ["condition"],
+            "properties": {
+              "condition": { "$ref": "#/definitions/conditionDef" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "type": { "const": "UNIT_LAUNCHER" } }, "required": ["type"] },
+          "then": {
+            "required": ["unit"],
+            "properties": {
+              "unit": { "$ref": "#/definitions/unitDef" }
+            }
+          }
+        }
+      ]
+    },
+    "dependsOn": {
+      "oneOf": [
+        {
+          "type": "string",
+          "description": "单个前置步骤 ID"
+        },
+        {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "多个前置步骤 ID 列表"
+        }
+      ],
+      "description": "前置步骤 ID，支持字符串或数组。入口步骤无需填写"
+    },
+    "resourceDef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "description": "资源类型，如 PH_METER / BALANCE / TITRATOR / AGV"
+        },
+        "zone": {
+          "type": "string",
+          "description": "资源区域，如 ZONE-A。不填则继承流程级 zone"
+        }
+      }
+    },
+    "conditionDef": {
+      "type": "object",
+      "required": ["expr"],
+      "additionalProperties": false,
+      "properties": {
+        "expr": {
+          "type": "string",
+          "description": "判断表达式（Aviator 语法），引用上游字段用 ${步骤ID.字段名}，如 ${s_calc.score} >= 80"
+        },
+        "true_to": {
+          "type": "string",
+          "description": "expr=true 时跳转的步骤 ID"
+        },
+        "trueTo": {
+          "type": "string",
+          "description": "true_to 的 camelCase 别名"
+        },
+        "false_to": {
+          "type": "string",
+          "description": "expr=false 时跳转的步骤 ID"
+        },
+        "falseTo": {
+          "type": "string",
+          "description": "false_to 的 camelCase 别名"
+        }
+      }
+    },
+    "unitDef": {
+      "type": "object",
+      "required": ["pipeline_key"],
+      "additionalProperties": false,
+      "properties": {
+        "pipeline_key": {
+          "type": "string",
+          "description": "子流程的 key"
+        },
+        "pipelineKey": {
+          "type": "string",
+          "description": "pipeline_key 的 camelCase 别名"
+        },
+        "pipeline_version": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "子流程版本号，不填则使用最新 ACTIVE 版本"
+        },
+        "pipelineVersion": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "pipeline_version 的 camelCase 别名"
+        },
+        "max_retry": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "default": 3,
+          "description": "最大重试次数，默认 3"
+        },
+        "maxRetry": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 10,
+          "description": "max_retry 的 camelCase 别名"
+        }
+      }
+    },
+    "inputMapping": {
+      "type": "object",
+      "description": "输入映射：将上游步骤的输出字段注入到本步骤上下文。值格式：${步骤ID.字段名}",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^\\$\\{[a-z][a-z0-9_]*\\.[a-zA-Z0-9_.]+\\}$",
+        "description": "格式：${步骤ID.字段名}"
+      },
+      "examples": [
+        { "sample_id": "${s_load.sample_id}", "volume": "${s_prepare.volume}" }
+      ]
+    },
+    "outputMapping": {
+      "type": "object",
+      "description": "输出映射：从步骤响应体中提取字段到上下文。值格式：$.jsonpath",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^\\$[.\\[]",
+        "description": "格式：$.jsonpath，如 $.data.value 或 $.result[0].status"
+      },
+      "examples": [
+        { "ph_value": "$.data.phValue", "status": "$.result.status" }
+      ]
+    },
+    "failStrategy": {
+      "type": "string",
+      "enum": ["FAIL_FAST", "SKIP", "CONTINUE_ON_FAIL"],
+      "description": "失败策略：FAIL_FAST=立即终止流程 / SKIP=跳过本节点继续 / CONTINUE_ON_FAIL=同SKIP"
+    }
+  }
+}

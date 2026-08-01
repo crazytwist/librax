@@ -76,6 +76,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             throw exception(AGV_LOAD_PLAN_INVALID,
                     "单车物料数" + transferItems.size() + "超过AGV容量" + agvCapacity);
         }
+        String sourceReadyMode = string(inputParams.get("sourceReadyMode"), "WAREHOUSE").toUpperCase();
 
         List<String> reserved = new ArrayList<>();
         boolean targetPreReserved = bool(inputParams.get("targetPreReserved"));
@@ -112,18 +113,24 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                 .plateType(string(inputParams.get("plateType"), "Plate_5"))
                 .warehouseCallbackUrl(string(inputParams.get("warehouseCallbackUrl"),
                         "http://localhost:48080/app-api/resource/slot/ready"))
+                .sourceReadyMode(sourceReadyMode)
                 .status("WAIT_WAREHOUSE")
                 .build();
         planMapper.insert(plan);
 
         for (int i = 0; i < transferItems.size(); i++) {
             Map<String, Object> item = transferItems.get(i);
+            // DIRECT 模式下物料已在源库位上，warehouseSourceLocation 允许直接等于 sourceSlotId
+            String sourceSlotId = required(item, "sourceSlotId");
+            String warehouseSourceLocation = "DIRECT".equals(sourceReadyMode)
+                    ? string(item.get("warehouseSourceLocation"), sourceSlotId)
+                    : required(item, "warehouseSourceLocation");
             itemMapper.insert(AgvLoadItemDO.builder()
                     .taskId(taskId)
                     .sequenceNo(i + 1)
                     .waveNo(i / waveSize + 1)
-                    .sourceSlotId(required(item, "sourceSlotId"))
-                    .warehouseSourceLocation(required(item, "warehouseSourceLocation"))
+                    .sourceSlotId(sourceSlotId)
+                    .warehouseSourceLocation(warehouseSourceLocation)
                     .agvSlotId(required(item, "agvSlotId"))
                     .targetSlotId(required(item, "targetSlotId"))
                     .instanceId(required(item, "instanceId"))
@@ -134,9 +141,34 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                     .status("WAIT_SOURCE")
                     .build());
         }
-        requestNextWarehouseItem(plan);
-        log.info("[AgvWarehouse] 启动仓储驱动搬运 taskId={} count={} waveSize={}",
-                taskId, transferItems.size(), waveSize);
+
+        if ("DIRECT".equals(sourceReadyMode)) {
+            markCurrentWaveReadyDirect(plan);
+            afterWarehouseReady(plan);
+        } else {
+            requestNextWarehouseItem(plan);
+        }
+        log.info("[AgvWarehouse] 启动搬运编排 taskId={} count={} waveSize={} sourceReadyMode={}",
+                taskId, transferItems.size(), waveSize, sourceReadyMode);
+    }
+
+    /**
+     * DIRECT 模式：源库位上的物料本就就绪（如机台间转运），跳过仓储 prepareMaterials/slot-ready
+     * 这一环，把当前波次的 WAIT_SOURCE 物料直接标记为 READY。
+     */
+    private void markCurrentWaveReadyDirect(AgvLoadPlanDO plan) {
+        List<AgvLoadItemDO> waveItems = itemMapper.selectByTaskId(plan.getTaskId()).stream()
+                .filter(item -> Objects.equals(item.getWaveNo(), plan.getCurrentWave()))
+                .filter(item -> "WAIT_SOURCE".equals(item.getStatus()))
+                .toList();
+        LocalDateTime now = LocalDateTime.now();
+        for (AgvLoadItemDO item : waveItems) {
+            item.setStatus("READY");
+            item.setReadyAt(now);
+            itemMapper.updateById(item);
+        }
+        log.info("[AgvWarehouse] DIRECT模式波次就绪 taskId={} wave={} count={}",
+                plan.getTaskId(), plan.getCurrentWave(), waveItems.size());
     }
 
     @Override
@@ -565,7 +597,12 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             plan.setCurrentAgvOperation(null);
             plan.setStatus("WAIT_WAREHOUSE");
             planMapper.updateById(plan);
-            requestNextWarehouseItem(plan);
+            if ("DIRECT".equals(plan.getSourceReadyMode())) {
+                markCurrentWaveReadyDirect(plan);
+                afterWarehouseReady(plan);
+            } else {
+                requestNextWarehouseItem(plan);
+            }
         } else {
             sendMoveTask(plan);
         }

@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Librax 设备参数定义与流转指南 · Code Based</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    color: #202636;
+    background: #f5f6f8;
+    line-height: 1.75;
+  }
+  .topbar {
+    background: #171a2a;
+    color: #fff;
+    padding: 18px 40px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    box-shadow: 0 2px 10px rgba(0,0,0,.24);
+  }
+  .logo { font-size: 20px; font-weight: 800; letter-spacing: .4px; color: #7eb3ff; }
+  .subtitle { font-size: 13px; color: #aeb7cc; }
+  .layout { display: flex; min-height: calc(100vh - 58px); }
+  .sidebar {
+    width: 258px;
+    background: #fff;
+    border-right: 1px solid #e4e8ef;
+    padding: 24px 0;
+    position: sticky;
+    top: 58px;
+    height: calc(100vh - 58px);
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .nav-title {
+    font-size: 11px;
+    font-weight: 800;
+    color: #8994aa;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 0 22px 8px;
+  }
+  .sidebar a {
+    display: block;
+    padding: 7px 22px;
+    color: #3d4966;
+    text-decoration: none;
+    font-size: 13px;
+    border-left: 3px solid transparent;
+  }
+  .sidebar a:hover { color: #2868d8; background: #f0f5ff; border-left-color: #9ab9ff; }
+  .nav-section { margin-top: 18px; }
+  .main { flex: 1; padding: 36px 48px 80px; max-width: 1120px; }
+  .section {
+    background: #fff;
+    border: 1px solid #e8ebf1;
+    border-radius: 10px;
+    padding: 32px 36px;
+    margin-bottom: 28px;
+    box-shadow: 0 1px 4px rgba(15,23,42,.05);
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 22px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid #f0f2f5;
+  }
+  .section-num {
+    width: 34px;
+    height: 34px;
+    border-radius: 8px;
+    background: #e8f0fe;
+    color: #2868d8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 13px;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  }
+  h1 { font-size: 23px; font-weight: 800; color: #171a2a; }
+  h2 { font-size: 18px; font-weight: 800; color: #171a2a; margin: 26px 0 10px; }
+  h3 { font-size: 15px; font-weight: 750; color: #2f3b57; margin: 22px 0 10px; }
+  p { color: #4b5874; margin: 10px 0; }
+  .lead {
+    background: #f0f5ff;
+    border-left: 4px solid #2868d8;
+    border-radius: 0 8px 8px 0;
+    padding: 15px 18px;
+    color: #244a92;
+    margin-bottom: 20px;
+  }
+  .note {
+    border-radius: 8px;
+    padding: 13px 16px;
+    margin: 16px 0;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .note.info { background: #eaf4ff; color: #20547d; border: 1px solid #cde4fb; }
+  .note.warn { background: #fff8e6; color: #74540c; border: 1px solid #f2dfad; }
+  .note.danger { background: #fff0f0; color: #8c2f2f; border: 1px solid #f1c4c4; }
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(140px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+  .flow-step {
+    position: relative;
+    min-height: 104px;
+    padding: 14px;
+    border: 1.5px solid #c9d9ff;
+    border-radius: 9px;
+    background: #f5f8ff;
+  }
+  .flow-step:after {
+    content: ">";
+    position: absolute;
+    right: -11px;
+    top: 38px;
+    color: #9aa6bb;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-weight: 700;
+  }
+  .flow-step:last-child:after { content: ""; }
+  .step-title { color: #244a92; font-weight: 800; margin-bottom: 5px; }
+  .step-desc { color: #5e6b85; font-size: 12.5px; line-height: 1.55; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 16px 0; }
+  .card {
+    background: #fafbfc;
+    border: 1px solid #e5e9f0;
+    border-radius: 9px;
+    padding: 16px;
+  }
+  .card-title { color: #1f2a44; font-weight: 800; margin-bottom: 8px; }
+  .card p, .card li { color: #5c6b83; font-size: 13px; }
+  .card ul { padding-left: 18px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 13px 0 22px;
+    font-size: 13px;
+    border: 1px solid #e4e8ef;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  thead tr { background: #f7f8fb; }
+  th {
+    padding: 10px 13px;
+    text-align: left;
+    color: #53617a;
+    font-weight: 800;
+    border-bottom: 2px solid #e4e8ef;
+    white-space: nowrap;
+  }
+  td {
+    padding: 10px 13px;
+    border-bottom: 1px solid #edf0f4;
+    vertical-align: top;
+    color: #3f4b63;
+  }
+  tr:last-child td { border-bottom: none; }
+  .field, code {
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+    font-size: 12.5px;
+    color: #b42318;
+    background: #fff3f2;
+    padding: 1px 6px;
+    border-radius: 4px;
+    white-space: nowrap;
+  }
+  .pill {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 750;
+    margin-right: 5px;
+    margin-bottom: 4px;
+  }
+  .pill.req { color: #b42318; background: #ffe9e7; }
+  .pill.auto { color: #16803c; background: #e7f8ed; }
+  .pill.pass { color: #245ec2; background: #e8f0ff; }
+  .pill.bound { color: #7a4b00; background: #fff2d6; }
+  pre {
+    background: #1e2430;
+    color: #d7dde8;
+    border-radius: 8px;
+    padding: 16px 18px;
+    font-size: 12.5px;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin: 12px 0 18px;
+  }
+  .code-label {
+    font-size: 11px;
+    font-weight: 800;
+    color: #8994aa;
+    text-transform: uppercase;
+    letter-spacing: .8px;
+    margin: 16px 0 5px;
+  }
+  .small { color: #6b768c; font-size: 12.5px; }
+  @media (max-width: 900px) {
+    .sidebar { display: none; }
+    .main { padding: 22px 16px 60px; }
+    .section { padding: 24px 18px; }
+    .grid-2, .grid-3 { grid-template-columns: 1fr; }
+    .flow { grid-template-columns: 1fr; }
+    .flow-step:after { content: ""; }
+    table { display: block; overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="logo">Librax</span>
+  <span class="subtitle">设备参数定义与流转指南 · Code Based</span>
+</div>
+
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-title">目录</div>
+    <a href="#overview">整体理解</a>
+    <a href="#model">参数模型</a>
+    <a href="#source">参数来源与优先级</a>
+    <a href="#definition">参数定义模块怎么配</a>
+    <a href="#command">设备指令参数</a>
+    <a href="#pass-through">哪些参数需要透传</a>
+    <a href="#callback">回调与输出参数</a>
+    <a href="#examples">配置示例</a>
+    <a href="#boundary">当前边界</a>
+    <a href="#apis">接口速查</a>
+  </nav>
+
+  <main class="main">
+    <section class="section" id="overview">
+      <div class="section-header">
+        <div class="section-num">01</div>
+        <h1>整体理解</h1>
+      </div>
+      <div class="lead">
+        设备模块的参数不是单点配置，而是一条链路：流程启动参数和样本实验参数进入 Flow 上下文，步骤定义与流程节点补齐运行参数，设备指令模板把运行参数渲染成真实报文，设备回调再把结果解析成上下文输出，供后续节点继续引用。
+      </div>
+      <div class="flow">
+        <div class="flow-step">
+          <div class="step-title">启动参数</div>
+          <div class="step-desc"><code>defaultInputParams</code>、接口 <code>inputParams</code>、样本 <code>experiment_params</code></div>
+        </div>
+        <div class="flow-step">
+          <div class="step-title">步骤参数</div>
+          <div class="step-desc"><code>defaultParams</code>、<code>paramsOverride</code>、<code>inputMapping</code></div>
+        </div>
+        <div class="flow-step">
+          <div class="step-title">运行入参</div>
+          <div class="step-desc">合并为 <code>StepDispatchContext.inputParams</code>，DIRECT/QUEUED 共用</div>
+        </div>
+        <div class="flow-step">
+          <div class="step-title">设备报文</div>
+          <div class="step-desc"><code>requestTemplate</code> 使用 <code>${xxx}</code> 渲染，并注入系统回调字段</div>
+        </div>
+        <div class="flow-step">
+          <div class="step-title">结果回流</div>
+          <div class="step-desc"><code>data</code> 或 <code>rawResponse</code> 经 Codec 解析，再由 <code>outputMapping</code> 写入上下文</div>
+        </div>
+      </div>
+      <div class="note info">
+        本文以当前代码为准。核心阅读点包括 <code>StepSubmitter</code>、<code>PipelineGraphBuilder</code>、<code>InstrumentStepExecutor</code>、<code>QueuedDispatchSpi</code>、<code>DeviceGatewayImpl</code>、<code>DeviceCallbackHandler</code> 与 <code>CodecExecutor</code>。
+      </div>
+    </section>
+
+    <section class="section" id="model">
+      <div class="section-header">
+        <div class="section-num">02</div>
+        <h1>参数模型</h1>
+      </div>
+      <p>建议把设备相关参数拆成四类，不要全部堆进设备指令模板。这样流程能复用，设备适配也更稳定。</p>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">业务实验参数</div>
+          <p>来自样本、流程启动或节点配置，例如 <code>sampleId</code>、<code>targetPh</code>、<code>volumeUl</code>、<code>temperature</code>。这些参数通常需要透传给设备或计算节点。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">设备执行参数</div>
+          <p>设备命令真正需要的字段，例如 <code>durationSec</code>、<code>speedRpm</code>、<code>channel</code>、<code>methodCode</code>。应在 <code>paramsSchema</code> 中声明，在 <code>requestTemplate</code> 中引用。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">系统控制参数</div>
+          <p>由 Flow 自动生成，例如 <code>executionId</code>、<code>nodeId</code>、<code>callbackToken</code>、<code>callbackUrl</code>。这些参数用于回调路由、鉴权和流程推进。</p>
+        </div>
+        <div class="card">
+          <div class="card-title">设备连接与解析参数</div>
+          <p>保存在 <code>DeviceInfo</code>、<code>DeviceCommand</code>、<code>DeviceCodec</code> 中，例如 <code>baseUrl</code>、<code>httpPath</code>、<code>codecId</code>、<code>pollDoneExpr</code>。它们服务于驱动，不应作为实验业务参数传来传去。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="source">
+      <div class="section-header">
+        <div class="section-num">03</div>
+        <h1>参数来源与优先级</h1>
+      </div>
+      <p>当前代码里参数合并分两段完成：启动流程时先构建 <code>input</code> 上下文；每个步骤提交时再合并步骤参数、映射参数和系统参数。</p>
+
+      <h2>流程启动阶段</h2>
+      <table>
+        <thead><tr><th>来源</th><th>代码位置</th><th>作用</th><th>覆盖关系</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field">PipelineDefinition.defaultInputParams</span></td><td><code>PipelineExecutionServiceImpl.start</code></td><td>流程级默认入参，例如通用阈值、默认设备方法。</td><td>作为 base。</td></tr>
+          <tr><td><span class="field">start.inputParams</span></td><td><code>PipelineExecutionServiceImpl.start</code></td><td>调用方启动流程时传入，例如 <code>sampleId</code>、本次实验目标值。</td><td>覆盖流程默认入参。</td></tr>
+          <tr><td><span class="field">SampleBindHook</span></td><td><code>SampleBindHook.beforeSchedule</code></td><td>从样本 <code>experiment_params</code> 注入到 inputParams。</td><td>使用 <code>putIfAbsent</code>，不覆盖调用方已传字段。</td></tr>
+        </tbody>
+      </table>
+
+      <h2>步骤提交阶段</h2>
+      <table>
+        <thead><tr><th>来源</th><th>代码位置</th><th>示例</th><th>优先级</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field">sample.experiment_params</span></td><td><code>SampleContextSpiImpl</code></td><td><code>{"targetPh":7.2}</code></td><td>低。作为基础层。</td></tr>
+          <tr><td><span class="field">launchParams</span></td><td><code>ExecutionContextManager.getNodeOutput(input)</code></td><td><code>{"sampleId":"S001"}</code></td><td>低到中。可被步骤参数覆盖。</td></tr>
+          <tr><td><span class="field">StepDefinition.defaultParams</span></td><td><code>PipelineGraphBuilder.mergeParams</code></td><td><code>{"durationSec":60}</code></td><td>中。步骤默认值。</td></tr>
+          <tr><td><span class="field">PipelineStep.paramsOverride</span></td><td><code>PipelineGraphBuilder.mergeParams</code></td><td><code>{"durationSec":90}</code></td><td>高于默认参数。</td></tr>
+          <tr><td><span class="field">PipelineStep.inputMapping</span></td><td><code>StepSubmitter.resolveInputParams</code></td><td><code>{"ph":"${s_ph.ph}"}</code></td><td>高于步骤静态参数。</td></tr>
+          <tr><td><span class="field">sys variables</span></td><td><code>StepSubmitter.resolveInputParams</code></td><td><code>executionId</code>、<code>nodeId</code>、<code>callbackToken</code>、<code>callbackUrl</code></td><td>最高，始终覆盖。</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note info">
+        最终进入设备模块的是 <code>StepDispatchContext.inputParams</code>。DIRECT 路径由 <code>InstrumentStepExecutor</code> 直接传给 <code>DeviceGateway</code>；QUEUED 路径会先写入 <code>lab_task.payload.inputParams</code>，再由 <code>InstrumentTaskExecutor</code> 取出传给 <code>DeviceCommandSpi</code>。
+      </div>
+    </section>
+
+    <section class="section" id="definition">
+      <div class="section-header">
+        <div class="section-num">04</div>
+        <h1>参数定义模块怎么配</h1>
+      </div>
+      <p>参数定义主要落在 Flow 的 <code>StepDefinition</code> 和 <code>PipelineStep</code>，设备模块的 <code>DeviceCommand</code> 只负责把已经合并好的运行参数变成设备报文。</p>
+
+      <h2>StepDefinition：定义可复用步骤</h2>
+      <table>
+        <thead><tr><th>字段</th><th>建议定义内容</th><th>解释</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field">stepKey</span></td><td>稳定的小写下划线编码，如 <code>ph_measure</code>。</td><td>被流程节点引用，是步骤组件的业务身份。</td></tr>
+          <tr><td><span class="field">stepType</span></td><td>设备步骤使用 <code>INSTRUMENT</code>。</td><td>决定执行器路由到 <code>InstrumentStepExecutor</code>。</td></tr>
+          <tr><td><span class="field">deviceType</span></td><td>设备类型，如 <code>PH_METER</code>。</td><td>用于资源申请和设备网关选择设备。</td></tr>
+          <tr><td><span class="field">command</span></td><td>默认指令，如 <code>MEASURE</code>。</td><td>当前运行时实际使用的是步骤定义里的 command。</td></tr>
+          <tr><td><span class="field">defaultParams</span></td><td>设备参数默认值，如 <code>{"durationSec":60,"unit":"PH"}</code>。</td><td>适合定义多数流程都一样的参数。</td></tr>
+          <tr><td><span class="field">paramsSchema</span></td><td>表单 schema，声明参数类型、单位、是否必填、枚举。</td><td>当前代码主要给前端渲染和后端入参校验预留；运行时不会自动按 schema 校验。</td></tr>
+          <tr><td><span class="field">outputFields</span></td><td>输出字段声明，如 <code>["ph","temperature"]</code>。</td><td>用于后续节点引用提示和文档化，不直接影响回调解析。</td></tr>
+          <tr><td><span class="field">mockOutput</span></td><td>单独测试或 MOCK 模式输出。</td><td>用于跳过真实设备时模拟结果。</td></tr>
+        </tbody>
+      </table>
+
+      <h2>PipelineStep：定义本流程节点差异</h2>
+      <table>
+        <thead><tr><th>字段</th><th>建议定义内容</th><th>解释</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field">paramsOverride</span></td><td>只填与步骤默认不同的字段。</td><td>覆盖 <code>defaultParams</code> 同名字段。</td></tr>
+          <tr><td><span class="field">inputMapping</span></td><td>从流程上下文或启动参数取值，如 <code>{"sampleId":"${input.sampleId}"}</code>。</td><td>适合把上游节点输出映射成设备命令参数。</td></tr>
+          <tr><td><span class="field">outputMapping</span></td><td>从设备回调 outputs 中抽取语义字段，如 <code>{"ph":"$.ph"}</code>。</td><td>步骤成功后写入上下文，后续节点通过 <code>${nodeId.field}</code> 引用。</td></tr>
+          <tr><td><span class="field">resourceEnabled</span></td><td>需要独占设备时设为 true。</td><td>Flow 会先向 ResourcePool 申请资源，再执行设备步骤。</td></tr>
+          <tr><td><span class="field">zoneCode</span></td><td>指定区域，如 <code>ZONE_A</code>。</td><td>影响资源申请和物料校验范围。</td></tr>
+          <tr><td><span class="field">command</span></td><td>当前不建议依赖。</td><td>代码注释说可覆盖，但 <code>PipelineGraphBuilder</code> 目前组装时使用的是 <code>StepDefinition.command</code>。</td></tr>
+        </tbody>
+      </table>
+
+      <h2>表达式支持范围</h2>
+      <table>
+        <thead><tr><th>表达式</th><th>含义</th><th>示例</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field">${input.xxx}</span></td><td>读取流程启动参数。</td><td><code>${input.sampleId}</code></td></tr>
+          <tr><td><span class="field">${sys.xxx}</span></td><td>读取系统变量。</td><td><code>${sys.callbackUrl}</code></td></tr>
+          <tr><td><span class="field">${nodeId.field}</span></td><td>读取前置节点输出。</td><td><code>${s_ph.ph}</code></td></tr>
+          <tr><td><span class="field">${xxx}</span></td><td>设备指令模板中的顶层参数替换。</td><td><code>${durationSec}</code></td></tr>
+        </tbody>
+      </table>
+      <div class="note warn">
+        <code>ExecutionContextManager</code> 只在整个字符串形如 <code>${a.b}</code> 时解析上下文表达式；设备命令模板的 <code>ExpressionUtil.render</code> 则负责渲染 <code>${xxx}</code> 占位符。建议不要把复杂表达式和拼接逻辑塞进字段值，复杂计算应放到 COMPUTE 节点。
+      </div>
+    </section>
+
+    <section class="section" id="command">
+      <div class="section-header">
+        <div class="section-num">05</div>
+        <h1>设备指令参数</h1>
+      </div>
+      <p><code>DeviceCommand</code> 是设备适配的核心，它定义“某类设备的某个指令应该怎么发”。</p>
+      <table>
+        <thead><tr><th>字段</th><th>标签</th><th>定义方式与参数关系</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field">deviceType</span></td><td><span class="pill req">必填</span></td><td>设备类型，必须与 <code>DeviceInfo.deviceType</code>、<code>StepDefinition.deviceType</code> 对齐。</td></tr>
+          <tr><td><span class="field">commandCode</span></td><td><span class="pill req">必填</span></td><td>指令编码，如 <code>MEASURE</code>、<code>CALIBRATE</code>、<code>START</code>。</td></tr>
+          <tr><td><span class="field">requestTemplate</span></td><td><span class="pill req">必填</span><span class="pill pass">透传入口</span></td><td>请求报文模板，支持 <code>${param}</code> 替换。这里应该只引用最终 <code>inputParams</code> 中存在的参数。</td></tr>
+          <tr><td><span class="field">httpMethod</span></td><td><span class="pill bound">HTTP</span></td><td>HTTP 方法。为空默认 <code>POST</code>；当前驱动支持 <code>GET</code>、<code>PUT</code>、<code>DELETE</code>，其他回退为 <code>POST</code>。</td></tr>
+          <tr><td><span class="field">httpPath</span></td><td><span class="pill bound">HTTP</span></td><td>请求路径，拼接到设备 <code>baseUrl</code>。当前只用 <code>executionId</code>、<code>callbackToken</code> 渲染路径变量。</td></tr>
+          <tr><td><span class="field">contentType</span></td><td><span class="pill bound">协议</span></td><td>HTTP 下是媒体类型，默认 <code>application/json; charset=utf-8</code>。TCP/SERIAL 注释里作为报文编码格式。</td></tr>
+          <tr><td><span class="field">timeoutMs</span></td><td><span class="pill bound">配置</span></td><td>指令超时配置字段已存在，但 HTTP 驱动当前主要使用设备连接/读取超时，直接执行接口的 <code>timeoutMs</code> 也只用于 Redis 执行状态超时判定。</td></tr>
+          <tr><td><span class="field">retryable</span></td><td><span class="pill bound">配置</span></td><td>是否可重试字段已存在，当前重试主要由 Flow/Task 层的 attempts 与 watchdog 控制。</td></tr>
+          <tr><td><span class="field">codecId</span></td><td><span class="pill pass">输出解析</span></td><td>绑定响应解析规则。设备回调带 <code>rawResponse + deviceType + commandCode</code> 时，会用它解析输出。</td></tr>
+          <tr><td><span class="field">completionMode</span></td><td><span class="pill auto">完成模式</span></td><td><code>WEBHOOK</code> 或空表示等待回调，<code>SYNC</code> 表示 HTTP 响应即完成，<code>POLL</code> 表示轮询。DO 和 SQL 已有字段，但当前 Save/Resp VO 未完整暴露该字段。</td></tr>
+          <tr><td><span class="field">pollPath / pollDoneExpr / pollMaxTimes</span></td><td><span class="pill bound">POLL</span></td><td>轮询模式使用。<code>pollPath</code> 支持 <code>${taskId}</code>，完成表达式支持 JSONPath 和简单比较表达式。</td></tr>
+          <tr><td><span class="field">mockOutput</span></td><td><span class="pill bound">测试</span></td><td>Mock 协议返回数据字段存在，但当前 <code>MockDeviceDriver</code> 只返回随机 taskId，未使用该字段生成回调结果。</td></tr>
+        </tbody>
+      </table>
+
+      <h2>requestTemplate 的设计原则</h2>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">应该放进去</div>
+          <ul>
+            <li>设备必须知道的动作参数：<code>durationSec</code>、<code>speedRpm</code>、<code>volumeUl</code>。</li>
+            <li>设备需要绑定实验上下文时的业务 ID：<code>sampleId</code>、<code>batchNo</code>。</li>
+            <li>设备端需要直接回调时的 <code>callbackUrl</code>，也可以依赖 JSON 自动注入。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">不建议放进去</div>
+          <ul>
+            <li>设备连接信息：<code>host</code>、<code>port</code>、<code>baseUrl</code>。</li>
+            <li>设备选择信息：具体 <code>deviceId</code>，除非走直接执行指定设备。</li>
+            <li>流程内部调度策略：<code>maxAttempts</code>、<code>resourceWaitTimeoutMs</code>。</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="note info">
+        <code>DeviceGatewayImpl.injectSysFields</code> 会在请求体是合法 JSON 时自动写入 <code>executionId</code>、<code>nodeId</code>、<code>callbackToken</code> 和 <code>callbackUrl</code>。如果请求体是纯文本、HEX、二进制字符串，则不会自动注入，需要模板自己显式包含。
+      </div>
+    </section>
+
+    <section class="section" id="pass-through">
+      <div class="section-header">
+        <div class="section-num">06</div>
+        <h1>哪些参数需要透传</h1>
+      </div>
+      <p>“透传”不是把所有参数都塞给设备，而是把设备执行必须知道、并且设备侧不应该重新推导的字段传过去。</p>
+      <table>
+        <thead><tr><th>参数类别</th><th>建议字段</th><th>是否透传到设备</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>流程身份</td><td><code>executionId</code>、<code>nodeId</code></td><td>建议透传</td><td>JSON 请求体会自动注入。设备回调时路径或 body 需要能带回这两个值。</td></tr>
+          <tr><td>回调鉴权</td><td><code>callbackToken</code></td><td>必须透传</td><td>HTTP 请求头 <code>X-Callback-Token</code> 会携带，JSON body 也会自动注入。回调必须带回。</td></tr>
+          <tr><td>回调地址</td><td><code>callbackUrl</code></td><td>视设备能力透传</td><td>如果设备支持动态回调地址，建议传。流程中 INSTRUMENT 节点自动生成 <code>/device/callback/{executionId}/{nodeId}</code>。</td></tr>
+          <tr><td>样本身份</td><td><code>sampleId</code>、<code>sampleIds</code></td><td>通常透传</td><td>设备或中间件需要知道当前测量对象时传；如果设备只做动作不关心样本，可不传。</td></tr>
+          <tr><td>动作参数</td><td><code>volumeUl</code>、<code>durationSec</code>、<code>speedRpm</code>、<code>temperature</code></td><td>必须透传</td><td>决定设备真实执行行为，应在 <code>paramsSchema</code> 和 <code>requestTemplate</code> 中清晰定义。</td></tr>
+          <tr><td>方法参数</td><td><code>methodCode</code>、<code>programNo</code>、<code>channel</code></td><td>通常透传</td><td>设备预置方法、通道、程序号等字段应由流程明确指定。</td></tr>
+          <tr><td>位置参数</td><td><code>slotId</code>、<code>sourceSlotId</code>、<code>targetSlotId</code></td><td>按设备透传</td><td>若设备或集成服务负责搬运动作，需要传；若由 Resource/AGV 模块单独处理，则不要混在仪器指令中。</td></tr>
+          <tr><td>设备连接</td><td><code>host</code>、<code>port</code>、<code>baseUrl</code>、<code>authConfig</code></td><td>不透传</td><td>属于 <code>DeviceInfo</code>，由驱动读取。</td></tr>
+          <tr><td>解析配置</td><td><code>codecId</code>、<code>fieldMapping</code>、<code>validRange</code></td><td>不透传</td><td>属于设备响应解析配置，设备不需要知道。</td></tr>
+          <tr><td>调度控制</td><td><code>resourceEnabled</code>、<code>zoneCode</code>、<code>maxAttempts</code></td><td>不直接透传</td><td>用于 Flow/Resource/Task 调度。只有设备业务需要区域信息时，才另外定义业务字段。</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section" id="callback">
+      <div class="section-header">
+        <div class="section-num">07</div>
+        <h1>回调与输出参数</h1>
+      </div>
+      <p>设备执行完成后，回调进入 <code>DeviceCallbackHandler</code>。输出有两种来源：设备直接给结构化 <code>data</code>，或者给原始 <code>rawResponse</code> 后由 Codec 解析。</p>
+
+      <h2>回调请求结构</h2>
+      <table>
+        <thead><tr><th>字段</th><th>是否需要</th><th>解释</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field">callbackToken</span></td><td><span class="pill req">必须</span></td><td>用于步骤回调校验和 Task 关闭。设备必须带回。</td></tr>
+          <tr><td><span class="field">success</span></td><td><span class="pill req">必须</span></td><td>是否执行成功。</td></tr>
+          <tr><td><span class="field">data</span></td><td><span class="pill pass">结构化输出</span></td><td>设备已经返回标准 Map 时使用，例如 <code>{"ph":7.21}</code>。</td></tr>
+          <tr><td><span class="field">rawResponse</span></td><td><span class="pill pass">原始输出</span></td><td>设备只返回原始报文时使用。配合 <code>deviceType</code>、<code>commandCode</code> 找到 codec 解析。</td></tr>
+          <tr><td><span class="field">deviceType / commandCode</span></td><td><span class="pill pass">解析索引</span></td><td>用于查询 <code>DeviceCommand.codecId</code>。缺失时不会走 Codec。</td></tr>
+          <tr><td><span class="field">errorCode / errorMsg</span></td><td><span class="pill bound">失败时</span></td><td>失败时传给 Flow 状态机和任务回调。</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Codec 解析规则</h2>
+      <table>
+        <thead><tr><th>parseType</th><th>配置字段</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td><span class="field">JSON</span></td><td><code>fieldMapping</code></td><td>配置 <code>{"ph":"$.data.ph"}</code>，使用 JSONPath 从原始响应提取字段。</td></tr>
+          <tr><td><span class="field">REGEX</span></td><td><code>regexRules</code></td><td>配置 <code>{"ph":"PH=([0-9.]+)"}</code>，取第一个捕获组。</td></tr>
+          <tr><td><span class="field">HEX</span></td><td><code>hexRules</code></td><td>按字节偏移、长度、类型解析十六进制报文。</td></tr>
+          <tr><td><span class="field">SCRIPT</span></td><td><code>scriptEngine</code>、<code>scriptContent</code></td><td>脚本入参为 <code>raw</code>，返回 Map 或单个结果。</td></tr>
+          <tr><td><span class="field">unitConversions</span></td><td>后处理</td><td>对解析后的数值按 <code>value * factor + offset</code> 换算。</td></tr>
+          <tr><td><span class="field">validRange</span></td><td>后处理</td><td>超出范围的数值字段会被移除。</td></tr>
+        </tbody>
+      </table>
+
+      <div class="note info">
+        步骤成功后，<code>StepSuccessHandler</code> 会先应用 <code>PipelineStep.outputMapping</code>，再把结果写入 <code>ExecutionContext</code>。所以设备输出字段名可以先按设备原始语义解析，再通过 <code>outputMapping</code> 统一成流程语义字段。
+      </div>
+    </section>
+
+    <section class="section" id="examples">
+      <div class="section-header">
+        <div class="section-num">08</div>
+        <h1>配置示例</h1>
+      </div>
+
+      <h2>StepDefinition.defaultParams</h2>
+      <div class="code-label">默认参数</div>
+      <pre>{
+  "durationSec": 60,
+  "temperatureCompensation": true,
+  "methodCode": "STD_PH",
+  "unit": "PH"
+}</pre>
+
+      <h2>StepDefinition.paramsSchema</h2>
+      <div class="code-label">建议 schema 形态</div>
+      <pre>{
+  "type": "object",
+  "required": ["sampleId", "durationSec"],
+  "properties": {
+    "sampleId": { "type": "string", "title": "样本编号" },
+    "durationSec": { "type": "integer", "title": "测量时长", "unit": "s", "minimum": 1 },
+    "temperature": { "type": "number", "title": "补偿温度", "unit": "C" },
+    "methodCode": { "type": "string", "enum": ["STD_PH", "FAST_PH"] }
+  }
+}</pre>
+
+      <h2>PipelineStep.inputMapping</h2>
+      <div class="code-label">从启动参数和上游输出取值</div>
+      <pre>{
+  "sampleId": "${input.sampleId}",
+  "temperature": "${s_temp.temperature}",
+  "targetPh": "${input.targetPh}",
+  "callbackUrl": "${sys.callbackUrl}"
+}</pre>
+
+      <h2>DeviceCommand.requestTemplate</h2>
+      <div class="code-label">HTTP JSON 设备报文模板</div>
+      <pre>{
+  "action": "measure",
+  "sampleId": "${sampleId}",
+  "method": "${methodCode}",
+  "durationSec": ${durationSec},
+  "temperature": ${temperature},
+  "callbackUrl": "${callbackUrl}"
+}</pre>
+
+      <h2>设备回调 data</h2>
+      <div class="code-label">设备已返回结构化结果</div>
+      <pre>{
+  "callbackToken": "xxxx",
+  "success": true,
+  "data": {
+    "ph": 7.21,
+    "temperature": 25.3
+  }
+}</pre>
+
+      <h2>设备回调 rawResponse + Codec</h2>
+      <div class="code-label">设备返回原始响应</div>
+      <pre>{
+  "callbackToken": "xxxx",
+  "success": true,
+  "deviceType": "PH_METER",
+  "commandCode": "MEASURE",
+  "rawResponse": "{\"data\":{\"phValue\":7.21,\"temp\":25.3}}"
+}</pre>
+      <div class="code-label">DeviceCodec.fieldMapping</div>
+      <pre>{
+  "ph": "$.data.phValue",
+  "temperature": "$.data.temp"
+}</pre>
+    </section>
+
+    <section class="section" id="boundary">
+      <div class="section-header">
+        <div class="section-num">09</div>
+        <h1>当前边界与建议</h1>
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <div class="card-title">当前实现边界</div>
+          <ul>
+            <li><code>paramsSchema</code> 当前主要是声明和前端渲染依据，运行时没有统一强校验。</li>
+            <li><code>PipelineStep.command</code> 暂未在 <code>PipelineGraphBuilder</code> 中覆盖 <code>StepDefinition.command</code>。</li>
+            <li><code>DeviceCommandSaveReqVO</code> 未暴露 <code>completionMode</code> 字段，虽然 DO 与 SQL 中已存在。</li>
+            <li><code>httpPath</code> 当前只渲染 <code>executionId</code> 和 <code>callbackToken</code>，不会使用完整运行参数。</li>
+            <li>非 JSON 请求体不会自动注入系统回调字段。</li>
+            <li>Direct Exec 的 <code>timeoutMs</code> 主要用于查询结果时判定执行超时，不等同于驱动发送超时。</li>
+          </ul>
+        </div>
+        <div class="card">
+          <div class="card-title">推荐落地规范</div>
+          <ul>
+            <li>参数命名使用英文驼峰或小写驼峰，单位写进字段名，例如 <code>volumeUl</code>、<code>durationSec</code>。</li>
+            <li>步骤定义只放通用默认值，节点覆盖只放本流程差异值。</li>
+            <li>样本差异参数优先放 <code>experiment_params</code>，本次执行差异用启动 <code>inputParams</code>。</li>
+            <li>设备输出先用 Codec 解析成稳定字段，再用 <code>outputMapping</code> 映射成流程语义。</li>
+            <li>设备模板中显式引用的参数，都应该能在 <code>paramsSchema</code> 或 <code>inputMapping</code> 中找到来源。</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="apis">
+      <div class="section-header">
+        <div class="section-num">10</div>
+        <h1>接口速查</h1>
+      </div>
+      <table>
+        <thead><tr><th>模块</th><th>路径</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>设备信息</td><td><span class="field">/lab/device-info</span></td><td>维护物理设备、协议、连接、认证、心跳、启用状态。</td></tr>
+          <tr><td>设备指令</td><td><span class="field">/lab/device-command</span></td><td>维护指令模板、HTTP 路径、Codec、轮询配置。</td></tr>
+          <tr><td>直接执行</td><td><span class="field">POST /lab/device-command/execute</span></td><td>不依赖流程，直接触发设备指令，返回 <code>execId</code>。</td></tr>
+          <tr><td>查询直接执行结果</td><td><span class="field">GET /lab/device-command/execute/result</span></td><td>按 <code>execId</code> 查询状态、输出、原始响应、错误信息。</td></tr>
+          <tr><td>响应解析规则</td><td><span class="field">/lab/device-codec</span></td><td>维护 JSON/REGEX/HEX/SCRIPT 解析规则。</td></tr>
+          <tr><td>设备回调</td><td><span class="field">/device/callback/{executionId}/{nodeId}</span></td><td>设备完成后回调，推进流程或 Direct Exec 状态。</td></tr>
+        </tbody>
+      </table>
+      <p class="small">代码参考：<code>DeviceCommandDO</code>、<code>DeviceGatewayImpl</code>、<code>DeviceCallbackHandler</code>、<code>CodecExecutor</code>、<code>StepSubmitter</code>、<code>PipelineGraphBuilder</code>、<code>QueuedDispatchSpi</code>。</p>
+    </section>
+  </main>
+</div>
+</body>
+</html>

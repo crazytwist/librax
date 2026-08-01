@@ -112,12 +112,28 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
                 .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
     }
 
+    /**
+     * 转运/下料前原子锁定物料，不限定必须处于某个固定状态（USED），而是锁定调用方
+     * 已经读到的当前状态 {@code fromStatus} → RESERVED。
+     * <p>业务上不再强制"必须是 USED 才能转运/下料"，但仍然保留 CAS 语义：如果两个请求
+     * 同时读到同一物料并都尝试锁定，只有一个会成功，避免同一物料被并发操作重复选中。
+     * 调用方应当把读到的 {@code fromStatus} 保存为 originalStatus，用于流程完成/失败后
+     * 恢复到搬运前的状态。
+     */
+    default int reserveForTransfer(String instanceId, String fromStatus) {
+        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId)
+                .eq(MaterialInstanceDO::getStatus, fromStatus)
+                .set(MaterialInstanceDO::getStatus, "RESERVED")
+                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+    }
+
 
     default PageResult<MaterialInstanceDO> selectPage(MaterialInstancePageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<MaterialInstanceDO>()
-                .eqIfPresent(MaterialInstanceDO::getInstanceId, reqVO.getInstanceId())
+                .likeIfPresent(MaterialInstanceDO::getInstanceId, reqVO.getInstanceId())
                 .eqIfPresent(MaterialInstanceDO::getTypeCode, reqVO.getTypeCode())
-                .eqIfPresent(MaterialInstanceDO::getBarcode, reqVO.getBarcode())
+                .likeIfPresent(MaterialInstanceDO::getBarcode, reqVO.getBarcode())
                 .eqIfPresent(MaterialInstanceDO::getParentId, reqVO.getParentId())
                 .eqIfPresent(MaterialInstanceDO::getSlotIndex, reqVO.getSlotIndex())
                 .eqIfPresent(MaterialInstanceDO::getSlotId, reqVO.getSlotId())
@@ -134,7 +150,7 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
                 .eqIfPresent(MaterialInstanceDO::getExpiredAt, reqVO.getExpiredAt())
                 .eqIfPresent(MaterialInstanceDO::getSourceExecutionId, reqVO.getSourceExecutionId())
                 .eqIfPresent(MaterialInstanceDO::getSourceNodeId, reqVO.getSourceNodeId())
-                .eqIfPresent(MaterialInstanceDO::getRemark, reqVO.getRemark())
+                .likeIfPresent(MaterialInstanceDO::getRemark, reqVO.getRemark())
                 .betweenIfPresent(MaterialInstanceDO::getCreateTime, reqVO.getCreateTime())
                 .orderByDesc(MaterialInstanceDO::getId));
     }

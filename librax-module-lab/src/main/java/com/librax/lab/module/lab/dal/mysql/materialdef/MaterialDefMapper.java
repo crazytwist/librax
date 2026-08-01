@@ -19,7 +19,7 @@ public interface MaterialDefMapper extends BaseMapperX<MaterialDefDO> {
 
     default PageResult<MaterialDefDO> selectPage(MaterialDefPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<MaterialDefDO>()
-                .eqIfPresent(MaterialDefDO::getMaterialCode, reqVO.getMaterialCode())
+                .likeIfPresent(MaterialDefDO::getMaterialCode, reqVO.getMaterialCode())
                 .likeIfPresent(MaterialDefDO::getMaterialName, reqVO.getMaterialName())
                 .eqIfPresent(MaterialDefDO::getContentType, reqVO.getContentType())
                 .eqIfPresent(MaterialDefDO::getUnit, reqVO.getUnit())
@@ -33,7 +33,7 @@ public interface MaterialDefMapper extends BaseMapperX<MaterialDefDO> {
                 .eqIfPresent(MaterialDefDO::getHazardLevel, reqVO.getHazardLevel())
                 .eqIfPresent(MaterialDefDO::getSpecJson, reqVO.getSpecJson())
                 .eqIfPresent(MaterialDefDO::getEnabled, reqVO.getEnabled())
-                .eqIfPresent(MaterialDefDO::getRemark, reqVO.getRemark())
+                .likeIfPresent(MaterialDefDO::getRemark, reqVO.getRemark())
                 .betweenIfPresent(MaterialDefDO::getCreateTime, reqVO.getCreateTime())
                 .orderByDesc(MaterialDefDO::getId));
     }

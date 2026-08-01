@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>后处理流程 COMPUTE 节点定义清单</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #1f2933;
+      background: #f6f8fb;
+      line-height: 1.65;
+    }
+    .page {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 32px 36px 64px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      color: #111827;
+    }
+    h2 {
+      margin: 34px 0 12px;
+      font-size: 22px;
+      color: #111827;
+      border-left: 5px solid #2563eb;
+      padding-left: 10px;
+    }
+    h3 {
+      margin: 24px 0 10px;
+      font-size: 18px;
+      color: #1f2937;
+    }
+    .meta {
+      color: #5d6675;
+      margin-bottom: 24px;
+    }
+    .panel {
+      background: #fff;
+      border: 1px solid #d9e2ec;
+      border-radius: 8px;
+      padding: 18px 20px;
+      margin: 16px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      margin: 12px 0 22px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #d9e2ec;
+      padding: 9px 10px;
+      vertical-align: top;
+    }
+    th {
+      background: #edf2f7;
+      color: #243b53;
+      text-align: left;
+      white-space: nowrap;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      color: #0f172a;
+      background: #eef2f7;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    pre {
+      background: #0f172a;
+      color: #e5e7eb;
+      padding: 14px 16px;
+      border-radius: 8px;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .tag {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #e0f2fe;
+      color: #075985;
+    }
+    .tag.todo {
+      background: #fff7ed;
+      color: #9a3412;
+    }
+    .tag.exist {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .tag.change {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .note {
+      color: #475569;
+      background: #f8fafc;
+      border-left: 4px solid #94a3b8;
+      padding: 10px 12px;
+      margin: 12px 0;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <h1>后处理流程 COMPUTE 节点定义清单</h1>
+  <div class="meta">工作空间：<code>/Users/yinan/workspace/megarobo/librax-dp</code>　日期：2026-07-07</div>
+
+  <div class="panel">
+    <p>流程入口语义已调整：不是“4 个样本”，而是“4 个载具盘号”。每个载具盘号下面包含若干样本，机台扫码失败、物料请求、结果保存都要能定位到载具盘号、孔位和样本。</p>
+  </div>
+
+  <h2>一、建议启动入参</h2>
+  <pre>{
+  "taskId": "PP-TASK-20260707-001",
+  "carrierPlates": [
+    {"carrierNo": "PLATE-001", "carrierType": "8mlOriginalBottle", "slotIndex": 1},
+    {"carrierNo": "PLATE-002", "carrierType": "8mlOriginalBottle", "slotIndex": 2},
+    {"carrierNo": "PLATE-003", "carrierType": "8mlOriginalBottle", "slotIndex": 3},
+    {"carrierNo": "PLATE-004", "carrierType": "8mlOriginalBottle", "slotIndex": 4}
+  ],
+  "targetStation": "POST_PROCESSOR_01"
+}</pre>
+
+  <h2>二、核心数据结构</h2>
+  <table>
+    <thead>
+    <tr><th>字段</th><th>含义</th><th>示例</th></tr>
+    </thead>
+    <tbody>
+    <tr>
+      <td><code>carrierPlates</code></td>
+      <td>本批进入后处理机台的 4 个载具盘号。</td>
+      <td><code>[{"carrierNo":"PLATE-001","slotIndex":1}]</code></td>
+    </tr>
+    <tr>
+      <td><code>carrierSamples</code></td>
+      <td>每个载具下的样本列表，按载具聚合。</td>
+      <td><code>{"PLATE-001":[{"sampleId":"S1","hole":1}]}</code></td>
+    </tr>
+    <tr>
+      <td><code>sampleInfos</code></td>
+      <td>给机台或结果保存使用的样本扁平列表，必须带 <code>carrierNo</code>。</td>
+      <td><code>[{"carrierNo":"PLATE-001","hole":1,"sampleId":"S1"}]</code></td>
+    </tr>
+    <tr>
+      <td><code>agvCommand</code></td>
+      <td>AGV 标准接口的 <code>command</code> 数组，由库位查询节点生成。</td>
+      <td><code>[{"step":"step1",...}]</code></td>
+    </tr>
+    </tbody>
+  </table>
+
+  <h2>三、需要定义的 COMPUTE 节点</h2>
+  <table>
+    <thead>
+    <tr>
+      <th>顺序</th>
+      <th>建议 stepKey</th>
+      <th>建议 Bean</th>
+      <th>状态</th>
+      <th>职责</th>
+      <th>输入</th>
+      <th>输出</th>
+      <th>实现要点</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+      <td>1</td>
+      <td><code>pp_bind_carrier_plates</code></td>
+      <td><code>carrierPlateBindBean</code></td>
+      <td><span class="tag todo">新建</span></td>
+      <td>校验本批 4 个载具盘号，建立任务批次和载具列表。</td>
+      <td><code>taskId</code>, <code>carrierPlates</code>, <code>targetStation</code></td>
+      <td><code>batchId</code>, <code>carrierPlates</code>, <code>carrierCount</code>, <code>targetStation</code></td>
+      <td>检查载具数量、盘号重复、载具类型、slotIndex 是否完整。</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><code>pp_query_carrier_samples</code></td>
+      <td><code>carrierSampleQueryBean</code></td>
+      <td><span class="tag change">改造已有</span></td>
+      <td>按 4 个载具盘号查询每个载具内的样本。</td>
+      <td><code>carrierPlates</code></td>
+      <td><code>carrierSamples</code>, <code>sampleInfos</code>, <code>totalSampleCount</code></td>
+      <td>现有 <code>BatchSampleHoleQueryBean</code> 是按 <code>batchNo</code> 查样本，需要改成按 <code>carrierNo</code> 或新增 Bean。</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><code>pp_query_carrier_locations</code></td>
+      <td><code>carrierLocationQueryBean</code></td>
+      <td><span class="tag todo">新建</span></td>
+      <td>查询 4 个载具当前所在库位，准备 AGV 搬运来源位置。</td>
+      <td><code>carrierPlates</code></td>
+      <td><code>carrierLocations</code>, <code>sourceArea</code>, <code>sourcePos</code></td>
+      <td>优先从 Resource/Material 实例定位；如果 4 个载具不在连续位置，需要决定拆多个 AGV 任务还是生成多个 step。</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><code>pp_build_agv_to_processor_command</code></td>
+      <td><code>agvToProcessorCommandBuilder</code></td>
+      <td><span class="tag todo">新建</span></td>
+      <td>把载具库位和目标机台转换成 AGV 标准 <code>command</code> 数组。</td>
+      <td><code>carrierLocations</code>, <code>targetStation</code></td>
+      <td><code>agvTaskId</code>, <code>agvCommand</code></td>
+      <td>最终发给 AGV 的报文只能是 <code>{"taskId":"...","command":[...]}</code>。</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td><code>pp_build_processor_task_payload</code></td>
+      <td><code>processorTaskPayloadBuilder</code></td>
+      <td><span class="tag todo">新建</span></td>
+      <td>生成后处理机台启动任务参数。</td>
+      <td><code>taskId</code>, <code>carrierPlates</code>, <code>carrierSamples</code></td>
+      <td><code>processorTaskPayload</code>, <code>expectedCarrierCount</code>, <code>expectedSampleCount</code></td>
+      <td>机台自己扫码，因此这里不触发扫码，只把载具/样本上下文给机台。</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td><code>pp_mark_scan_failed</code></td>
+      <td><code>scanFailureMarkerBean</code></td>
+      <td><span class="tag todo">新建</span></td>
+      <td>处理机台回调的扫码失败事件。</td>
+      <td><code>carrierNo</code>, <code>hole</code>, <code>sampleId</code>, <code>reason</code></td>
+      <td><code>failedCarrierNo</code>, <code>failedSampleId</code>, <code>validSampleCount</code></td>
+      <td>扫码失败可能只有盘号/孔位，没有 sampleId，要能通过 <code>carrierNo + hole</code> 反查样本。</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td><code>pp_check_required_materials</code></td>
+      <td><code>requiredMaterialCheckBean</code></td>
+      <td><span class="tag todo">新建</span></td>
+      <td>根据机台请求的物料清单判断库存是否足够。</td>
+      <td><code>materials</code>, <code>carrierPlates</code>, <code>sampleInfos</code></td>
+      <td><code>materialEnough</code>, <code>missingMaterials</code>, <code>materials</code></td>
+      <td><code>materialEnough</code> 必须输出布尔值，供条件节点使用。</td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td><code>pp_query_missing_material_locations</code></td>
+      <td><code>missingMaterialLocationQueryBean</code></td>
+      <td><span class="tag todo">新建</span></td>
+      <td>物料不足时查询可用物料所在库位。</td>
+      <td><code>missingMaterials</code></td>
+      <td><code>materialLocations</code>, <code>materials</code></td>
+      <td>需要考虑批号、有效期、锁定状态、剩余量。</td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td><code>pp_build_replenish_agv_command</code></td>
+      <td><code>replenishAgvCommandBuilder</code></td>
+      <td><span class="tag todo">新建</span></td>
+      <td>生成补料 AGV 标准 <code>command</code> 数组。</td>
+      <td><code>materialLocations</code>, <code>targetStation</code></td>
+      <td><code>replenishTaskId</code>, <code>agvCommand</code></td>
+      <td>补料 AGV 任务号建议为 <code>${taskId}_replenish</code>。</td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td><code>pp_recheck_required_materials</code></td>
+      <td><code>requiredMaterialRecheckBean</code></td>
+      <td><span class="tag todo">新建</span></td>
+      <td>补料完成后再次校验物料是否满足。</td>
+      <td><code>materials</code>, <code>missingMaterials</code></td>
+      <td><code>materialEnough</code>, <code>missingMaterials</code></td>
+      <td>仍不足则进入失败节点。</td>
+    </tr>
+    <tr>
+      <td>11</td>
+      <td><code>pp_save_experiment_results</code></td>
+      <td><code>experimentResultSaveBean</code></td>
+      <td><span class="tag todo">新建</span></td>
+      <td>保存机台最终回调的样本结果。</td>
+      <td><code>sampleResults</code>, <code>carrierSamples</code></td>
+      <td><code>saved</code>, <code>resultCount</code>, <code>failedCount</code></td>
+      <td>结果可能按盘号/孔位返回，也可能按 sampleId 返回，要统一映射。</td>
+    </tr>
+    <tr>
+      <td>12</td>
+      <td><code>pp_mark_material_failed</code></td>
+      <td><code>materialFailureMarkerBean</code></td>
+      <td><span class="tag todo">新建</span></td>
+      <td>补料后仍不足时标记流程/载具/样本失败。</td>
+      <td><code>missingMaterials</code>, <code>taskId</code></td>
+      <td><code>failed</code>, <code>reason</code></td>
+      <td>失败范围要明确：整批失败、单载具失败，还是仅部分样本失败。</td>
+    </tr>
+    </tbody>
+  </table>
+
+  <h2>四、建议实现顺序</h2>
+  <ol>
+    <li><code>pp_bind_carrier_plates</code>：先统一入口数据结构。</li>
+    <li><code>pp_query_carrier_samples</code>：把 4 个载具展开成样本上下文。</li>
+    <li><code>pp_query_carrier_locations</code> + <code>pp_build_agv_to_processor_command</code>：先跑通搬运报文。</li>
+    <li><code>pp_build_processor_task_payload</code>：跑通机台启动任务。</li>
+    <li><code>pp_mark_scan_failed</code>：验证扫码失败事件。</li>
+    <li><code>pp_check_required_materials</code>：验证物料充足/不足分支。</li>
+    <li>补料相关三个节点：查询缺料位置、构建补料 AGV、补料后复核。</li>
+    <li><code>pp_save_experiment_results</code>：最后做结果落库。</li>
+  </ol>
+
+  <h2>五、现有代码判断</h2>
+  <div class="panel">
+    <p>当前已有 <code>BatchSampleHoleQueryBean</code>，它按 <code>batchNo</code> 查询样本，并读取 <code>experimentParams</code> 里的孔位配置。这个和现在的“4 个载具盘号，每个载具下若干样本”不完全一致。</p>
+    <p>建议不要直接硬改成复杂大 Bean，而是将它改造/替换为 <code>CarrierSampleQueryBean</code>：输入 <code>carrierPlates</code>，输出 <code>carrierSamples</code> 和扁平 <code>sampleInfos</code>。</p>
+  </div>
+
+  <h2>六、下一步建议</h2>
+  <div class="note">
+    第一优先级实现 <code>pp_bind_carrier_plates</code> 和 <code>pp_query_carrier_samples</code>。这两个节点确定后，后面的 AGV 搬运、扫码失败、实验结果保存才能有稳定的数据主键。
+  </div>
+</div>
+</body>
+</html>

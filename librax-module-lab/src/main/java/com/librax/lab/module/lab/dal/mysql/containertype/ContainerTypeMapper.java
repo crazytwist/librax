@@ -19,7 +19,7 @@ public interface ContainerTypeMapper extends BaseMapperX<ContainerTypeDO> {
 
     default PageResult<ContainerTypeDO> selectPage(ContainerTypePageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<ContainerTypeDO>()
-                .eqIfPresent(ContainerTypeDO::getTypeCode, reqVO.getTypeCode())
+                .likeIfPresent(ContainerTypeDO::getTypeCode, reqVO.getTypeCode())
                 .likeIfPresent(ContainerTypeDO::getTypeName, reqVO.getTypeName())
                 .eqIfPresent(ContainerTypeDO::getContainerType, reqVO.getContainerType())
                 .eqIfPresent(ContainerTypeDO::getHierarchyRole, reqVO.getHierarchyRole())

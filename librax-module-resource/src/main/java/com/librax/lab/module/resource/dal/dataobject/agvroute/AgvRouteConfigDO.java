@@ -107,6 +107,26 @@ public class AgvRouteConfigDO extends BaseDO {
      */
     private Boolean enabled;
 
+    /**
+     * 本路由的目标站点前是否需要先开门。
+     * <p>{@code true} 时，补料/下料流程会在 AGV 装载/卸载编排之前先执行开门网关节点
+     * （{@code doorGateBean}），等门禁设备回调开门完成后才继续；{@code false} 或未设置时
+     * 直接跳过，不下发任何门禁指令。
+     */
+    private Boolean doorRequired;
+
+    /**
+     * 门禁设备类型（对应 {@code lab_device_info.device_type}）。
+     * <p>{@code doorRequired=true} 时生效，未设置则使用默认值 {@code DOOR}。
+     */
+    private String doorDeviceId;
+
+    /**
+     * 开门指令码（对应 {@code lab_device_command.command_code}）。
+     * <p>{@code doorRequired=true} 时生效，未设置则使用默认值 {@code openDoor}。
+     */
+    private String doorCommandCode;
+
     /** 备注，描述路由用途或注意事项。 */
     private String remark;
 }
