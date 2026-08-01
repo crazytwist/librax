@@ -1,0 +1,167 @@
+# AI生成注释: Librax 后端 GitLab CI（参考 fanghuayuan-web，构建改为 Maven 多模块）
+# 流水线: build(jar→MinIO) → push(镜像) → deploy(Swarm) / 离线交付
+# 作者: AI
+image: docker.m.daocloud.io/maven:3.9-eclipse-temurin-17
+
+workflow:
+  rules:
+    - if: '$CI_COMMIT_MESSAGE =~ /build|deploy/i'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: always
+    - if: '$CI_PIPELINE_SOURCE == "api"'
+      when: always
+
+variables:
+  DOCKER_API_VERSION: "1.43"
+  COMPOSE_DIR: /data/ci/${CI_PROJECT_NAME}-dev
+  COMPOSE_PATH: /data/ci/${CI_PROJECT_NAME}-dev/docker-compose.yaml
+  STACK_NAME: librax-swarm
+  SERVICE_NAME: ${CI_PROJECT_NAME}-dev
+  ENV_FILE: ".env.dev"
+  # AI生成注释: Swarm ingress 宿主机端口，可在 GitLab CI/CD Variables 覆盖
+  # 作者: AI
+  HOST_PORT: "48080"
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+  TZ: "Asia/Shanghai"
+  # AI生成注释: 大文件走 MinIO，避免 GitLab artifacts 体积限制；对象路径按流水线隔离
+  # 作者: AI
+  MINIO_ARTIFACT_PATH: "${CI_PROJECT_NAME}/${CI_PIPELINE_ID}/librax-server.jar"
+
+stages:
+  - build
+  - push
+  - deploy
+
+# AI生成注释: MinIO mc 客户端初始化（复用 gitlab-artifacts 桶内预置的 mc）
+# 作者: AI
+.mc_setup:
+  script:
+    - wget -q ${MINIO_SERVER}/gitlab-artifacts/mc -O mc && chmod +x mc
+    - ./mc alias set minio ${MINIO_SERVER} ${MINIO_ACCESS_KEY} ${MINIO_SECRET_KEY}
+
+# ---------------------------------------
+# 1. Maven 构建 librax-server.jar → 上传 MinIO
+# ---------------------------------------
+build-job:
+  stage: build
+  tags:
+    - librax
+  cache:
+    key: 'maven-v1'
+    paths:
+      - .m2/repository
+  script:
+    - mvn -B clean package -DskipTests
+    - ls -lh librax-server/target/librax-server.jar
+    # AI生成注释: jar 过大，改传 MinIO gitlab-artifacts 桶，不再使用 GitLab artifacts
+    # 作者: AI
+    - !reference [.mc_setup, script]
+    - ./mc cp librax-server/target/librax-server.jar minio/gitlab-artifacts/${MINIO_ARTIFACT_PATH}
+    - echo "JAR 上传成功：${MINIO_SERVER}/gitlab-artifacts/${MINIO_ARTIFACT_PATH}"
+
+# ---------------------------------------
+# 2. 构建并推送 Docker 镜像
+# ---------------------------------------
+push-job:
+  stage: push
+  image: docker.1ms.run/docker:dind
+  tags:
+    - librax
+  cache: []
+  needs:
+    - job: build-job
+      artifacts: false
+  script:
+    # AI生成注释: 从 MinIO 拉取构建产物后再打镜像
+    # 作者: AI
+    - !reference [.mc_setup, script]
+    - mkdir -p librax-server/target
+    - ./mc cp minio/gitlab-artifacts/${MINIO_ARTIFACT_PATH} librax-server/target/librax-server.jar
+    - ls -lh librax-server/target/librax-server.jar
+    - docker build -t ${DOCKER_IMAGE_DOMAIN}/${CI_PROJECT_NAME}:latest -f librax-server/Dockerfile librax-server
+    - docker push ${DOCKER_IMAGE_DOMAIN}/${CI_PROJECT_NAME}:latest
+
+# ---------------------------------------
+# 3. 部署到 Swarm（开发环境，自动）
+# ---------------------------------------
+deploy-job-dev: &deploy_config
+  stage: deploy
+  environment: development
+  tags:
+    - librax
+  cache: []
+  before_script:
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add - >/dev/null
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+  script:
+    - ssh $SSH_USER@$SSH_HOST "mkdir -p $COMPOSE_DIR"
+    - scp ./docker-compose.yaml $SSH_USER@$SSH_HOST:$COMPOSE_DIR
+    - scp ./${ENV_FILE} $SSH_USER@$SSH_HOST:$COMPOSE_DIR
+    - ssh $SSH_USER@$SSH_HOST "cat ${COMPOSE_DIR}/${ENV_FILE}"
+    # AI生成注释: 将 compose 中占位服务名替换为当前环境服务名，避免多环境冲突
+    # 作者: AI
+    - ssh $SSH_USER@$SSH_HOST "sed -i 's/librax-server/${SERVICE_NAME}/g' ${COMPOSE_PATH}"
+    # AI生成注释: 用 set -a + source 加载 env，避免 JAVA_OPTS 等含空格值被 xargs 拆坏
+    # 作者: AI
+    - |
+      ssh $SSH_USER@$SSH_HOST "
+        set -a
+        . ${COMPOSE_DIR}/${ENV_FILE}
+        set +a
+        export DOCKER_IMAGE_DOMAIN=${DOCKER_IMAGE_DOMAIN}
+        export CI_PROJECT_NAME=${CI_PROJECT_NAME}
+        export SERVICE_NAME=${SERVICE_NAME}
+        export HOST_PORT=${HOST_PORT}
+        docker stack deploy -c ${COMPOSE_PATH} $STACK_NAME --resolve-image always --with-registry-auth
+      "
+
+# ---------------------------------------
+# 4. 部署到 Swarm（生产/UAT，手动）
+# ---------------------------------------
+deploy-job-uat:
+  <<: *deploy_config
+  variables:
+    SERVICE_NAME: ${CI_PROJECT_NAME}
+    COMPOSE_DIR: /data/ci/${CI_PROJECT_NAME}
+    COMPOSE_PATH: /data/ci/${CI_PROJECT_NAME}/docker-compose.yaml
+    ENV_FILE: ".env.prod"
+  environment: production
+  when: manual
+
+# ---------------------------------------
+# 5. 离线交付：导出镜像并上传 MinIO
+# ---------------------------------------
+deploy-job-docker:
+  stage: deploy
+  environment: production
+  image: docker.1ms.run/docker:dind
+  tags:
+    - librax
+  cache: []
+  needs:
+    - job: build-job
+      artifacts: false
+  when: manual
+  script:
+    # AI生成注释: 离线交付同样从 MinIO 拉取 jar，再导出镜像上传
+    # 作者: AI
+    - !reference [.mc_setup, script]
+    - mkdir -p librax-server/target
+    - ./mc cp minio/gitlab-artifacts/${MINIO_ARTIFACT_PATH} librax-server/target/librax-server.jar
+    # AI生成注释: 用 set -a + source 加载 env，避免 JAVA_OPTS 含空格导致 export 失败
+    # 作者: AI
+    - |
+      set -a
+      . ./.env.delivery
+      set +a
+      docker build -t librax-server:prod -f librax-server/Dockerfile librax-server
+    - docker save -o librax-server.tar librax-server:prod
+    - export DEPLOY_DATE=$(date +"%Y%m%d%H%M")
+    - ./mc cp librax-server.tar minio/gitlab-artifacts/${CI_PROJECT_NAME}/${DEPLOY_DATE}/librax-server.tar
+    - echo "镜像上传成功，访问地址：${MINIO_SERVER}/gitlab-artifacts/${CI_PROJECT_NAME}/${DEPLOY_DATE}/librax-server.tar"
