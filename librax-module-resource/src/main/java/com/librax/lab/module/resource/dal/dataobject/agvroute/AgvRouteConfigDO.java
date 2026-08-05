@@ -108,24 +108,32 @@ public class AgvRouteConfigDO extends BaseDO {
     private Boolean enabled;
 
     /**
-     * 本路由的目标站点前是否需要先开门。
-     * <p>{@code true} 时，补料/下料流程会在 AGV 装载/卸载编排之前先执行开门网关节点
-     * （{@code doorGateBean}），等门禁设备回调开门完成后才继续；{@code false} 或未设置时
-     * 直接跳过，不下发任何门禁指令。
+     * 本路由的目标站点前是否需要开关门。
+     * <p>{@code true} 时，AGV 到达卸货等待点（waitSignal，UNLOAD 阶段）会挂起，
+     * 等门禁设备开门完成（见 {@code AgvLoadPlanServiceImpl} 的门禁联动逻辑）才继续放料；
+     * {@code false} 或未设置时 AGV 到位即刻放行，不下发任何门禁指令。
      */
     private Boolean doorRequired;
 
     /**
      * 门禁设备类型（对应 {@code lab_device_info.device_type}）。
-     * <p>{@code doorRequired=true} 时生效，未设置则使用默认值 {@code DOOR}。
+     * <p>{@code doorRequired=true} 时生效，未设置则使用默认值 {@code Feeding-Reaction}。
      */
     private String doorDeviceId;
 
     /**
-     * 开门指令码（对应 {@code lab_device_command.command_code}）。
-     * <p>{@code doorRequired=true} 时生效，未设置则使用默认值 {@code openDoor}。
+     * 开关门指令码（对应 {@code lab_device_command.command_code}）。
+     * <p>{@code doorRequired=true} 时生效，未设置则使用默认值 {@code OpenCloseDoor}。
      */
     private String doorCommandCode;
+
+    /**
+     * 本路由是否需要在 AGV 卸货完成后额外调用"批量合成工站录入"（BatchInTray）+
+     * "启动合成工站上料"（DeepService.startLoad）两步。
+     * <p>只有配置了这两个指令的固定工站路由才需要（如 Feeding-Reaction + DeepService
+     * 合成工站），其它路由保持 {@code false} 或未设置，流程完全不变、不会多发任何请求。
+     */
+    private Boolean postLoadNotifyRequired;
 
     /** 备注，描述路由用途或注意事项。 */
     private String remark;

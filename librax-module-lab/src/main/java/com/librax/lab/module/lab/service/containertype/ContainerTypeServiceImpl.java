@@ -83,4 +83,17 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
         return containerTypeMapper.selectPage(pageReqVO);
     }
 
+    @Override
+    public Map<String, String> getTypeNameMap(Collection<String> typeCodes) {
+        if (CollUtil.isEmpty(typeCodes)) {
+            return Collections.emptyMap();
+        }
+        List<ContainerTypeDO> list = containerTypeMapper.selectListByTypeCodes(typeCodes);
+        Map<String, String> map = new HashMap<>();
+        for (ContainerTypeDO item : list) {
+            map.put(item.getTypeCode(), item.getTypeName());
+        }
+        return map;
+    }
+
 }

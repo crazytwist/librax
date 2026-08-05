@@ -64,6 +64,14 @@ public class DoorGateBean implements StepExecutor {
             return StepResult.ok(Map.of("doorOp", op, "executed", false));
         }
 
+        // postLoadNotifyRequired=true 的固定工站路由：BatchInTray + DeepService.startLoad
+        // 跑完门会自动关，这里的 close 就不用再显式调用了；其它路由不受影响，正常关门。
+        if ("close".equals(op) && bool(inputParams.get("postLoadNotifyRequired"))) {
+            log.info("[DoorGate] 本路由关门由BatchInTray+DeepService.startLoad完成后自动触发，跳过显式关门 " +
+                    "executionId={} nodeId={}", ctx.getExecutionId(), ctx.getNodeId());
+            return StepResult.ok(Map.of("doorOp", op, "executed", false, "reason", "postLoadAutoClose"));
+        }
+
         String deviceType = string(inputParams.get("doorDeviceId"), DEFAULT_DOOR_DEVICE_TYPE);
         String commandCode = string(inputParams.get("doorCommandCode"), DEFAULT_DOOR_COMMAND_CODE);
         String callbackBaseUrl = string(inputParams.get("doorCallbackBaseUrl"), null);

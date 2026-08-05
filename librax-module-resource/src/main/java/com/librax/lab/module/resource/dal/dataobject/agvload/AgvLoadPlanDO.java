@@ -41,6 +41,16 @@ public class AgvLoadPlanDO extends BaseDO {
      * DIRECT — 物料本就在源库位上（如机台间转运），跳过仓储环节直接标记就绪。
      */
     private String sourceReadyMode;
+    /** 卸货前是否需要开关门 */
+    private Boolean doorRequired;
+    /** 门禁设备类型，留空默认 Feeding-Reaction */
+    private String doorDeviceId;
+    /** 开关门指令码，留空默认 OpenCloseDoor */
+    private String doorCommandCode;
+    /** 机台"可以开门"确认信号是否已收到 */
+    private Boolean doorPermissionReceived;
+    /** 是否需要额外等机台开门许可信号（同单第一车=0，第二车起=1） */
+    private Boolean doorPermissionGateRequired;
     /** LOADING / LOAD_COMPLETE / COMPLETED / FAILED / CANCELLED */
     private String status;
 }

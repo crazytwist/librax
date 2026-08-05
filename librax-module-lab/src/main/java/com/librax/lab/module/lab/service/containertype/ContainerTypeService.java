@@ -59,4 +59,12 @@ public interface ContainerTypeService {
      */
     PageResult<ContainerTypeDO> getContainerTypePage(ContainerTypePageReqVO pageReqVO);
 
+    /**
+     * 按类型编码批量查询 typeName，用于给物料实例等列表回填展示名称
+     *
+     * @param typeCodes 容器类型编码集合
+     * @return typeCode -> typeName 映射，查不到的编码不会出现在返回结果里
+     */
+    Map<String, String> getTypeNameMap(Collection<String> typeCodes);
+
 }

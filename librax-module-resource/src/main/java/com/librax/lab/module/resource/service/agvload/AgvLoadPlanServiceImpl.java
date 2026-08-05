@@ -2,6 +2,7 @@ package com.librax.lab.module.resource.service.agvload;
 
 import com.alibaba.fastjson.JSON;
 import com.librax.lab.framework.common.exception.ServiceException;
+import com.librax.lab.module.device.api.AgvDoorPermissionHandler;
 import com.librax.lab.module.device.api.AgvTaskStateHandler;
 import com.librax.lab.module.device.api.AgvWaitSignalHandler;
 import com.librax.lab.module.device.api.AgvResumeHandler;
@@ -43,7 +44,8 @@ import static com.librax.lab.module.resource.enums.ErrorCodeConstants.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignalHandler, AgvTaskStateHandler, AgvResumeHandler {
+public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignalHandler, AgvTaskStateHandler,
+        AgvResumeHandler, AgvDoorPermissionHandler {
 
     /** 自注入，用于在事务提交后通过 Spring 代理调用 @Async 方法 */
     @Lazy
@@ -114,6 +116,11 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                 .warehouseCallbackUrl(string(inputParams.get("warehouseCallbackUrl"),
                         "http://localhost:48080/app-api/resource/slot/ready"))
                 .sourceReadyMode(sourceReadyMode)
+                .doorRequired(bool(inputParams.get("doorRequired")))
+                .doorDeviceId(string(inputParams.get("doorDeviceId"), null))
+                .doorCommandCode(string(inputParams.get("doorCommandCode"), null))
+                .doorPermissionGateRequired(bool(inputParams.get("doorPermissionGateRequired")))
+                .doorPermissionReceived(false)
                 .status("WAIT_WAREHOUSE")
                 .build();
         planMapper.insert(plan);
@@ -334,14 +341,16 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean handle(String taskId, String agvStation) {
-        AgvLoadPlanDO subtaskPlan = planMapper.selectByCurrentAgvTaskId(taskId);
-        if (subtaskPlan != null && subtaskPlan.getOrchestrationNodeId() != null
-                && subtaskPlan.getStatus().startsWith("WAIT_AGV_")) {
+        AgvLoadPlanDO probe = planMapper.selectByCurrentAgvTaskId(taskId);
+        if (probe != null && probe.getOrchestrationNodeId() != null
+                && probe.getStatus().startsWith("WAIT_AGV_")) {
+            AgvLoadPlanDO subtaskPlan = planMapper.selectByCurrentAgvTaskIdForUpdate(taskId);
             subtaskPlan.setStatus("WAIT_SITE_ACTION");
             subtaskPlan.setLastAgvStation(agvStation);
             planMapper.updateById(subtaskPlan);
             log.info("[AgvWarehouse] AGV进入现场动作等待 taskId={} operation={} station={}",
                     taskId, subtaskPlan.getCurrentAgvOperation(), agvStation);
+            maybeGateOnDoorOrResume(subtaskPlan);
             return true;
         }
         AgvLoadPlanDO existing = planMapper.selectByTaskId(taskId);
@@ -384,13 +393,74 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         AgvLoadPlanDO existing = planMapper.selectByCurrentAgvTaskId(agvTaskId);
         if (existing == null || !"WAIT_SITE_ACTION".equals(existing.getStatus())) return false;
         AgvLoadPlanDO plan = planMapper.selectByCurrentAgvTaskIdForUpdate(agvTaskId);
+        sendResumeCommand(plan);
+        return true;
+    }
+
+    /** 通知AGV继续执行当前挂起的子任务，并把计划状态切回等待该子任务的终态回调。 */
+    private void sendResumeCommand(AgvLoadPlanDO plan) {
         deviceCommandSpi.send("AGV", "startAgain",
-                Map.of("taskId", agvTaskId, "disableSysFieldInjection", true),
+                Map.of("taskId", plan.getCurrentAgvTaskId(), "disableSysFieldInjection", true),
                 plan.getTaskId(), "resume_" + plan.getCurrentAgvOperation(), null);
         plan.setStatus("WAIT_AGV_" + plan.getCurrentAgvOperation());
         planMapper.updateById(plan);
-        log.info("[AgvWarehouse] 现场动作完成，通知AGV继续 taskId={} operation={}",
-                agvTaskId, plan.getCurrentAgvOperation());
+        log.info("[AgvWarehouse] 现场动作完成，通知AGV继续 taskId={} agvTaskId={} operation={}",
+                plan.getTaskId(), plan.getCurrentAgvTaskId(), plan.getCurrentAgvOperation());
+    }
+
+    /**
+     * AGV 到达卸货等待点（WAIT_SITE_ACTION）后的门禁联动入口。
+     *
+     * <p>只在 UNLOAD 阶段、且本车次 doorRequired=true 时才生效；其它情况（非UNLOAD阶段的现场
+     * 等待，或本车次不需要开关门）维持原有行为——停在 WAIT_SITE_ACTION，不自动放行，
+     * 需要外部显式调用 resume()。
+     */
+    private void maybeGateOnDoorOrResume(AgvLoadPlanDO plan) {
+        if (!"UNLOAD".equals(plan.getCurrentAgvOperation()) || !Boolean.TRUE.equals(plan.getDoorRequired())) {
+            return;
+        }
+        if (Boolean.TRUE.equals(plan.getDoorPermissionGateRequired())
+                && !Boolean.TRUE.equals(plan.getDoorPermissionReceived())) {
+            log.info("[AgvWarehouse] AGV已到卸货点，等待机台开门许可 taskId={} agvTaskId={}",
+                    plan.getTaskId(), plan.getCurrentAgvTaskId());
+            return;
+        }
+        openDoorThenResume(plan);
+    }
+
+    /** 同步调用开关门指令（op=open），成功后放行AGV继续执行卸货。 */
+    private void openDoorThenResume(AgvLoadPlanDO plan) {
+        String deviceType = string(plan.getDoorDeviceId(), "Feeding-Reaction");
+        String commandCode = string(plan.getDoorCommandCode(), "OpenCloseDoor");
+        DeviceCommandSpi.Result result = deviceCommandSpi.send(
+                deviceType, commandCode, Map.of("op", "open", "disableSysFieldInjection", true),
+                plan.getTaskId(), "door_open_" + plan.getCurrentAgvTaskId(), null);
+        if (!result.isSyncCompleted()) {
+            log.warn("[AgvWarehouse] 开门指令未同步完成，暂不放行AGV taskId={} deviceType={} commandCode={}",
+                    plan.getTaskId(), deviceType, commandCode);
+            return;
+        }
+        log.info("[AgvWarehouse] 开门完成，放行AGV继续执行卸货 taskId={} agvTaskId={}",
+                plan.getTaskId(), plan.getCurrentAgvTaskId());
+        sendResumeCommand(plan);
+    }
+
+    /**
+     * 机台反馈"可以开门"。若 AGV 已经到达卸货点在等（WAIT_SITE_ACTION + UNLOAD），
+     * 立即开门放行；否则只记录信号，等 AGV 后续到达卸货点时直接放行，不用再等。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public boolean notifyDoorPermission(String taskId) {
+        AgvLoadPlanDO plan = planMapper.selectByTaskIdForUpdate(taskId);
+        if (plan == null) return false;
+        plan.setDoorPermissionReceived(true);
+        planMapper.updateById(plan);
+        if ("WAIT_SITE_ACTION".equals(plan.getStatus()) && "UNLOAD".equals(plan.getCurrentAgvOperation())) {
+            openDoorThenResume(plan);
+        } else {
+            log.info("[AgvWarehouse] 收到机台开门许可，记录待用 taskId={} status={}", taskId, plan.getStatus());
+        }
         return true;
     }
 

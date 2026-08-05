@@ -38,6 +38,18 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
                 .in(MaterialInstanceDO::getSlotId, slotIds));
     }
 
+    /**
+     * 按父实例ID批量查询子实例（同一托盘内各孔位上的物料），用于展开 BatchInTray 之类
+     * 需要把托盘 + 孔位内容一起登记的场景。
+     */
+    default List<MaterialInstanceDO> selectListByParentIds(Collection<String> parentIds) {
+        if (parentIds == null || parentIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>()
+                .in(MaterialInstanceDO::getParentId, parentIds));
+    }
+
     default List<MaterialInstanceDO> selectAvailable(String materialCode,
                                                       String contentType,
                                                       String zoneCode) {
