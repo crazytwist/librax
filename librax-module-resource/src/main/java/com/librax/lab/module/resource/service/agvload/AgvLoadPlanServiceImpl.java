@@ -350,7 +350,15 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             planMapper.updateById(subtaskPlan);
             log.info("[AgvWarehouse] AGV进入现场动作等待 taskId={} operation={} station={}",
                     taskId, subtaskPlan.getCurrentAgvOperation(), agvStation);
-            maybeGateOnDoorOrResume(subtaskPlan);
+            // 门禁联动（开门+startAgain）挪到事务提交后异步执行，waitSignal 立即返回给AGV，
+            // 不在这次HTTP请求里等开门指令、AGV startAgain这两次出站调用的往返。
+            String planTaskId = subtaskPlan.getTaskId();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    self.maybeGateOnDoorOrResumeAsync(planTaskId);
+                }
+            });
             return true;
         }
         AgvLoadPlanDO existing = planMapper.selectByTaskId(taskId);
@@ -406,6 +414,35 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         planMapper.updateById(plan);
         log.info("[AgvWarehouse] 现场动作完成，通知AGV继续 taskId={} agvTaskId={} operation={}",
                 plan.getTaskId(), plan.getCurrentAgvTaskId(), plan.getCurrentAgvOperation());
+    }
+
+    /**
+     * 事务提交后异步执行的门禁联动入口（由 handle() 在 waitSignal 分支通过
+     * TransactionSynchronization.afterCommit 调度，见该方法调用处的说明）。
+     *
+     * <p>重新以 FOR UPDATE 读取最新状态，防止跟 {@link #notifyDoorPermission} 那条并发路径
+     * 重复触发开门+startAgain：如果等这个异步任务真正执行时，状态已经不是 WAIT_SITE_ACTION了
+     * （比如机台许可信号先一步把门打开、放行AGV了），直接跳过。
+     */
+    @Async
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public void maybeGateOnDoorOrResumeAsync(String taskId) {
+        try {
+            AgvLoadPlanDO plan = planMapper.selectByTaskIdForUpdate(taskId);
+            if (plan == null) {
+                log.warn("[AgvWarehouse] 异步门禁检查：计划不存在 taskId={}", taskId);
+                return;
+            }
+            if (!"WAIT_SITE_ACTION".equals(plan.getStatus())) {
+                log.info("[AgvWarehouse] 异步门禁检查：状态已变化，跳过 taskId={} status={}",
+                        taskId, plan.getStatus());
+                return;
+            }
+            maybeGateOnDoorOrResume(plan);
+        } catch (Exception e) {
+            log.error("[AgvWarehouse] 异步门禁检查失败 taskId={}", taskId, e);
+        }
     }
 
     /**
@@ -634,7 +671,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         for (AgvLoadItemDO item : waveItems) {
             Map<String, Object> command = new LinkedHashMap<>();
             command.put("taskType", plan.getTaskType());
-            command.put("plateType", plan.getPlateType());
+            command.put("plateType", resolvePlateType(plan, item));
             command.put("step1", JSON.parseObject(item.getStep1Json(), Map.class));
             commands.add(command);
             item.setStatus("DISPATCHED");
@@ -643,6 +680,25 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         }
         sendAndEnqueue(plan, agvTaskId, "LOAD",
                 Map.of("taskId", agvTaskId, "agvCmdList", commands, "disableSysFieldInjection", true));
+    }
+
+    /** 磁子(MSB8_T)容器类型需要用磁子专用抓取方式(plateType=1)，其它类型用整趟默认值。 */
+    private static final String MAGNETIC_CONTAINER_TYPE = "MSB8_T";
+    private static final String MAGNETIC_PLATE_TYPE = "1";
+
+    /**
+     * 按物料自己的 containerType 决定这一件的 plateType（抓取方式），不是整趟车共用一个值。
+     *
+     * <p>之前的bug：plateType 只在计划(plan)级别存了一份，同一趟车里不管有几种物料类型，
+     * 实际发给AGV的抓取方式永远是同一个值——磁子和非磁子混一趟车时，非磁子的物料也会被
+     * 错误地用磁子抓取方式（或反之，取决于最后下发的是哪一项）。现在改成每次下发指令时，
+     * 按这一件物料自己的 containerType 现算，磁子用专用值，其它用整趟的默认 plateType。
+     */
+    private String resolvePlateType(AgvLoadPlanDO plan, AgvLoadItemDO item) {
+        if (MAGNETIC_CONTAINER_TYPE.equals(item.getContainerType())) {
+            return MAGNETIC_PLATE_TYPE;
+        }
+        return plan.getPlateType();
     }
 
     private void completeLoadAndContinue(AgvLoadPlanDO plan) {
@@ -700,7 +756,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             if (item.getStep3Json() == null) continue;
             Map<String, Object> command = new LinkedHashMap<>();
             command.put("taskType", plan.getTaskType());
-            command.put("plateType", plan.getPlateType());
+            command.put("plateType", resolvePlateType(plan, item));
             command.put("step3", JSON.parseObject(item.getStep3Json(), Map.class));
             commands.add(command);
         }

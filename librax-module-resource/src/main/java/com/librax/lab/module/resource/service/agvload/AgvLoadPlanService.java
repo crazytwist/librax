@@ -26,4 +26,7 @@ public interface AgvLoadPlanService {
     void commitTransfer(String taskId);
 
     void triggerNextStepAsync(String taskId);
+
+    /** 事务提交后异步执行门禁联动检查（开门+放行AGV），避免阻塞 waitSignal 的HTTP响应。 */
+    void maybeGateOnDoorOrResumeAsync(String taskId);
 }
