@@ -13,16 +13,16 @@ warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
 step()  { echo -e "\n${BLUE}━━━ $* ━━━${NC}"; }
 
 # ── 配置 ──────────────────────────────────────────────────────
-SERVER_HOST="192.168.42.243"
-SERVER_USER="yinan"
-SERVER_PASS="yinan0302."
+SERVER_HOST="172.16.255.92"
+SERVER_USER="ai"
+SERVER_PASS="aifjeport"
 
 FRONTEND_PORT=8082                             # nginx 监听端口（8080=it-tools, 8081=yudao-admin）
 BACKEND_URL="http://librax-server:48080"       # 后端容器（同 docker_default 网络）
 CONTAINER_NAME="deepbuilder-frontend"
 REMOTE_DIR="/opt/deepbuilder-frontend"
 
-FRONTEND_DIR="/Users/yinan/workspace/yinan/ruoyi/deepbuilder"
+FRONTEND_DIR="/Users/yinan/workspace/megarobo/deepbuilder"
 DIST_DIR="$FRONTEND_DIR/dist"
 DIST_TAR="/tmp/deepbuilder-dist.tar.gz"
 
@@ -35,7 +35,7 @@ cd "$FRONTEND_DIR"
 # UMI 使用 NODE_ENV=production 自动读取 .env.production
 # UMI_APP_BASE_URL 为空 → axios 走相对路径 → nginx 反代到后端
 info "开始构建..."
-NODE_ENV=production node --max_old_space_size=8192 ./node_modules/.bin/max build
+NODE_ENV=production NODE_OPTIONS="--max-old-space-size=8192" ./node_modules/.bin/max build
 
 DIST_SIZE=$(du -sh "$DIST_DIR" | cut -f1)
 info "构建完成：$DIST_DIR ($DIST_SIZE)"
@@ -61,7 +61,7 @@ client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 client.connect(host, username=user, password=password, timeout=15)
 
-def run(cmd, timeout=30):
+def run(cmd, timeout=60):
     _, out, err = client.exec_command(cmd, timeout=timeout)
     return out.read().decode() + err.read().decode()
 
@@ -87,7 +87,7 @@ print(f"\n上传完成")
 
 # 解压
 print("解压中...")
-run(f"cd {remote_dir} && rm -rf dist && mkdir dist && tar -xzf dist.tar.gz -C dist && rm dist.tar.gz")
+run(f"cd {remote_dir} && rm -rf dist && mkdir dist && tar -xzf dist.tar.gz -C dist && rm dist.tar.gz", timeout=180)
 print("解压完成")
 
 # 写入 nginx.conf
@@ -135,7 +135,7 @@ PYEOF
 step "Step 4 / 4  启动 nginx 容器"
 
 /usr/bin/python3 << PYEOF
-import paramiko, time
+import paramiko, socket, time
 
 host, user, password = "$SERVER_HOST", "$SERVER_USER", "$SERVER_PASS"
 container  = "$CONTAINER_NAME"
@@ -146,13 +146,26 @@ client = paramiko.SSHClient()
 client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 client.connect(host, username=user, password=password, timeout=15)
 
-def run(cmd, timeout=30):
+def run(cmd, timeout=60):
+    """执行远端命令；超时不抛异常，返回已读到的输出 + [TIMEOUT] 标记"""
     _, out, err = client.exec_command(cmd, timeout=timeout)
-    return out.read().decode() + err.read().decode()
+    try:
+        return out.read().decode() + err.read().decode()
+    except socket.timeout:
+        return "[TIMEOUT] 命令超过 %ds 未返回" % timeout
 
 print("停止旧容器（如有）...")
-run(f"docker stop {container} 2>/dev/null || true")
-run(f"docker rm   {container} 2>/dev/null || true")
+run(f"docker stop {container} 2>/dev/null || true", timeout=120)
+run(f"docker rm   {container} 2>/dev/null || true", timeout=60)
+
+# 预拉取镜像（首次可能耗时较久，单独给足超时）
+print("检查 nginx:stable 镜像...")
+has_img = run("docker images -q nginx:stable", timeout=60).strip()
+if not has_img:
+    print("  本地无镜像，开始拉取（最多 10 分钟）...")
+    print("  " + run("docker pull nginx:stable", timeout=600).strip()[-500:])
+else:
+    print("  镜像已存在 ✓")
 
 docker_run = (
     f"docker run -d "
@@ -167,8 +180,8 @@ docker_run = (
 )
 
 print("启动容器...")
-out = run(docker_run)
-print(f"  容器ID: {out.strip()[:12]}")
+out = run(docker_run, timeout=300)
+print(f"  {out.strip()[:200]}")
 
 print("等待端口就绪（最多 30s）...")
 for i in range(6):

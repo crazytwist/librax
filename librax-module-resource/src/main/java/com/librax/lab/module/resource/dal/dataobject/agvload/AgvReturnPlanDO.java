@@ -1,6 +1,8 @@
 package com.librax.lab.module.resource.dal.dataobject.agvload;
 
+import com.baomidou.mybatisplus.annotation.FieldStrategy;
 import com.baomidou.mybatisplus.annotation.KeySequence;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.librax.lab.framework.mybatis.core.dataobject.BaseDO;
@@ -45,10 +47,20 @@ public class AgvReturnPlanDO extends BaseDO {
     /** 总卸料波次。 */
     private Integer totalWaves;
 
-    /** 当前正在执行的 AGV 子任务ID。 */
+    /**
+     * 当前正在执行的 AGV 子任务ID。
+     *
+     * <p>MyBatis-Plus updateById() 默认NOT_NULL策略：Java对象里这个字段是null，生成的
+     * UPDATE语句根本不会包含这一列，而不是把它置NULL。代码里用
+     * plan.setCurrentAgvTaskId(null) 表示"AGV当前空闲"，不加ALWAYS策略的话这个null永远
+     * 落不了库，导致这一列停留在上一次派发的旧值，后续任何重新读取plan的地方都会误判
+     * "AGV还在忙"而漏发下一条指令——LOAD那边真实复现过，这里保持一致同步修。
+     */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String currentAgvTaskId;
 
-    /** 当前 AGV 操作类型：LOAD / MOVE / UNLOAD。 */
+    /** 当前 AGV 操作类型：LOAD / MOVE / UNLOAD。同上，必须ALWAYS策略。 */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String currentAgvOperation;
 
     /** AGV 最后上报的站点信息。 */

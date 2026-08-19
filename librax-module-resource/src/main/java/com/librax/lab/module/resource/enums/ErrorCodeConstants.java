@@ -46,4 +46,12 @@ public interface ErrorCodeConstants {
     ErrorCode AGV_LOAD_PLAN_INVALID =
             new ErrorCode(1_070_001_011, "AGV装载计划参数错误: {}");
 
+    /**
+     * 专门区分于 AGV_LOAD_PLAN_INVALID：这个是"槽位当前被占用，等它释放就能重试成功"的临时性冲突，
+     * 不是参数/业务校验错误。startWarehouseOrchestration/startReturnOrchestration 捕获这个错误码时
+     * 会把请求放进 lab_agv_orchestrate_queue 排队，而不是直接让节点失败。
+     */
+    ErrorCode AGV_SLOT_UNAVAILABLE =
+            new ErrorCode(1_070_001_012, "AGV/库位槽位当前被占用: {}");
+
 }

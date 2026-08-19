@@ -1,5 +1,6 @@
 package com.librax.lab.module.device.controller.app;
 
+import cn.hutool.json.JSONUtil;
 import com.librax.lab.framework.common.pojo.CommonResult;
 import com.librax.lab.framework.tenant.core.aop.TenantIgnore;
 import com.librax.lab.module.device.api.AgvWaitSignalHandler;
@@ -106,10 +107,19 @@ public class DeviceAgvController {
     @PermitAll
     @TenantIgnore
     public CommonResult<Boolean> taskState(@Valid @RequestBody AgvTaskStateReqVO req) {
+        log.info("收到AGV设备回调:{}", JSONUtil.toJsonStr(req));
+
+        // 空闲自动充电指令（AgvIdleChargingWatchdog 下发，taskId固定为"Charging"）不对应任何
+        // 流程执行，本系统发出后就不再关心后续状态，AGV上报的这个回调直接安静忽略，
+        // 不进入下面按业务协调器/executionId匹配的正常流程，避免打无意义的WARN日志。
+        if ("Charging".equals(req.getTaskId())) {
+            log.info("[AGV] taskState 充电指令回调，忽略 runState={}", req.getRunState());
+            return success(true);
+        }
+
         for (AgvTaskStateHandler handler : taskStateHandlers) {
             if (handler.handle(req.getTaskId(), req.getRunState(), req.getAgvId())) {
-                log.info("[AGV] taskState由业务协调器处理 taskId={} runState={}",
-                        req.getTaskId(), req.getRunState());
+                log.info("[AGV] taskState由业务协调器处理 taskId={} runState={}", req.getTaskId(), req.getRunState());
                 return success(true);
             }
         }
@@ -139,9 +149,9 @@ public class DeviceAgvController {
         callbackReq.setErrorCode(success ? null : "AGV_TASK_ERROR");
         callbackReq.setErrorMsg(success ? null : "AGV runState=" + req.getRunState());
         callbackReq.setData(Map.of(
-                "taskId",     req.getTaskId(),
-                "runState",   req.getRunState(),
-                "agvId",      req.getAgvId() != null ? req.getAgvId() : "",
+                "taskId", req.getTaskId(),
+                "runState", req.getRunState(),
+                "agvId", req.getAgvId() != null ? req.getAgvId() : "",
                 "finishedAt", LocalDateTime.now().toString()
         ));
 
@@ -152,7 +162,9 @@ public class DeviceAgvController {
         return success(true);
     }
 
-    /** 服务端完成开门等现场动作后，明确通知当前AGV子任务继续。 */
+    /**
+     * 服务端完成开门等现场动作后，明确通知当前AGV子任务继续。
+     */
     @PostMapping("/startAgain")
     public CommonResult<Boolean> startAgain(@RequestBody Map<String, String> request) {
         String taskId = request.get("taskId");
