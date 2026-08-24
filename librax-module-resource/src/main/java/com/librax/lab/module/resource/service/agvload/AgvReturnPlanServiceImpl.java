@@ -708,9 +708,20 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
     /**
      * 向仓储请求下一件物料入库。
      *
-     * @return true 表示有物料已发出请求（仓储在处理中）；false 表示当前波次无待请求项
+     * <p>仓储机械臂同一时刻只能处理一件搬运——跟补料侧 {@link AgvLoadPlanServiceImpl#refillWarehouseWindow}
+     * 的 warehouseBusy 检查是同一个物理约束，必须等上一件的入库回调（{@link #markSlotReturned}）
+     * 真正到了才能发下一件。此前这里只用 {@code selectNextPendingReturn} 检查"这一件物料自己有没有
+     * 被请求过"，没检查"计划里是不是已经有别的物料请求还在途"：正常的回调驱动链路（afterUnloadComplete
+     * 首次触发、markSlotReturned 收到回调后才 triggerNextStepAsync 发下一条）本身是串行的，不会露出
+     * 这个洞；但每60秒跑一次的 {@link AgvReturnWarehouseWindowWatchdog} 兜底巡检是独立调用这个方法的，
+     * 如果巡检节拍恰好落在"上一件请求已发出、仓储回调还没回来"的窗口内，会把这个正常的排队等待状态
+     * 误判成"待处理"，在没等到上一件回调之前就把下一件的 prepareMaterials 提前发出去。
+     *
+     * @return true 表示有物料已发出请求（仓储在处理中）；false 表示当前波次无待请求项，或仓储正忙（上一件还没回调）
      */
     private boolean requestNextWarehouseReturn(AgvReturnPlanDO plan, int waveNo) {
+        if (warehouseReturnBusy(plan.getTaskId())) return false;
+
         AgvReturnItemDO next = itemMapper.selectNextPendingReturn(plan.getTaskId(), waveNo);
         if (next == null) return false;
 
@@ -755,6 +766,16 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
         log.info("[AgvReturn] 请求仓储入库 taskId={} subRequestId={} from={} to={}",
                 plan.getTaskId(), subRequestId, next.getTransitSlotId(), next.getWarehouseTargetLocation());
         return true;
+    }
+
+    /**
+     * 本计划内是否还有物料的仓储入库请求已经发出、但还没等到 {@link #markSlotReturned} 回调
+     * （status=IN_TRANSIT 且 warehouseRequestId 非空）。跟补料侧 refillWarehouseWindow 的
+     * warehouseBusy 判断对称，用于在 {@link #requestNextWarehouseReturn} 里挡住兜底巡检的抢跑。
+     */
+    private boolean warehouseReturnBusy(String taskId) {
+        return itemMapper.selectByTaskId(taskId).stream()
+                .anyMatch(item -> "IN_TRANSIT".equals(item.getStatus()) && item.getWarehouseRequestId() != null);
     }
 
     /** 仅设置状态（DB 持久化），流程回调由 triggerNextStepAsync 在事务提交后异步执行。 */

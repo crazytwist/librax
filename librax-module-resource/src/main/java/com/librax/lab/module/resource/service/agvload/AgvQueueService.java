@@ -48,6 +48,15 @@ public class AgvQueueService {
     /** lab_device_command 里 device_type=AGV, command_code=Cancel 那条指令（id=910183，停止充电）。 */
     private static final String CANCEL_CHARGING_COMMAND_CODE = "Cancel";
 
+    /** lab_device_command 里 device_type=AGV, command_code=GetAgvStatus 那条指令（id=910186，查真实状态）。 */
+    private static final String QUERY_STATE_COMMAND_CODE = "GetAgvStatus";
+
+    /** GetAgvStatus 返回的 state 枚举值：1空闲 2运行中 3充电中 4错误。 */
+    private static final String AGV_STATE_IDLE = "1";
+    private static final String AGV_STATE_RUNNING = "2";
+    private static final String AGV_STATE_CHARGING = "3";
+    private static final String AGV_STATE_ERROR = "4";
+
     private final AgvTaskQueueMapper queueMapper;
     private final AgvLoadPlanMapper loadPlanMapper;
     private final AgvReturnPlanMapper returnPlanMapper;
@@ -89,8 +98,8 @@ public class AgvQueueService {
             log.info("[AgvQueue] 队列已空，AGV 空闲 deviceId={}", deviceId);
             return;
         }
-        boolean valid = updatePlanStatusForDispatch(next);
-        if (!valid) {
+        Object plan = lockPlanForDispatch(next);
+        if (plan == null) {
             next.setStatus("CANCELLED");
             queueMapper.updateById(next);
             log.warn("[AgvQueue] 计划不可调度，跳过 planType={} planTaskId={} op={}",
@@ -100,11 +109,19 @@ public class AgvQueueService {
         }
 
         if (trySendStartTask(next, "agv_queued_" + next.getPlanType().toLowerCase() + "_" + next.getOperation().toLowerCase())) {
+            markPlanDispatched(next, plan);
             log.info("[AgvQueue] 调度下一任务 planType={} planTaskId={} agvTaskId={} op={}",
                     next.getPlanType(), next.getPlanTaskId(), next.getAgvTaskId(), next.getOperation());
         } else {
-            // plan状态已经改成WAIT_AGV_{operation}了（语义没错，这件事确实排到它了），
+            // 计划状态保持QUEUED不动（没有像以前那样提前改成WAIT_AGV_{operation}），
             // 只是AGV这次没接受指令，安排一次延迟重试；不递归调度下一条——它本来就该排后面。
+            // 计划状态留在QUEUED，是为了让下一次重试的lockPlanForDispatch校验还能通过——
+            // 之前这里在trySendStartTask之前就无条件把计划改成WAIT_AGV_{operation}，如果
+            // 紧接着trySendStartTask失败，计划就永久卡在WAIT_AGV_{operation}但队列项还是
+            // PENDING，下一次重试再进来时lockPlanForDispatch会发现"计划不是QUEUED"，把
+            // 这个原本只是"AGV暂时忙"的任务当成"计划已失效"直接CANCELLED掉、整个任务
+            // 悄悄丢失——这是2026-08-20被真实日志复现的一个bug：AGV忙的时间只要跨过
+            // 两次2秒重试（约4秒），任务就会被误判丢弃，而不是继续按预期无限重试下去。
             scheduleDispatchRetry(deviceId);
         }
     }
@@ -160,22 +177,42 @@ public class AgvQueueService {
      * 实际下发 startTask 并检查AGV是否真的接受了这条指令（不是仅仅HTTP 200）。
      * 接受则把队列项标记DISPATCHED；拒绝则保持队列项原状态（PENDING），由调用方安排重试。
      *
+     * <p>发送前先查一次 AGV 真实状态（{@link #queryAgvState}），不再只靠系统内部队列表/
+     * 内存充电标记去猜测AGV是不是真的能接单——之前系统对"AGV忙不忙"完全没有主动核实的
+     * 手段，只能等 startTask 被 AGV 自己用 code=1 拒绝后被动发现（见 {@link #isAgvAccepted}），
+     * 中间有个"系统以为空闲、设备其实还在忙"的盲区。这里只是把已知会被拒绝的两种情况
+     * （运行中/错误）提前拦掉，省一次必然失败的往返；查不到状态或状态是其它值时，
+     * 仍然照发，最终由 AGV 自己的拒绝机制兜底，不会因为这次查询引入新的卡点。
+     *
      * @return true 表示AGV接受了这条指令
      */
     private boolean trySendStartTask(AgvTaskQueueDO entry, String nodeId) {
         String deviceId = entry.getDeviceId();
-        if (chargingStateTracker.isCharging(deviceId)) {
-            // AgvIdleChargingWatchdog 判定AGV空闲后主动下发过充电指令，现在有真正的任务要
-            // 用这台AGV了，充电期间AGV对新指令的响应能力可能受影响，直接发startTask大概率
-            // 会被拒绝（跟"AGV运行中，无法响应"是同一类"暂时接不了新指令"的表现）。这里先发
-            // 一次停止充电。不在这里清除充电标记——如果Cancel本身没生效或者没来得及生效，
+        String agvState = queryAgvState(deviceId);
+
+        if (AGV_STATE_RUNNING.equals(agvState) || AGV_STATE_ERROR.equals(agvState)) {
+            // 真实状态已经确认AGV现在忙（运行中）或出错，这次必然会被拒绝，直接不发，
+            // 跟AGV自己拒绝时一样走2秒后重试。error不会自己变回idle，会一直重试到人工
+            // 处理为止，跟其它卡死场景的兜底方式保持一致，这里不额外做告警/中断。
+            log.info("[AgvQueue] AGV真实状态={}（非空闲/充电），暂不下发，{}ms后重试 deviceId={}",
+                    agvState, DISPATCH_RETRY_DELAY_MS, deviceId);
+            return false;
+        }
+
+        if (AGV_STATE_CHARGING.equals(agvState) || chargingStateTracker.isCharging(deviceId)) {
+            // 现在AGV充电纯粹是"反正闲着顺手充"（不存在电量不够被打断的场景），不用管
+            // 这次充电是系统自己下发的还是AGV自行触发的，直接先发一次停止充电指令再继续
+            // 派任务。不在这里清除充电标记——如果Cancel本身没生效或者没来得及生效，
             // 紧接着的startTask大概率还是会被拒绝，走下面已有的拒绝重试机制（2秒后重试）；
             // 只要标记还在，下一次重试会再发一次Cancel，直到某次startTask真正被接受，
             // 才在下面成功分支里清除标记——避免"以为发了就一定生效"的乐观假设。
-            log.info("[AgvQueue] AGV处于系统下发的充电状态，先发送停止充电指令 deviceId={}", deviceId);
+            log.info("[AgvQueue] AGV正在充电（真实状态={}，系统充电标记={}），先发送停止充电指令 deviceId={}",
+                    agvState, chargingStateTracker.isCharging(deviceId), deviceId);
             deviceCommandSpi.send("AGV", CANCEL_CHARGING_COMMAND_CODE,
                     Map.of("disableSysFieldInjection", true),
                     "SYSTEM-AGV-CANCEL-CHARGE-" + deviceId, "agv_cancel_charging", null);
+        } else if (AGV_STATE_IDLE.equals(agvState)) {
+            log.info("[AgvQueue] AGV真实状态=空闲，直接下发 deviceId={}", deviceId);
         }
 
         @SuppressWarnings("unchecked")
@@ -212,6 +249,28 @@ public class AgvQueueService {
         }
     }
 
+    /**
+     * 查询 AGV 真实状态（GetAgvStatus，同步 HTTP GET /device/agv/getAgvState，响应体
+     * {@code {"state":"1"}}）。查询本身失败（网络异常、超时、响应体解析不出来）时按
+     * "未知"处理返回 null——查不到状态不代表AGV真的忙，不能让一次查询失败就把整个调度
+     * 卡住，调用方对 null 的处理是照常发 startTask，由AGV自己的拒绝机制兜底。
+     *
+     * @return "1"空闲 / "2"运行中 / "3"充电中 / "4"错误；查询失败或解析不出来返回 null
+     */
+    private String queryAgvState(String deviceId) {
+        try {
+            DeviceCommandSpi.Result response = deviceCommandSpi.send("AGV", QUERY_STATE_COMMAND_CODE,
+                    Map.of(), "SYSTEM-AGV-STATE-" + deviceId, "agv_query_state", null);
+            if (response == null || response.getResponseBody() == null || response.getResponseBody().isBlank()) {
+                return null;
+            }
+            return JSON.parseObject(response.getResponseBody()).getString("state");
+        } catch (Exception e) {
+            log.warn("[AgvQueue] 查询AGV真实状态失败，按未知处理，继续走原有流程 deviceId={}", deviceId, e);
+            return null;
+        }
+    }
+
     /** 事务提交后异步延迟重试一次调度（AGV刚才拒绝接收指令时用）。 */
     private void scheduleDispatchRetry(String deviceId) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -243,23 +302,37 @@ public class AgvQueueService {
     }
 
     /**
-     * 将队列项对应计划的状态更新为 WAIT_AGV_{operation}。
+     * 校验队列项对应的计划是否仍处于可下发状态（QUEUED）并加行锁（防止同一计划被并发调度）。
+     * 只读校验+加锁，不做任何状态修改——是否真的进入 WAIT_AGV_{operation}，要等
+     * {@link #trySendStartTask} 确认AGV真的接受了指令之后，由 {@link #markPlanDispatched}
+     * 单独完成。以前这两件事（校验+改状态）是在同一个方法里无条件一起做的：不管
+     * trySendStartTask 后面成不成功，计划状态都会先被改成 WAIT_AGV_{operation}；一旦
+     * trySendStartTask 失败，计划就卡在这个状态、队列项还是PENDING，下一次重试进来时
+     * 这里的校验会发现"计划不是QUEUED"，把一个只是"AGV暂时忙"的任务误判成"计划已失效"
+     * 直接取消掉——这个方法拆开就是为了堵上这个洞。
      *
-     * @return false 表示计划已无效（不在 QUEUED 状态），应跳过该队列项
+     * @return 计划仍是 QUEUED 则返回锁定后的计划对象（LOAD 对应 {@link AgvLoadPlanDO}，
+     *         RETURN 对应 {@link AgvReturnPlanDO}）；计划不存在或已不是 QUEUED 返回 null
      */
-    private boolean updatePlanStatusForDispatch(AgvTaskQueueDO next) {
-        String newStatus = "WAIT_AGV_" + next.getOperation();
+    private Object lockPlanForDispatch(AgvTaskQueueDO next) {
         if ("LOAD".equals(next.getPlanType())) {
             AgvLoadPlanDO plan = loadPlanMapper.selectByTaskIdForUpdate(next.getPlanTaskId());
-            if (plan == null || !"QUEUED".equals(plan.getStatus())) return false;
-            plan.setStatus(newStatus);
-            loadPlanMapper.updateById(plan);
+            return (plan != null && "QUEUED".equals(plan.getStatus())) ? plan : null;
         } else {
             AgvReturnPlanDO plan = returnPlanMapper.selectByTaskIdForUpdate(next.getPlanTaskId());
-            if (plan == null || !"QUEUED".equals(plan.getStatus())) return false;
-            plan.setStatus(newStatus);
-            returnPlanMapper.updateById(plan);
+            return (plan != null && "QUEUED".equals(plan.getStatus())) ? plan : null;
         }
-        return true;
+    }
+
+    /** trySendStartTask 确认AGV真的接受指令后，才把 {@link #lockPlanForDispatch} 锁定的计划改成 WAIT_AGV_{operation}。 */
+    private void markPlanDispatched(AgvTaskQueueDO next, Object plan) {
+        String newStatus = "WAIT_AGV_" + next.getOperation();
+        if (plan instanceof AgvLoadPlanDO loadPlan) {
+            loadPlan.setStatus(newStatus);
+            loadPlanMapper.updateById(loadPlan);
+        } else if (plan instanceof AgvReturnPlanDO returnPlan) {
+            returnPlan.setStatus(newStatus);
+            returnPlanMapper.updateById(returnPlan);
+        }
     }
 }
