@@ -7,8 +7,10 @@ import com.librax.lab.framework.mybatis.core.query.LambdaQueryWrapperX;
 import com.librax.lab.framework.mybatis.core.mapper.BaseMapperX;
 import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.librax.lab.module.lab.controller.admin.materialinstance.vo.*;
+import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceBatchUpdateRemainReqVO;
 
 /**
  * 物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理 Mapper
@@ -25,6 +27,17 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
     default MaterialInstanceDO selectByInstanceId(String instanceId) {
         return selectOne(new LambdaQueryWrapperX<MaterialInstanceDO>()
                 .eq(MaterialInstanceDO::getInstanceId, instanceId));
+    }
+
+    /**
+     * 按实例ID列表批量查询物料实例（一次 IN 查询）
+     */
+    default List<MaterialInstanceDO> selectByInstanceIds(Collection<String> instanceIds) {
+        if (instanceIds == null || instanceIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>()
+                .in(MaterialInstanceDO::getInstanceId, instanceIds));
     }
 
     /**
@@ -166,5 +179,13 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
                 .betweenIfPresent(MaterialInstanceDO::getCreateTime, reqVO.getCreateTime())
                 .orderByDesc(MaterialInstanceDO::getId));
     }
+
+    /**
+     * 批量更新物料实例的当前剩余量（数量/体积），单条 SQL 完成
+     *
+     * @param items instanceId + currentCount + currentVolUl 明细列表
+     * @return 更新行数
+     */
+    int updateRemainBatch(@Param("items") List<AppMaterialInstanceBatchUpdateRemainReqVO.Item> items);
 
 }

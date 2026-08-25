@@ -8,6 +8,7 @@ import com.librax.lab.module.lab.controller.admin.materialinstance.vo.MaterialIn
 import com.librax.lab.module.lab.controller.admin.materialinstance.vo.MaterialInstanceLoadReqVO;
 import com.librax.lab.module.lab.controller.admin.materialinstance.vo.MaterialInstancePageReqVO;
 import com.librax.lab.module.lab.controller.admin.materialinstance.vo.MaterialInstanceSaveReqVO;
+import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceBatchUpdateRemainReqVO;
 import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceListReqVO;
 import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstancePageReqVO;
 import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceRespVO;
@@ -125,6 +126,15 @@ public class AppMaterialInstanceController {
     public CommonResult<Boolean> batchUnloadFromSlot(@RequestBody List<String> instanceIds) {
         materialInstanceService.batchUnloadFromSlot(instanceIds);
         return success(true);
+    }
+
+    @PutMapping("/batch-update-remain")
+    @Operation(summary = "批量更新物料实例剩余量 - 批量更新当前数量/体积")
+    @PermitAll
+    public CommonResult<List<String>> batchUpdateRemain(
+            @Valid @RequestBody AppMaterialInstanceBatchUpdateRemainReqVO reqVO) {
+        List<String> errors = materialInstanceService.batchUpdateRemain(reqVO.getItems());
+        return success(errors);
     }
 
     @PutMapping("/load")

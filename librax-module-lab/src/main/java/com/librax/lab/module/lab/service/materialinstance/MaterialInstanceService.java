@@ -85,6 +85,14 @@ public interface MaterialInstanceService {
     void batchUnloadFromSlot(List<String> instanceIds);
 
     /**
+     * 批量更新物料实例的当前剩余量（数量/体积），逐条执行，失败条目收集后返回
+     *
+     * @param items instanceId + currentCount + currentVolUl 的明细列表
+     * @return 失败条目信息（全部成功时为空列表）
+     */
+    List<String> batchUpdateRemain(List<com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceBatchUpdateRemainReqVO.Item> items);
+
+    /**
      * 上架：将物料实例绑定到指定库位
      * <p>
      * 前置校验：物料实例存在、未在任何库位中；库位存在、非 OCCUPIED、非 DISABLED
