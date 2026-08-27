@@ -24,7 +24,7 @@ public class AgvReturnItemDO extends BaseDO {
     private String taskId;
     private Integer sequenceNo;
 
-    /** 卸料波次（由 waveSize 决定，决定 AGV 哪次 UNLOAD 任务处理该物料）。 */
+    /** 卸料波次（由 waveSize 决定；波内每件物料各有一个 UNLOAD 子任务）。 */
     private Integer waveNo;
 
     /** 站位库位ID（AGV从此处取料）。 */

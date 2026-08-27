@@ -9,7 +9,7 @@ import java.util.Map;
  * AGV 下料编排服务。
  *
  * <p>流程：AGV 从站位取料（LOAD）→ 移动到仓储区（MOVE）
- * → 按波次卸料到中转位（UNLOAD × N）→ 仓储机械臂逐件入库（returnMaterials × N）
+ * → 按波次逐件卸料到中转位（UNLOAD × N）→ 仓储机械臂逐件入库（prepareMaterials × N）
  * → 流程回调 → commitReturn。
  */
 public interface AgvReturnPlanService {
@@ -70,7 +70,7 @@ public interface AgvReturnPlanService {
     Map<String, Object> getProgress(String taskId);
 
     /**
-     * 事务提交后异步触发下一步：请求仓储入库、下发下一波 AGV 卸料、或回调流程。
+     * 事务提交后异步触发下一步：请求仓储入库、下发待卸料的 AGV 子任务、或回调流程。
      *
      * <p>由 {@link #markSlotReturned} 在事务提交后通过 {@code afterCommit} 钩子调用，
      * 确保先返回 200 给仓储，再执行后续外部调用，与补料侧保持一致。
@@ -80,7 +80,7 @@ public interface AgvReturnPlanService {
     void triggerNextStepAsync(String taskId);
 
     /**
-     * 事务提交后异步推进AGV下料分阶段任务的下一步（LOAD->MOVE / MOVE->UNLOAD / UNLOAD->完成），
+     * 事务提交后异步推进AGV下料分阶段任务的下一步（LOAD->MOVE / MOVE->逐件UNLOAD），
      * 确保 taskState() 先把ACK返回给AGV，再发下一条 startTask 指令。
      */
     void advanceAfterTaskStateAsync(String taskId);

@@ -43,8 +43,8 @@ import static com.librax.lab.module.resource.enums.ErrorCodeConstants.*;
  * <p>与补料（AgvLoadPlanServiceImpl）完全独立，共享 {@link AgvQueueService} 管理同一台 AGV 的任务队列。
  *
  * <p>波次结构：AGV 一次装载全部物料（单个 LOAD 任务，含所有 step1 指令），
- * 移动到仓储区后，按 {@code waveSize}（中转位容量）分批卸料。每批卸料完成后，
- * 仓储机械臂逐件入库（回调 /slot/returned），全部确认后再卸下一批。
+ * 移动到仓储区后，按 {@code waveSize}（中转位容量）分批逐件卸料。每件卸到中转位后，
+ * 立即请求仓储机械臂入库；AGV 可继续卸同波下一件，与机械臂并行。
  */
 @Slf4j
 @Service
@@ -457,7 +457,7 @@ public class AgvReturnPlanServiceImpl
 
     /**
      * 事务提交后异步推进AGV下料分阶段任务的下一步（LOAD完成后MOVE / MOVE完成后开始第一波UNLOAD /
-     * 某一波UNLOAD完成后标记IN_TRANSIT+请求仓储+让AGV可承接其它任务），确保先ACK给AGV。
+     * 某件UNLOAD完成后标记IN_TRANSIT+请求仓储+派发同波下一件），确保先ACK给AGV。
      */
     @Async
     @Override
@@ -471,10 +471,13 @@ public class AgvReturnPlanServiceImpl
             }
             switch (plan.getCurrentAgvOperation()) {
                 case "LOAD" -> afterLoadComplete(plan);
-                case "MOVE" -> sendUnloadWave(plan);    // 开始第一波卸料
+                case "MOVE" -> sendUnloadWave(plan);    // 开始第一波逐件卸料
                 case "UNLOAD" -> {
-                    afterUnloadComplete(plan);          // 标记 IN_TRANSIT，请求仓储
-                    agvQueueService.dispatchNext(plan.getDeviceId()); // 让 AGV 可承接其它任务
+                    if (isLegacyUnloadTask(plan)) {
+                        afterLegacyUnloadWaveComplete(plan);
+                    } else {
+                        afterUnloadItemComplete(plan);  // 单件到中转位后立即请求仓储
+                    }
                 }
                 default -> log.warn("[AgvReturn] 异步推进下一阶段：未知AGV下料操作 taskId={} op={}", taskId,
                         plan.getCurrentAgvOperation());
@@ -627,26 +630,94 @@ public class AgvReturnPlanServiceImpl
                 slotMapper.reserveIfEmpty(item.getTransitSlotId());
             }
         }
-        String agvTaskId = plan.getTaskId() + "-UNLOAD-" + wave;
-        List<Map<String, Object>> commands = new ArrayList<>();
-        for (AgvReturnItemDO item : waveItems) {
-            Map<String, Object> cmd = new LinkedHashMap<>();
-            cmd.put("taskType", plan.getTaskType());
-            cmd.put("plateType", resolvePlateType(plan, item));
-            cmd.put("step3", JSON.parseObject(item.getStep3Json(), Map.class));
-            commands.add(cmd);
-        }
-        sendAndEnqueue(plan, agvTaskId, "UNLOAD",
-                Map.of("taskId", agvTaskId, "agvCmdList", commands, "disableSysFieldInjection", true));
+        sendUnloadTaskForItem(plan, waveItems.get(0));
     }
 
-    private void afterUnloadComplete(AgvReturnPlanDO plan) {
+    @SuppressWarnings("unchecked")
+    private void sendUnloadTaskForItem(AgvReturnPlanDO plan, AgvReturnItemDO item) {
+        String agvTaskId = plan.getTaskId() + "-UNLOAD-" + item.getWaveNo() + "-I" + item.getSequenceNo();
+        Map<String, Object> command = new LinkedHashMap<>();
+        command.put("taskType", plan.getTaskType());
+        command.put("plateType", resolvePlateType(plan, item));
+        command.put("step3", JSON.parseObject(item.getStep3Json(), Map.class));
+        sendAndEnqueue(plan, agvTaskId, "UNLOAD",
+                Map.of("taskId", agvTaskId, "agvCmdList", List.of(command), "disableSysFieldInjection", true));
+        log.info("[AgvReturn] 派发单件卸料 taskId={} wave={} sequenceNo={} transitSlotId={}", plan.getTaskId(),
+                item.getWaveNo(), item.getSequenceNo(), item.getTransitSlotId());
+    }
+
+    private void afterUnloadItemComplete(AgvReturnPlanDO plan) {
+        int wave = plan.getCurrentWave();
+        AgvReturnItemDO item = currentUnloadItem(plan);
+        if (item == null) {
+            throw exception(AGV_LOAD_PLAN_INVALID, "找不到当前卸料任务对应的物料: " + plan.getCurrentAgvTaskId());
+        }
+        slotMapper.clearOccupancy(item.getAgvSlotId()); // AGV 槽位释放
+        slotMapper.occupyReserved(item.getTransitSlotId(), item.getInstanceId()); // 中转位标记为已占用
+        item.setStatus("IN_TRANSIT");
+        item.setTransitAt(LocalDateTime.now());
+        itemMapper.updateById(item);
+
+        try {
+            requestNextWarehouseReturn(plan, wave);
+        } catch (Exception e) {
+            log.warn(
+                    "[AgvReturn] 波次{}物料{}入库请求失败，等下一次触发或兜底巡检重试 taskId={}", wave,
+                    item.getSequenceNo(), plan.getTaskId(), e);
+        }
+
+        List<AgvReturnItemDO> remainingItems = itemMapper.selectByTaskId(plan.getTaskId()).stream()
+                .filter(next -> Objects.equals(next.getWaveNo(), wave) && "ON_AGV".equals(next.getStatus())).toList();
+        if (!remainingItems.isEmpty()) {
+            // 当前件已经到缓存位，立即让AGV卸同波下一件；机械臂此时可并行处理当前件。
+            sendUnloadTaskForItem(plan, remainingItems.get(0));
+        } else {
+            plan.setStatus("WAIT_WAREHOUSE");
+            plan.setCurrentAgvTaskId(null);
+            plan.setCurrentAgvOperation(null);
+            planMapper.updateById(plan);
+            tryPrefetchNextUnloadWave(plan);
+            agvQueueService.dispatchNext(plan.getDeviceId());
+        }
+
+        scheduleOrchestrateQueueRetry(plan.getDeviceId());
+        log.info("[AgvReturn] 波次{}物料{}卸料完成，AGV与仓储并行推进 taskId={}", wave, item.getSequenceNo(),
+                plan.getTaskId());
+    }
+
+    private AgvReturnItemDO currentUnloadItem(AgvReturnPlanDO plan) {
+        String prefix = plan.getTaskId() + "-UNLOAD-" + plan.getCurrentWave() + "-I";
+        String agvTaskId = plan.getCurrentAgvTaskId();
+        if (agvTaskId == null || !agvTaskId.startsWith(prefix)) {
+            return null;
+        }
+        int sequenceNo;
+        try {
+            sequenceNo = Integer.parseInt(agvTaskId.substring(prefix.length()));
+        } catch (NumberFormatException e) {
+            return null;
+        }
+        return itemMapper.selectByTaskId(plan.getTaskId()).stream()
+                .filter(item -> Objects.equals(item.getWaveNo(), plan.getCurrentWave())
+                        && Objects.equals(item.getSequenceNo(), sequenceNo) && "ON_AGV".equals(item.getStatus()))
+                .findFirst().orElse(null);
+    }
+
+    /**
+     * 兼容发布前已下发的整波 UNLOAD 任务。新任务均使用 {@code -UNLOAD-{wave}-I{sequence}} 格式，
+     * 因而能在每件回调后立即通知仓储；旧任务只能在整波回调时按原语义推进。
+     */
+    private boolean isLegacyUnloadTask(AgvReturnPlanDO plan) {
+        return (plan.getTaskId() + "-UNLOAD-" + plan.getCurrentWave()).equals(plan.getCurrentAgvTaskId());
+    }
+
+    private void afterLegacyUnloadWaveComplete(AgvReturnPlanDO plan) {
         int wave = plan.getCurrentWave();
         List<AgvReturnItemDO> waveItems = itemMapper.selectByTaskId(plan.getTaskId()).stream()
                 .filter(item -> Objects.equals(item.getWaveNo(), wave) && "ON_AGV".equals(item.getStatus())).toList();
         for (AgvReturnItemDO item : waveItems) {
-            slotMapper.clearOccupancy(item.getAgvSlotId()); // AGV 槽位释放
-            slotMapper.occupyReserved(item.getTransitSlotId(), item.getInstanceId()); // 中转位标记为已占用
+            slotMapper.clearOccupancy(item.getAgvSlotId());
+            slotMapper.occupyReserved(item.getTransitSlotId(), item.getInstanceId());
             item.setStatus("IN_TRANSIT");
             item.setTransitAt(LocalDateTime.now());
             itemMapper.updateById(item);
@@ -658,28 +729,11 @@ public class AgvReturnPlanServiceImpl
         try {
             requestNextWarehouseReturn(plan, wave);
         } catch (Exception e) {
-            // 不能让这一步的异常把下面的槽位释放重试、提前卸下一波都跟着跳过——这一步失败
-            // 只影响"这一件物料现在能不能立刻开始入库"，不该连累其它跟它无关的收尾动作。
-            // requestNextWarehouseReturn 内部已经把这次失败的副作用（warehouseRequestId）
-            // 撤销干净，这里只是兜底记录一下，真正的重试交给事件驱动的下一次触发或
-            // AgvReturnWarehouseWindowWatchdog兜底巡检。
-            log.warn(
-                    "[AgvReturn] 波次{}第一件入库请求失败，等下一次触发（同波次其它物料的回调，或兜底巡检）再重试 taskId={}",
-                    wave, plan.getTaskId(), e);
+            log.warn("[AgvReturn] 旧版波次{}第一件入库请求失败，等待重试 taskId={}", wave, plan.getTaskId(), e);
         }
-        // AGV槽位在这里释放（下料流程的主要释放点），触发一次编排排队重试。
-        // afterUnloadComplete 本身跑在 advanceAfterTaskStateAsync 的 REQUIRES_NEW 事务里，
-        // 同样需要等这个事务提交后才能重试，否则重试时会读到还没提交的旧槽位状态。
         scheduleOrchestrateQueueRetry(plan.getDeviceId());
-        log.info("[AgvReturn] 波次{}卸料完成，等待仓储入库 taskId={}", wave, plan.getTaskId());
-
-        // AGV这一波已经卸完、物理上已经空出来了，不用死等仓储把这一波全部取走(RETURNED)才让它
-        // 干下一波——如果下一波要用的中转位这一刻恰好已经是空的（不是复用这一波还没被取走的
-        // 位置），就立刻让AGV去卸下一波，跟仓储正在搬这一波的动作并行，等效于补料侧
-        // AgvLoadPlanServiceImpl 的"抓当前件、仓储并行备下一件"。如果下一波要复用的中转位
-        // 还被这一波占着（还没被仓储取走），下面会检测到并放弃，安全地退回原有的
-        // "等这一波全部RETURNED再卸下一波"逻辑，不会把AGV派去卸到一个还占着东西的中转位。
         tryPrefetchNextUnloadWave(plan);
+        agvQueueService.dispatchNext(plan.getDeviceId());
     }
 
     /**
@@ -841,9 +895,20 @@ public class AgvReturnPlanServiceImpl
                 doFlowCallback(plan);
                 log.info("[AgvReturn] 异步流程回调完成 taskId={}", taskId);
             } else {
-                // 当前波次还有待请求的仓储入库 → 发下一条仓储请求；否则触发下一波 AGV 卸料
+                // 当前波次还有待请求的仓储入库 → 发下一条仓储请求；否则在AGV空闲时触发下一波卸料。
+                // 单件UNLOAD模式下，仓储回调可能发生在同波下一件UNLOAD执行期间，不能重复下发。
                 int wave = plan.getCurrentWave();
-                if (!requestNextWarehouseReturn(plan, wave)) {
+                if (requestNextWarehouseReturn(plan, wave)) {
+                    return;
+                }
+                if (plan.getCurrentAgvTaskId() != null) {
+                    log.info("[AgvReturn] 当前AGV子任务仍在执行，等待其回调 taskId={} agvTaskId={}", taskId,
+                            plan.getCurrentAgvTaskId());
+                    return;
+                }
+                boolean hasPendingUnload = itemMapper.selectByTaskIdAndWave(taskId, wave).stream()
+                        .anyMatch(item -> "ON_AGV".equals(item.getStatus()));
+                if (hasPendingUnload) {
                     sendUnloadWave(plan);
                     log.info("[AgvReturn] 异步触发第{}波卸料 taskId={}", wave, taskId);
                 }
