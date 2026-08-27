@@ -2,6 +2,7 @@ package com.librax.lab.module.resource.service.agvload;
 
 import com.alibaba.fastjson.JSON;
 import com.librax.lab.framework.common.exception.ServiceException;
+import com.librax.lab.module.device.api.AgvReturnLoadCompleteHandler;
 import com.librax.lab.module.device.api.AgvResumeHandler;
 import com.librax.lab.module.device.api.AgvTaskStateHandler;
 import com.librax.lab.module.device.api.AgvWaitSignalHandler;
@@ -48,10 +49,12 @@ import static com.librax.lab.module.resource.enums.ErrorCodeConstants.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
-        AgvTaskStateHandler, AgvWaitSignalHandler, AgvResumeHandler {
+public class AgvReturnPlanServiceImpl
+        implements AgvReturnPlanService, AgvTaskStateHandler, AgvWaitSignalHandler, AgvResumeHandler {
 
-    /** 自注入，用于在事务提交后通过 Spring 代理调用 @Async 方法 */
+    /**
+     * 自注入，用于在事务提交后通过 Spring 代理调用 @Async 方法
+     */
     @Lazy
     @Autowired
     private AgvReturnPlanService self;
@@ -65,14 +68,15 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
     private final StepCallbackSpi stepCallbackSpi;
     private final AgvQueueService agvQueueService;
     private final PipelineExecutionSpi executionSpi;
+    private final List<AgvReturnLoadCompleteHandler> loadCompleteHandlers;
 
     // ── AgvReturnPlanService ─────────────────────────────────────────────────
 
     @Override
-    public void startReturnOrchestration(String taskId, String nodeId,
-                                          List<Map<String, Object>> returnItems,
-                                          Map<String, Object> inputParams) {
-        if (planMapper.selectByTaskId(taskId) != null) return;
+    public void startReturnOrchestration(String taskId, String nodeId, List<Map<String, Object>> returnItems,
+            Map<String, Object> inputParams) {
+        if (planMapper.selectByTaskId(taskId) != null)
+            return;
         if (orchestrateQueueMapper.selectByExecutionId(taskId) != null) {
             log.info("[AgvReturn] taskId={} 已在编排排队队列中，忽略重复请求", taskId);
             return;
@@ -83,25 +87,24 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
             if (!AGV_SLOT_UNAVAILABLE.getCode().equals(e.getCode())) {
                 throw e; // 非槽位冲突（参数错误、容量超限等）维持原有硬失败行为，不排队
             }
-            enqueueOrchestrateRequest("RETURN", string(inputParams.get("agvDeviceId"), "AGV-01"),
-                    taskId, nodeId, returnItems, inputParams, e.getMessage());
+            enqueueOrchestrateRequest("RETURN", string(inputParams.get("agvDeviceId"), "AGV-01"), taskId, nodeId,
+                    returnItems, inputParams, e.getMessage());
         }
     }
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void attemptStartReturnOrchestration(String taskId, String nodeId,
-                                                List<Map<String, Object>> returnItems,
-                                                Map<String, Object> inputParams) {
-        if (planMapper.selectByTaskId(taskId) != null) return;
+    public void attemptStartReturnOrchestration(String taskId, String nodeId, List<Map<String, Object>> returnItems,
+            Map<String, Object> inputParams) {
+        if (planMapper.selectByTaskId(taskId) != null)
+            return;
         if (returnItems == null || returnItems.isEmpty()) {
             throw exception(AGV_LOAD_PLAN_INVALID, "returnItems不能为空");
         }
         int waveSize = positiveInt(inputParams.get("transitCapacity"), 2);
         int agvCapacity = positiveInt(inputParams.get("agvCapacity"), 8);
         if (returnItems.size() > agvCapacity) {
-            throw exception(AGV_LOAD_PLAN_INVALID,
-                    "单车物料数" + returnItems.size() + "超过AGV容量" + agvCapacity);
+            throw exception(AGV_LOAD_PLAN_INVALID, "单车物料数" + returnItems.size() + "超过AGV容量" + agvCapacity);
         }
         int totalWaves = (returnItems.size() + waveSize - 1) / waveSize;
 
@@ -122,61 +125,49 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
             }
         }
 
-        AgvReturnPlanDO plan = AgvReturnPlanDO.builder()
-                .taskId(taskId)
-                .deviceId(string(inputParams.get("agvDeviceId"), "AGV-01"))
-                .expectedCount(returnItems.size())
-                .returnedCount(0)
-                .waveSize(waveSize)
-                .currentWave(1)
-                .totalWaves(totalWaves)
-                .orchestrationNodeId(nodeId)
+        AgvReturnPlanDO plan = AgvReturnPlanDO.builder().taskId(taskId)
+                .deviceId(string(inputParams.get("agvDeviceId"), "AGV-01")).expectedCount(returnItems.size())
+                .returnedCount(0).waveSize(waveSize).currentWave(1).totalWaves(totalWaves).orchestrationNodeId(nodeId)
                 .warehouseCallbackUrl(string(inputParams.get("warehouseCallbackUrl"),
                         "http://localhost:48080/app-api/resource/slot/returned"))
                 .taskType(string(inputParams.get("taskType"), "1"))
                 .plateType(string(inputParams.get("plateType"), "Plate_5"))
-                .status("WAIT_AGV_LOAD")
-                .build();
+                //                .closeStationDoorAfterLoad(bool(inputParams.get("closeStationDoorAfterLoad")))
+                .status("WAIT_AGV_LOAD").build();
         planMapper.insert(plan);
 
         List<AgvReturnItemDO> items = new ArrayList<>();
         for (int i = 0; i < returnItems.size(); i++) {
             Map<String, Object> item = returnItems.get(i);
-            AgvReturnItemDO entity = AgvReturnItemDO.builder()
-                    .taskId(taskId)
-                    .sequenceNo(i + 1)
-                    .waveNo(i / waveSize + 1)
-                    .sourceSlotId(required(item, "sourceSlotId"))
-                    .agvSlotId(required(item, "agvSlotId"))
+            AgvReturnItemDO entity = AgvReturnItemDO.builder().taskId(taskId).sequenceNo(i + 1).waveNo(i / waveSize + 1)
+                    .sourceSlotId(required(item, "sourceSlotId")).agvSlotId(required(item, "agvSlotId"))
                     .transitSlotId(required(item, "transitSlotId"))
                     .warehouseTargetLocation(required(item, "warehouseTargetLocation"))
-                    .instanceId(required(item, "instanceId"))
-                    .containerType(string(item.get("containerType"), null))
+                    .instanceId(required(item, "instanceId")).containerType(string(item.get("containerType"), null))
                     .step1Json(JSON.toJSONString(requiredMap(item, "step1")))
                     .step2Json(item.get("step2") instanceof Map<?, ?> ? JSON.toJSONString(item.get("step2")) : null)
-                    .step3Json(JSON.toJSONString(requiredMap(item, "step3")))
-                    .status("WAIT_LOAD")
-                    .build();
+                    .step3Json(JSON.toJSONString(requiredMap(item, "step3"))).status("WAIT_LOAD").build();
             itemMapper.insert(entity);
             items.add(entity);
         }
 
         sendLoadTask(plan, items);
-        log.info("[AgvReturn] 启动下料编排 taskId={} count={} waveSize={} totalWaves={}",
-                taskId, returnItems.size(), waveSize, totalWaves);
+        log.info("[AgvReturn] 启动下料编排 taskId={} count={} waveSize={} totalWaves={}", taskId, returnItems.size(),
+                waveSize, totalWaves);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> markSlotReturned(WarehouseCallbackReqVO req) {
         if (!org.springframework.util.StringUtils.hasText(req.getTransferTaskId())) {
-            log.info("[SlotReturned] 独立入库 slotId={} instanceId={} status={}",
-                    req.getFromLocation(), req.getMaterialId(), req.getStatus());
+            log.info("[SlotReturned] 独立入库 slotId={} instanceId={} status={}", req.getFromLocation(),
+                    req.getMaterialId(), req.getStatus());
             return Map.of("standalone", true, "slotId", req.getFromLocation());
         }
 
         AgvReturnPlanDO plan = planMapper.selectByTaskIdForUpdate(req.getTransferTaskId());
-        if (plan == null) throw exception(AGV_LOAD_PLAN_NOT_EXISTS, req.getTransferTaskId());
+        if (plan == null)
+            throw exception(AGV_LOAD_PLAN_NOT_EXISTS, req.getTransferTaskId());
 
         if (!req.isSuccess()) {
             return handleWarehouseReturnFailure(plan, req);
@@ -199,24 +190,28 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
 
         // 当前波次还有物料等待仓储处理（只检查，不在事务内发起外部调用）
         if (itemMapper.selectNextPendingReturn(plan.getTaskId(), wave) != null) {
-            log.info("[AgvReturn] 波次{}继续入库 taskId={} slotId={} 异步触发下一条仓储请求",
-                    wave, req.getTransferTaskId(), req.getFromLocation());
+            log.info("[AgvReturn] 波次{}继续入库 taskId={} slotId={} 异步触发下一条仓储请求", wave,
+                    req.getTransferTaskId(), req.getFromLocation());
             String planTaskId = plan.getTaskId();
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override public void afterCommit() { self.triggerNextStepAsync(planTaskId); }
+                @Override
+                public void afterCommit() {
+                    self.triggerNextStepAsync(planTaskId);
+                }
             });
             return result(plan, item);
         }
 
         // 波次全部 RETURNED，检查是否还有下一波
-        boolean waveComplete = itemMapper.selectByTaskIdAndWave(req.getTransferTaskId(), wave)
-                .stream().allMatch(i -> "RETURNED".equals(i.getStatus()) || "COMPLETED".equals(i.getStatus()));
+        boolean waveComplete = itemMapper.selectByTaskIdAndWave(req.getTransferTaskId(), wave).stream()
+                .allMatch(i -> "RETURNED".equals(i.getStatus()) || "COMPLETED".equals(i.getStatus()));
         if (!waveComplete) {
             return result(plan, item); // 有其他 IN_TRANSIT 项的仓储请求已在途
         }
 
-        plan.setReturnedCount(plan.getReturnedCount() + (int) itemMapper.selectByTaskIdAndWave(req.getTransferTaskId(), wave)
-                .stream().filter(i -> "RETURNED".equals(i.getStatus())).count());
+        plan.setReturnedCount(
+                plan.getReturnedCount() + (int) itemMapper.selectByTaskIdAndWave(req.getTransferTaskId(), wave).stream()
+                        .filter(i -> "RETURNED".equals(i.getStatus())).count());
 
         // 注意：下面用的是"这一波"(局部变量 wave，即刚刚全部入库完成的那一波)而不是
         // plan.getCurrentWave()——有了 tryPrefetchNextUnloadWave 之后，AGV可能已经提前把
@@ -234,7 +229,8 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
                 // plan.currentWave 已经领先于 wave，说明下一波早被 tryPrefetchNextUnloadWave
                 // 提前卸过了，这里只需要落盘 returnedCount，不用再重复推进或触发
                 triggerNext = false;
-                log.info("[AgvReturn] 波次{}完成，下一波已提前卸料，无需重复触发 taskId={}", wave, req.getTransferTaskId());
+                log.info("[AgvReturn] 波次{}完成，下一波已提前卸料，无需重复触发 taskId={}", wave,
+                        req.getTransferTaskId());
             }
         } else {
             // 全部完成：先持久化 WAIT_FLOW_COMMIT，事务提交后再回调流程
@@ -247,7 +243,10 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
         if (triggerNext) {
             String planTaskId = plan.getTaskId();
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override public void afterCommit() { self.triggerNextStepAsync(planTaskId); }
+                @Override
+                public void afterCommit() {
+                    self.triggerNextStepAsync(planTaskId);
+                }
             });
         }
         return result(plan, item);
@@ -257,7 +256,8 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
     @Transactional(rollbackFor = Exception.class)
     public void commitReturn(String taskId) {
         AgvReturnPlanDO plan = planMapper.selectByTaskIdForUpdate(taskId);
-        if (plan == null) throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
+        if (plan == null)
+            throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
         if (!"WAIT_FLOW_COMMIT".equals(plan.getStatus())) {
             throw exception(AGV_LOAD_PLAN_STATE_INVALID, plan.getStatus());
         }
@@ -291,7 +291,8 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
     @Override
     public Map<String, Object> getProgress(String taskId) {
         AgvReturnPlanDO plan = planMapper.selectByTaskId(taskId);
-        if (plan == null) throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
+        if (plan == null)
+            throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
         List<Map<String, Object>> items = itemMapper.selectByTaskId(taskId).stream().map(item -> {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("sequenceNo", item.getSequenceNo());
@@ -320,8 +321,10 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
     @Transactional(rollbackFor = Exception.class)
     public boolean handle(String agvTaskId, String runState, String agvId) {
         AgvReturnPlanDO existing = planMapper.selectByCurrentAgvTaskId(agvTaskId);
-        if (existing == null || existing.getOrchestrationNodeId() == null) return false;
-        if ("1".equals(runState)) return true; // 运行中，不做处理
+        if (existing == null || existing.getOrchestrationNodeId() == null)
+            return false;
+        if ("1".equals(runState))
+            return true; // 运行中，不做处理
 
         AgvReturnPlanDO plan = planMapper.selectByCurrentAgvTaskIdForUpdate(agvTaskId);
         String planTaskId = plan.getTaskId();
@@ -333,9 +336,9 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
             // AGV子任务物理失败：这个计划已经死了，之前占的AGV/中转槽位不会再被任何后续步骤释放，
             // 必须在这里主动清掉，否则永久卡住（补料侧同款漏洞，一起补上）。
             releasePlanSlots(plan);
-            stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null,
-                    false, Map.of("agvTaskId", agvTaskId, "runState", runState),
-                    "AGV_TASK_ERROR", "AGV下料子任务失败 runState=" + runState);
+            stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null, false,
+                    Map.of("agvTaskId", agvTaskId, "runState", runState), "AGV_TASK_ERROR",
+                    "AGV下料子任务失败 runState=" + runState);
             // 先给AGV回ACK，事务提交后再异步调度：队列下一条任务，以及可能因为上面释放槽位
             // 而能重试成功的编排排队请求，跟补料侧 AgvLoadPlanServiceImpl 的处理方式保持一致。
             String deviceId = plan.getDeviceId();
@@ -365,12 +368,12 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
         return true;
     }
 
-    /** 兜底轮询：见接口文档。逐计划各自独立事务重试，一个计划失败不影响其它计划。 */
+    /**
+     * 兜底轮询：见接口文档。逐计划各自独立事务重试，一个计划失败不影响其它计划。
+     */
     @Override
     public void pokeActiveWarehousePlans() {
-        List<String> taskIds = planMapper.selectActive().stream()
-                .map(AgvReturnPlanDO::getTaskId)
-                .toList();
+        List<String> taskIds = planMapper.selectActive().stream().map(AgvReturnPlanDO::getTaskId).toList();
         for (String taskId : taskIds) {
             try {
                 self.pokeOneWarehousePlan(taskId);
@@ -384,7 +387,8 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void pokeOneWarehousePlan(String taskId) {
         AgvReturnPlanDO plan = planMapper.selectByTaskIdForUpdate(taskId);
-        if (plan == null) return;
+        if (plan == null)
+            return;
         // requestNextWarehouseReturn 内部靠 selectNextPendingReturn（要求 warehouseRequestId
         // IS NULL）挑要重试的物料：正常情况下（没有卡住的物料，或者当前确实有请求在途）
         // 会安全地找不到东西可做、什么也不发生；只有真的卡住（比如波次第一件请求被拒绝、
@@ -399,8 +403,7 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
         try {
             requestNextWarehouseReturn(plan, plan.getCurrentWave());
         } catch (Exception e) {
-            log.warn("[AgvReturn] 兜底巡检重试仓储入库请求仍失败 taskId={} wave={}",
-                    taskId, plan.getCurrentWave(), e);
+            log.warn("[AgvReturn] 兜底巡检重试仓储入库请求仍失败 taskId={} wave={}", taskId, plan.getCurrentWave(), e);
         }
     }
 
@@ -437,8 +440,8 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
         planMapper.updateById(plan);
 
         if (plan.getOrchestrationNodeId() != null) {
-            stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null,
-                    false, Map.of("reason", effectiveReason), "MANUAL_CANCEL", effectiveReason);
+            stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null, false,
+                    Map.of("reason", effectiveReason), "MANUAL_CANCEL", effectiveReason);
         }
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -473,8 +476,8 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
                     afterUnloadComplete(plan);          // 标记 IN_TRANSIT，请求仓储
                     agvQueueService.dispatchNext(plan.getDeviceId()); // 让 AGV 可承接其它任务
                 }
-                default -> log.warn("[AgvReturn] 异步推进下一阶段：未知AGV下料操作 taskId={} op={}",
-                        taskId, plan.getCurrentAgvOperation());
+                default -> log.warn("[AgvReturn] 异步推进下一阶段：未知AGV下料操作 taskId={} op={}", taskId,
+                        plan.getCurrentAgvOperation());
             }
             log.info("[AgvReturn] 已ACK给AGV后异步推进下一阶段完成 taskId={}", taskId);
         } catch (Exception e) {
@@ -482,7 +485,9 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
         }
     }
 
-    /** 事务提交后异步调度AGV队列里排队的下一条任务（当前子任务失败时用），确保先ACK给AGV。 */
+    /**
+     * 事务提交后异步调度AGV队列里排队的下一条任务（当前子任务失败时用），确保先ACK给AGV。
+     */
     @Async
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -500,14 +505,15 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
     @Transactional(rollbackFor = Exception.class)
     public boolean handle(String taskId, String agvStation) {
         AgvReturnPlanDO existing = planMapper.selectByCurrentAgvTaskId(taskId);
-        if (existing == null || existing.getOrchestrationNodeId() == null
-                || !existing.getStatus().startsWith("WAIT_AGV_")) return false;
+        if (existing == null || existing.getOrchestrationNodeId() == null || !existing.getStatus()
+                .startsWith("WAIT_AGV_"))
+            return false;
         AgvReturnPlanDO plan = planMapper.selectByCurrentAgvTaskIdForUpdate(taskId);
         plan.setStatus("WAIT_SITE_ACTION");
         plan.setLastAgvStation(agvStation);
         planMapper.updateById(plan);
-        log.info("[AgvReturn] AGV进入现场动作等待 taskId={} operation={} station={}",
-                taskId, plan.getCurrentAgvOperation(), agvStation);
+        log.info("[AgvReturn] AGV进入现场动作等待 taskId={} operation={} station={}", taskId,
+                plan.getCurrentAgvOperation(), agvStation);
         return true;
     }
 
@@ -517,15 +523,15 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
     @Transactional(rollbackFor = Exception.class)
     public boolean resume(String agvTaskId) {
         AgvReturnPlanDO existing = planMapper.selectByCurrentAgvTaskId(agvTaskId);
-        if (existing == null || !"WAIT_SITE_ACTION".equals(existing.getStatus())) return false;
+        if (existing == null || !"WAIT_SITE_ACTION".equals(existing.getStatus()))
+            return false;
         AgvReturnPlanDO plan = planMapper.selectByCurrentAgvTaskIdForUpdate(agvTaskId);
-        deviceCommandSpi.send("AGV", "startAgain",
-                Map.of("taskId", agvTaskId, "disableSysFieldInjection", true),
+        deviceCommandSpi.send("AGV", "startAgain", Map.of("taskId", agvTaskId, "disableSysFieldInjection", true),
                 plan.getTaskId(), "resume_return_" + plan.getCurrentAgvOperation(), null);
         plan.setStatus("WAIT_AGV_" + plan.getCurrentAgvOperation());
         planMapper.updateById(plan);
-        log.info("[AgvReturn] 现场动作完成，通知AGV继续 taskId={} operation={}",
-                agvTaskId, plan.getCurrentAgvOperation());
+        log.info("[AgvReturn] 现场动作完成，通知AGV继续 taskId={} operation={}", agvTaskId,
+                plan.getCurrentAgvOperation());
         return true;
     }
 
@@ -548,11 +554,13 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
                 Map.of("taskId", agvTaskId, "agvCmdList", commands, "disableSysFieldInjection", true));
     }
 
-    /** 磁子(MSB8_T)容器类型需要用磁子专用抓取方式(plateType=1)，其它类型用整趟默认值。
-     *  跟 AgvLoadPlanServiceImpl.resolvePlateType 是同一条规则——下料(Return)是另一套独立的
-     *  计划/物料实体(AgvReturnPlanDO/AgvReturnItemDO)，之前只修了补料/转运那边的
-     *  AgvLoadPlanServiceImpl，这边下料的 sendLoadTask/sendUnloadWave 还是按整趟单一
-     *  plan.getPlateType() 下发，同样的"整趟车最后覆盖前面物料抓取方式"的bug在下料这边一直没修。 */
+    /**
+     * 磁子(MSB8_T)容器类型需要用磁子专用抓取方式(plateType=1)，其它类型用整趟默认值。
+     * 跟 AgvLoadPlanServiceImpl.resolvePlateType 是同一条规则——下料(Return)是另一套独立的
+     * 计划/物料实体(AgvReturnPlanDO/AgvReturnItemDO)，之前只修了补料/转运那边的
+     * AgvLoadPlanServiceImpl，这边下料的 sendLoadTask/sendUnloadWave 还是按整趟单一
+     * plan.getPlateType() 下发，同样的"整趟车最后覆盖前面物料抓取方式"的bug在下料这边一直没修。
+     */
     private static final String MAGNETIC_CONTAINER_TYPE = "MSB8_T";
     private static final String MAGNETIC_PLATE_TYPE = "1";
 
@@ -571,7 +579,22 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
             item.setLoadedAt(LocalDateTime.now());
             itemMapper.updateById(item);
         }
+        // AGV抓取后通知
+        notifyLoadComplete(plan);
         sendMoveTask(plan);
+    }
+
+    /**
+     * AGV 已完成所有 step1 装载。业务侧通知属于旁路动作，失败不能阻断回仓。
+     */
+    private void notifyLoadComplete(AgvReturnPlanDO plan) {
+        for (AgvReturnLoadCompleteHandler handler : loadCompleteHandlers) {
+            try {
+                handler.onLoadComplete(plan.getTaskId());
+            } catch (Exception e) {
+                log.warn("[AgvReturn] AGV装载完成业务通知失败，继续执行后续搬运 taskId={}", plan.getTaskId(), e);
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -592,9 +615,7 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
     private void sendUnloadWave(AgvReturnPlanDO plan) {
         int wave = plan.getCurrentWave();
         List<AgvReturnItemDO> waveItems = itemMapper.selectByTaskId(plan.getTaskId()).stream()
-                .filter(item -> Objects.equals(item.getWaveNo(), wave)
-                        && "ON_AGV".equals(item.getStatus()))
-                .toList();
+                .filter(item -> Objects.equals(item.getWaveNo(), wave) && "ON_AGV".equals(item.getStatus())).toList();
         if (waveItems.isEmpty()) {
             throw exception(AGV_LOAD_PLAN_INVALID, "第" + wave + "波无待卸料物料");
         }
@@ -622,9 +643,7 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
     private void afterUnloadComplete(AgvReturnPlanDO plan) {
         int wave = plan.getCurrentWave();
         List<AgvReturnItemDO> waveItems = itemMapper.selectByTaskId(plan.getTaskId()).stream()
-                .filter(item -> Objects.equals(item.getWaveNo(), wave)
-                        && "ON_AGV".equals(item.getStatus()))
-                .toList();
+                .filter(item -> Objects.equals(item.getWaveNo(), wave) && "ON_AGV".equals(item.getStatus())).toList();
         for (AgvReturnItemDO item : waveItems) {
             slotMapper.clearOccupancy(item.getAgvSlotId()); // AGV 槽位释放
             slotMapper.occupyReserved(item.getTransitSlotId(), item.getInstanceId()); // 中转位标记为已占用
@@ -644,7 +663,8 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
             // requestNextWarehouseReturn 内部已经把这次失败的副作用（warehouseRequestId）
             // 撤销干净，这里只是兜底记录一下，真正的重试交给事件驱动的下一次触发或
             // AgvReturnWarehouseWindowWatchdog兜底巡检。
-            log.warn("[AgvReturn] 波次{}第一件入库请求失败，等下一次触发（同波次其它物料的回调，或兜底巡检）再重试 taskId={}",
+            log.warn(
+                    "[AgvReturn] 波次{}第一件入库请求失败，等下一次触发（同波次其它物料的回调，或兜底巡检）再重试 taskId={}",
                     wave, plan.getTaskId(), e);
         }
         // AGV槽位在这里释放（下料流程的主要释放点），触发一次编排排队重试。
@@ -673,35 +693,34 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
      * 交给原有基于 RETURNED 回调的推进逻辑重新触发，不影响主流程正确性，只是错失一次提速机会。
      */
     private void tryPrefetchNextUnloadWave(AgvReturnPlanDO plan) {
-        if (plan.getCurrentWave() >= plan.getTotalWaves()) return; // 没有下一波了
+        if (plan.getCurrentWave() >= plan.getTotalWaves())
+            return; // 没有下一波了
         int nextWave = plan.getCurrentWave() + 1;
         List<AgvReturnItemDO> nextWaveItems = itemMapper.selectByTaskId(plan.getTaskId()).stream()
-                .filter(item -> Objects.equals(item.getWaveNo(), nextWave))
-                .toList();
-        if (nextWaveItems.isEmpty()) return;
-        boolean allTransitSlotsFree = nextWaveItems.stream()
-                .map(AgvReturnItemDO::getTransitSlotId)
-                .distinct()
+                .filter(item -> Objects.equals(item.getWaveNo(), nextWave)).toList();
+        if (nextWaveItems.isEmpty())
+            return;
+        boolean allTransitSlotsFree = nextWaveItems.stream().map(AgvReturnItemDO::getTransitSlotId).distinct()
                 .allMatch(slotId -> {
                     SlotInfoDO slot = slotMapper.selectBySlotId(slotId);
                     return slot != null && "EMPTY".equals(slot.getStatus());
                 });
         if (!allTransitSlotsFree) {
-            log.info("[AgvReturn] 下一波{}要用的中转位还被占用，暂不提前卸料，等当前波全部入库 taskId={}",
-                    nextWave, plan.getTaskId());
+            log.info("[AgvReturn] 下一波{}要用的中转位还被占用，暂不提前卸料，等当前波全部入库 taskId={}", nextWave,
+                    plan.getTaskId());
             return;
         }
         plan.setCurrentWave(nextWave);
         planMapper.updateById(plan);
         try {
             sendUnloadWave(plan);
-            log.info("[AgvReturn] 下一波{}中转位已空闲，提前派AGV卸料，与仓储搬运当前波并行 taskId={}",
-                    nextWave, plan.getTaskId());
+            log.info("[AgvReturn] 下一波{}中转位已空闲，提前派AGV卸料，与仓储搬运当前波并行 taskId={}", nextWave,
+                    plan.getTaskId());
         } catch (Exception e) {
             plan.setCurrentWave(nextWave - 1);
             planMapper.updateById(plan);
-            log.warn("[AgvReturn] 提前卸第{}波失败，退回等待原有RETURNED触发流程 taskId={}",
-                    nextWave, plan.getTaskId(), e);
+            log.warn("[AgvReturn] 提前卸第{}波失败，退回等待原有RETURNED触发流程 taskId={}", nextWave, plan.getTaskId(),
+                    e);
         }
     }
 
@@ -720,10 +739,12 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
      * @return true 表示有物料已发出请求（仓储在处理中）；false 表示当前波次无待请求项，或仓储正忙（上一件还没回调）
      */
     private boolean requestNextWarehouseReturn(AgvReturnPlanDO plan, int waveNo) {
-        if (warehouseReturnBusy(plan.getTaskId())) return false;
+        if (warehouseReturnBusy(plan.getTaskId()))
+            return false;
 
         AgvReturnItemDO next = itemMapper.selectNextPendingReturn(plan.getTaskId(), waveNo);
-        if (next == null) return false;
+        if (next == null)
+            return false;
 
         String subRequestId = plan.getTaskId() + "-W" + waveNo + "-I" + next.getSequenceNo();
         next.setWarehouseRequestId(subRequestId);
@@ -746,9 +767,9 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
                 Integer code = JSON.parseObject(response.getResponseBody()).getInteger("code");
                 if (code != null && code != 0 && code != 1005) {
                     String message = JSON.parseObject(response.getResponseBody()).getString("message");
-                    if (message == null) message = JSON.parseObject(response.getResponseBody()).getString("msg");
-                    throw exception(AGV_LOAD_PLAN_STATE_INVALID,
-                            "仓储拒绝入库 code=" + code + ", message=" + message);
+                    if (message == null)
+                        message = JSON.parseObject(response.getResponseBody()).getString("msg");
+                    throw exception(AGV_LOAD_PLAN_STATE_INVALID, "仓储拒绝入库 code=" + code + ", message=" + message);
                 }
             }
         } catch (RuntimeException e) {
@@ -763,8 +784,8 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
             itemMapper.updateById(next);
             throw e;
         }
-        log.info("[AgvReturn] 请求仓储入库 taskId={} subRequestId={} from={} to={}",
-                plan.getTaskId(), subRequestId, next.getTransitSlotId(), next.getWarehouseTargetLocation());
+        log.info("[AgvReturn] 请求仓储入库 taskId={} subRequestId={} from={} to={}", plan.getTaskId(), subRequestId,
+                next.getTransitSlotId(), next.getWarehouseTargetLocation());
         return true;
     }
 
@@ -778,21 +799,22 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
                 .anyMatch(item -> "IN_TRANSIT".equals(item.getStatus()) && item.getWarehouseRequestId() != null);
     }
 
-    /** 仅设置状态（DB 持久化），流程回调由 triggerNextStepAsync 在事务提交后异步执行。 */
+    /**
+     * 仅设置状态（DB 持久化），流程回调由 triggerNextStepAsync 在事务提交后异步执行。
+     */
     private void completeOrchestration(AgvReturnPlanDO plan) {
         plan.setStatus("WAIT_FLOW_COMMIT");
         planMapper.updateById(plan);
     }
 
-    /** 事务提交后推进流程：回调节点（仅在 WAIT_FLOW_COMMIT 时调用）。 */
+    /**
+     * 事务提交后推进流程：回调节点（仅在 WAIT_FLOW_COMMIT 时调用）。
+     */
     private void doFlowCallback(AgvReturnPlanDO plan) {
-        CallbackResult callback = stepCallbackSpi.callback(
-                plan.getTaskId(), plan.getOrchestrationNodeId(), null, true,
-                Map.of("returnedCount", plan.getExpectedCount(), "warehouseReturn", true),
-                null, null);
+        CallbackResult callback = stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null, true,
+                Map.of("returnedCount", plan.getExpectedCount(), "warehouseReturn", true), null, null);
         if (!callback.isSuccess()) {
-            throw exception(AGV_LOAD_PLAN_STATE_INVALID,
-                    "下料编排节点推进失败: " + callback.getErrorMsg());
+            throw exception(AGV_LOAD_PLAN_STATE_INVALID, "下料编排节点推进失败: " + callback.getErrorMsg());
         }
     }
 
@@ -847,26 +869,24 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
 
     // ── AGV编排请求排队（lab_agv_orchestrate_queue） ──────────────────────────
 
-    /** 槽位冲突时把原始编排请求存入排队表，幂等（同一executionId不会重复插入）。 */
+    /**
+     * 槽位冲突时把原始编排请求存入排队表，幂等（同一executionId不会重复插入）。
+     */
     private void enqueueOrchestrateRequest(String planType, String deviceId, String executionId, String nodeId,
-                                           List<Map<String, Object>> items, Map<String, Object> inputParams,
-                                           String reason) {
-        if (orchestrateQueueMapper.selectByExecutionId(executionId) != null) return;
-        orchestrateQueueMapper.insert(AgvOrchestrateQueueDO.builder()
-                .deviceId(deviceId)
-                .planType(planType)
-                .executionId(executionId)
-                .nodeId(nodeId)
-                .payload(JSON.toJSONString(Map.of("items", items, "inputParams", inputParams)))
-                .status("PENDING")
-                .errorMessage(reason)
-                .createTime(LocalDateTime.now())
-                .build());
-        log.info("[AgvOrchestrateQueue] 槽位冲突，请求已入队等待重试 planType={} executionId={} reason={}",
-                planType, executionId, reason);
+            List<Map<String, Object>> items, Map<String, Object> inputParams, String reason) {
+        if (orchestrateQueueMapper.selectByExecutionId(executionId) != null)
+            return;
+        orchestrateQueueMapper.insert(
+                AgvOrchestrateQueueDO.builder().deviceId(deviceId).planType(planType).executionId(executionId)
+                        .nodeId(nodeId).payload(JSON.toJSONString(Map.of("items", items, "inputParams", inputParams)))
+                        .status("PENDING").errorMessage(reason).createTime(LocalDateTime.now()).build());
+        log.info("[AgvOrchestrateQueue] 槽位冲突，请求已入队等待重试 planType={} executionId={} reason={}", planType,
+                executionId, reason);
     }
 
-    /** 事务提交后异步触发一次编排排队重试，供释放AGV/中转槽位的地方调用。 */
+    /**
+     * 事务提交后异步触发一次编排排队重试，供释放AGV/中转槽位的地方调用。
+     */
     private void scheduleOrchestrateQueueRetry(String deviceId) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
@@ -882,7 +902,8 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
     @SuppressWarnings("unchecked")
     public void tryDispatchQueuedOrchestrationAsync(String deviceId) {
         AgvOrchestrateQueueDO next = orchestrateQueueMapper.selectOldestPending(deviceId);
-        if (next == null) return;
+        if (next == null)
+            return;
         if (!"RETURN".equals(next.getPlanType())) {
             return; // LOAD计划的排队记录，交给AgvLoadPlanServiceImpl自己的触发处理
         }
@@ -908,8 +929,8 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
                         next.getExecutionId(), e.getMessage());
             } else {
                 orchestrateQueueMapper.updateRetryFailure(next.getId(), e.getMessage());
-                log.info("[AgvOrchestrateQueue] executionId={} 仍然槽位冲突，继续排队: {}",
-                        next.getExecutionId(), e.getMessage());
+                log.info("[AgvOrchestrateQueue] executionId={} 仍然槽位冲突，继续排队: {}", next.getExecutionId(),
+                        e.getMessage());
             }
         } catch (Exception e) {
             log.error("[AgvOrchestrateQueue] 排队重试异常 executionId={}", next.getExecutionId(), e);
@@ -918,23 +939,25 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
 
     private Map<String, Object> handleWarehouseReturnFailure(AgvReturnPlanDO plan, WarehouseCallbackReqVO req) {
         AgvReturnItemDO failed = itemMapper.selectByTransitSlot(req.getTransferTaskId(), req.getFromLocation());
-        if (failed == null) throw exception(SLOT_READY_CONFLICT, "找不到对应的下料入库请求");
+        if (failed == null)
+            throw exception(SLOT_READY_CONFLICT, "找不到对应的下料入库请求");
         failed.setStatus("FAILED");
         itemMapper.updateById(failed);
         plan.setStatus("FAILED");
         planMapper.updateById(plan);
         if (plan.getOrchestrationNodeId() != null) {
-            stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null,
-                    false, Map.of("slotId", req.getFromLocation()),
+            stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null, false,
+                    Map.of("slotId", req.getFromLocation()),
                     "WAREHOUSE_" + (req.getCode() != null ? req.getCode() : 1099),
                     req.getMessage() != null ? req.getMessage() : "仓储入库失败");
         }
         return result(plan, failed);
     }
 
-    /** 入队或立即调度 AGV startTask，并持久化计划状态。 */
-    private void sendAndEnqueue(AgvReturnPlanDO plan, String agvTaskId,
-                                String operation, Map<String, Object> params) {
+    /**
+     * 入队或立即调度 AGV startTask，并持久化计划状态。
+     */
+    private void sendAndEnqueue(AgvReturnPlanDO plan, String agvTaskId, String operation, Map<String, Object> params) {
         plan.setCurrentAgvTaskId(agvTaskId);
         plan.setCurrentAgvOperation(operation);
         plan.setStatus(agvQueueService.enqueueOrDispatch(plan, agvTaskId, operation, params));
@@ -954,27 +977,38 @@ public class AgvReturnPlanServiceImpl implements AgvReturnPlanService,
     }
 
     private int positiveInt(Object value, int defaultValue) {
-        if (value == null) return defaultValue;
+        if (value == null)
+            return defaultValue;
         int parsed = Integer.parseInt(String.valueOf(value));
-        if (parsed <= 0) throw exception(AGV_LOAD_PLAN_INVALID, "数值必须大于0: " + value);
+        if (parsed <= 0)
+            throw exception(AGV_LOAD_PLAN_INVALID, "数值必须大于0: " + value);
         return parsed;
     }
 
     private String required(Map<String, Object> map, String key) {
         String value = string(map.get(key), null);
-        if (value == null) throw exception(AGV_LOAD_PLAN_INVALID, key + "不能为空");
+        if (value == null)
+            throw exception(AGV_LOAD_PLAN_INVALID, key + "不能为空");
         return value;
     }
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> requiredMap(Map<String, Object> map, String key) {
         Object value = map.get(key);
-        if (!(value instanceof Map<?, ?>)) throw exception(AGV_LOAD_PLAN_INVALID, key + "不能为空");
+        if (!(value instanceof Map<?, ?>))
+            throw exception(AGV_LOAD_PLAN_INVALID, key + "不能为空");
         return (Map<String, Object>) value;
     }
 
     private String string(Object value, String defaultValue) {
-        if (value == null || value.toString().isBlank()) return defaultValue;
+        if (value == null || value.toString().isBlank())
+            return defaultValue;
         return value.toString();
+    }
+
+    private boolean bool(Object value) {
+        if (value instanceof Boolean b)
+            return b;
+        return value != null && "true".equalsIgnoreCase(String.valueOf(value));
     }
 }
