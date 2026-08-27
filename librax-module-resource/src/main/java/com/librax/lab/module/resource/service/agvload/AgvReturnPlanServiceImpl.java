@@ -281,6 +281,15 @@ public class AgvReturnPlanServiceImpl
         }
         plan.setStatus("COMPLETED");
         planMapper.updateById(plan);
+        // 下料计划的所有托盘均已由仓储确认入库，至此才释放 AGV 给其它计划。
+        // 不能在单个波次卸到缓存位时出队，否则其它工站的下料会插入当前计划的后续波次。
+        String deviceId = plan.getDeviceId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                self.dispatchNextQueuedAsync(deviceId);
+            }
+        });
     }
 
     @Override
@@ -677,7 +686,6 @@ public class AgvReturnPlanServiceImpl
             plan.setCurrentAgvOperation(null);
             planMapper.updateById(plan);
             tryPrefetchNextUnloadWave(plan);
-            agvQueueService.dispatchNext(plan.getDeviceId());
         }
 
         scheduleOrchestrateQueueRetry(plan.getDeviceId());
@@ -733,7 +741,6 @@ public class AgvReturnPlanServiceImpl
         }
         scheduleOrchestrateQueueRetry(plan.getDeviceId());
         tryPrefetchNextUnloadWave(plan);
-        agvQueueService.dispatchNext(plan.getDeviceId());
     }
 
     /**
@@ -781,7 +788,7 @@ public class AgvReturnPlanServiceImpl
     /**
      * 向仓储请求下一件物料入库。
      *
-     * <p>仓储机械臂同一时刻只能处理一件搬运——跟补料侧 {@link AgvLoadPlanServiceImpl#refillWarehouseWindow}
+     * <p>仓储机械臂同一时刻只能处理一件搬运——跟补料侧 {@code refillWarehouseWindow}
      * 的 warehouseBusy 检查是同一个物理约束，必须等上一件的入库回调（{@link #markSlotReturned}）
      * 真正到了才能发下一件。此前这里只用 {@code selectNextPendingReturn} 检查"这一件物料自己有没有
      * 被请求过"，没检查"计划里是不是已经有别的物料请求还在途"：正常的回调驱动链路（afterUnloadComplete
@@ -815,17 +822,7 @@ public class AgvReturnPlanServiceImpl
         params.put("disableSysFieldInjection", true);
 
         try {
-            DeviceCommandSpi.Result response = deviceCommandSpi.send("WAREHOUSE", "prepareMaterials", params,
-                    plan.getTaskId(), "warehouse_return_" + next.getSequenceNo(), null);
-            if (response.getResponseBody() != null && !response.getResponseBody().isBlank()) {
-                Integer code = JSON.parseObject(response.getResponseBody()).getInteger("code");
-                if (code != null && code != 0 && code != 1005) {
-                    String message = JSON.parseObject(response.getResponseBody()).getString("message");
-                    if (message == null)
-                        message = JSON.parseObject(response.getResponseBody()).getString("msg");
-                    throw exception(AGV_LOAD_PLAN_STATE_INVALID, "仓储拒绝入库 code=" + code + ", message=" + message);
-                }
-            }
+            sendWarehouseReturnWithRetry(plan, next, params);
         } catch (RuntimeException e) {
             // 跟补料侧 doRequestWarehouseItem 同一个坑：请求失败时必须把上面已经落库的
             // warehouseRequestId标记撤销，否则 selectNextPendingReturn（要求
@@ -841,6 +838,46 @@ public class AgvReturnPlanServiceImpl
         log.info("[AgvReturn] 请求仓储入库 taskId={} subRequestId={} from={} to={}", plan.getTaskId(), subRequestId,
                 next.getTransitSlotId(), next.getWarehouseTargetLocation());
         return true;
+    }
+
+    /**
+     * 发送仓储入库请求。当仓储返回 code=500 且提示"移栽模组非空闲"（机械臂正在处理上一件搬运）
+     * 时，sleep 2 秒后重试，最多重试 3 次（共 4 次尝试）；仍失败才抛出异常，交回调用方现有
+     * 兜底机制（下一件入库回调 / 每60秒的兜底巡检）再试。
+     */
+    private void sendWarehouseReturnWithRetry(AgvReturnPlanDO plan, AgvReturnItemDO next,
+            Map<String, Object> params) {
+        final int maxAttempts = 4;
+        int attempt = 0;
+        while (true) {
+            attempt++;
+            DeviceCommandSpi.Result response = deviceCommandSpi.send("WAREHOUSE", "prepareMaterials", params,
+                    plan.getTaskId(), "warehouse_return_" + next.getSequenceNo(), null);
+            if (response.getResponseBody() == null || response.getResponseBody().isBlank()) {
+                return; // 与原有逻辑一致：无响应体视为成功
+            }
+            Integer code = JSON.parseObject(response.getResponseBody()).getInteger("code");
+            if (code == null || code == 0 || code == 1005) {
+                return; // 成功，或幂等已处理
+            }
+            String message = JSON.parseObject(response.getResponseBody()).getString("message");
+            if (message == null) {
+                message = JSON.parseObject(response.getResponseBody()).getString("msg");
+            }
+            if (attempt < maxAttempts && code == 500 && message != null && message.contains("非空闲")) {
+                log.info("[AgvReturn] 仓储移栽模组非空闲，2s后重试 taskId={} subRequestId={} attempt={}/{} message={}",
+                        plan.getTaskId(), next.getWarehouseRequestId(), attempt, maxAttempts, message);
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw exception(AGV_LOAD_PLAN_STATE_INVALID,
+                            "仓储入库重试被中断 code=" + code + ", message=" + message);
+                }
+                continue;
+            }
+            throw exception(AGV_LOAD_PLAN_STATE_INVALID, "仓储拒绝入库 code=" + code + ", message=" + message);
+        }
     }
 
     /**
@@ -1016,6 +1053,13 @@ public class AgvReturnPlanServiceImpl
                     "WAREHOUSE_" + (req.getCode() != null ? req.getCode() : 1099),
                     req.getMessage() != null ? req.getMessage() : "仓储入库失败");
         }
+        String deviceId = plan.getDeviceId();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                self.dispatchNextQueuedAsync(deviceId);
+            }
+        });
         return result(plan, failed);
     }
 

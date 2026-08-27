@@ -39,6 +39,16 @@ public interface AgvTaskQueueMapper extends BaseMapperX<AgvTaskQueueDO> {
                 .last("LIMIT 1"));
     }
 
+    /** 取指定计划最早待调度任务，用于下料计划持有 AGV 时续跑自身下一步。 */
+    default AgvTaskQueueDO selectNextPendingByPlanTaskId(String deviceId, String planTaskId) {
+        return selectOne(new LambdaQueryWrapperX<AgvTaskQueueDO>()
+                .eq(AgvTaskQueueDO::getDeviceId, deviceId)
+                .eq(AgvTaskQueueDO::getPlanTaskId, planTaskId)
+                .eq(AgvTaskQueueDO::getStatus, "PENDING")
+                .orderByAsc(AgvTaskQueueDO::getId)
+                .last("LIMIT 1"));
+    }
+
     /** AGV 任务完成，将对应队列项标记为 DONE。 */
     default void markDoneByAgvTaskId(String agvTaskId) {
         update(null, new LambdaUpdateWrapper<AgvTaskQueueDO>()

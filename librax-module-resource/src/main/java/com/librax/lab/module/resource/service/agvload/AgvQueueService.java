@@ -20,6 +20,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -93,7 +94,20 @@ public class AgvQueueService {
      */
     @Transactional(propagation = Propagation.MANDATORY)
     public void dispatchNext(String deviceId) {
-        AgvTaskQueueDO next = queueMapper.selectNextPending(deviceId);
+        AgvReturnPlanDO returnPlanOwner = activeReturnPlanOwner(deviceId);
+        AgvTaskQueueDO next;
+        if (returnPlanOwner != null) {
+            // 下料计划从装载开始一直持有 AGV，直到仓储确认全部入库。若它正在等仓储腾空
+            // 中转位而没有自身待发任务，不能改派分析站或其它计划。
+            next = queueMapper.selectNextPendingByPlanTaskId(deviceId, returnPlanOwner.getTaskId());
+            if (next == null) {
+                log.info("[AgvQueue] 下料计划仍在回仓，暂不调度其它计划 deviceId={} returnTaskId={} status={}",
+                        deviceId, returnPlanOwner.getTaskId(), returnPlanOwner.getStatus());
+                return;
+            }
+        } else {
+            next = queueMapper.selectNextPending(deviceId);
+        }
         if (next == null) {
             log.info("[AgvQueue] 队列已空，AGV 空闲 deviceId={}", deviceId);
             return;
@@ -143,7 +157,10 @@ public class AgvQueueService {
 
     private String doEnqueue(String planType, String planTaskId, String deviceId,
                               String agvTaskId, String operation, Map<String, Object> params) {
-        boolean idle = !queueMapper.hasDispatched(deviceId);
+        AgvReturnPlanDO returnPlanOwner = activeReturnPlanOwner(deviceId);
+        boolean heldByAnotherReturnPlan = returnPlanOwner != null
+                && !returnPlanOwner.getTaskId().equals(planTaskId);
+        boolean idle = !heldByAnotherReturnPlan && !queueMapper.hasDispatched(deviceId);
         LocalDateTime now = LocalDateTime.now();
         AgvTaskQueueDO entry = AgvTaskQueueDO.builder()
                 .deviceId(deviceId)
@@ -157,8 +174,9 @@ public class AgvQueueService {
                 .build();
         queueMapper.insert(entry);
         if (!idle) {
-            log.info("[AgvQueue] AGV 繁忙，入队等待 planType={} planTaskId={} agvTaskId={} op={}",
-                    planType, planTaskId, agvTaskId, operation);
+            log.info("[AgvQueue] AGV繁忙或被下料计划占用，入队等待 planType={} planTaskId={} agvTaskId={} op={} owner={}",
+                    planType, planTaskId, agvTaskId, operation,
+                    returnPlanOwner != null ? returnPlanOwner.getTaskId() : null);
             return "QUEUED";
         }
         if (trySendStartTask(entry, "agv_" + planType.toLowerCase() + "_" + operation.toLowerCase())) {
@@ -322,6 +340,14 @@ public class AgvQueueService {
             AgvReturnPlanDO plan = returnPlanMapper.selectByTaskIdForUpdate(next.getPlanTaskId());
             return (plan != null && "QUEUED".equals(plan.getStatus())) ? plan : null;
         }
+    }
+
+    /**
+     * 返回当前最早创建且未终态的下料计划。它是该 AGV 的逻辑持有者，直到计划提交完成或失败。
+     */
+    private AgvReturnPlanDO activeReturnPlanOwner(String deviceId) {
+        List<AgvReturnPlanDO> activePlans = returnPlanMapper.selectActiveByDeviceId(deviceId);
+        return activePlans.isEmpty() ? null : activePlans.get(0);
     }
 
     /** trySendStartTask 确认AGV真的接受指令后，才把 {@link #lockPlanForDispatch} 锁定的计划改成 WAIT_AGV_{operation}。 */

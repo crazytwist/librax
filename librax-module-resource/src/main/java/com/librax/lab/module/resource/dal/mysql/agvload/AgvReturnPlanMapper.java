@@ -28,7 +28,9 @@ public interface AgvReturnPlanMapper extends BaseMapperX<AgvReturnPlanDO> {
     default List<AgvReturnPlanDO> selectActiveByDeviceId(String deviceId) {
         return selectList(new LambdaQueryWrapperX<AgvReturnPlanDO>()
                 .eq(AgvReturnPlanDO::getDeviceId, deviceId)
-                .notIn(AgvReturnPlanDO::getStatus, "COMPLETED", "FAILED"));
+                .notIn(AgvReturnPlanDO::getStatus, "COMPLETED", "FAILED")
+                .orderByAsc(AgvReturnPlanDO::getCreateTime)
+                .orderByAsc(AgvReturnPlanDO::getId));
     }
 
     /** 所有未终态（非COMPLETED/FAILED）的下料计划，供仓储窗口兜底轮询使用。 */
