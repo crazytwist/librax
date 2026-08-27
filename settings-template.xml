@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Maven settings 模板 - 配置云效制品仓库认证
+  使用方式：将此文件内容合并到 ~/.m2/settings.xml
+  注意：账号密码不要提交到 git，请在本地 ~/.m2/settings.xml 中配置
+-->
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+          http://maven.apache.org/xsd/settings-1.0.0.xsd">
+
+    <servers>
+        <server>
+            <id>repo-rvnwk</id>
+            <username>替换为云效用户名</username>
+            <password>替换为云效密码</password>
+        </server>
+    </servers>
+
+    <profiles>
+        <profile>
+            <id>librax</id>
+            <repositories>
+                <repository>
+                    <id>repo-rvnwk</id>
+                    <url>https://packages.aliyun.com/68e7bfe3f3eec50950f5589b/maven/repo-rvnwk</url>
+                    <releases>
+                        <enabled>true</enabled>
+                    </releases>
+                    <snapshots>
+                        <enabled>true</enabled>
+                    </snapshots>
+                </repository>
+            </repositories>
+        </profile>
+    </profiles>
+
+    <activeProfiles>
+        <activeProfile>librax</activeProfile>
+    </activeProfiles>
+
+</settings>

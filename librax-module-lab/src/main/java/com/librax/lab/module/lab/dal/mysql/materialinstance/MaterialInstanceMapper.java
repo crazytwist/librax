@@ -7,7 +7,10 @@ import com.librax.lab.framework.mybatis.core.query.LambdaQueryWrapperX;
 import com.librax.lab.framework.mybatis.core.mapper.BaseMapperX;
 import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.librax.lab.module.lab.controller.admin.materialinstance.vo.*;
+import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceBatchUpdateRemainReqVO;
 
 /**
  * 物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理 Mapper
@@ -27,6 +30,17 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
     }
 
     /**
+     * 按实例ID列表批量查询物料实例（一次 IN 查询）
+     */
+    default List<MaterialInstanceDO> selectByInstanceIds(Collection<String> instanceIds) {
+        if (instanceIds == null || instanceIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>()
+                .in(MaterialInstanceDO::getInstanceId, instanceIds));
+    }
+
+    /**
      * 根据库位ID列表批量查询已绑定的物料实例（每个库位至多一条）
      */
     default List<MaterialInstanceDO> selectBySlotIds(List<String> slotIds) {
@@ -37,10 +51,30 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
                 .in(MaterialInstanceDO::getSlotId, slotIds));
     }
 
+    /**
+     * 按父实例ID批量查询子实例（同一托盘内各孔位上的物料），用于展开 BatchInTray 之类
+     * 需要把托盘 + 孔位内容一起登记的场景。
+     */
+    default List<MaterialInstanceDO> selectListByParentIds(Collection<String> parentIds) {
+        if (parentIds == null || parentIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>()
+                .in(MaterialInstanceDO::getParentId, parentIds));
+    }
+
     default List<MaterialInstanceDO> selectAvailable(String materialCode,
                                                       String contentType,
                                                       String zoneCode) {
+        return selectAvailable(null, materialCode, contentType, zoneCode);
+    }
+
+    default List<MaterialInstanceDO> selectAvailable(String typeCode,
+                                                      String materialCode,
+                                                      String contentType,
+                                                      String zoneCode) {
         return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>()
+                .eqIfPresent(MaterialInstanceDO::getTypeCode, typeCode)
                 .eqIfPresent(MaterialInstanceDO::getMaterialCode, materialCode)
                 .eqIfPresent(MaterialInstanceDO::getContentType, contentType)
                 .eqIfPresent(MaterialInstanceDO::getZoneCode, zoneCode)
@@ -50,11 +84,81 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
                         .ge(MaterialInstanceDO::getExpiredAt, java.time.LocalDate.now())));
     }
 
+    /** 原子预留可用物料，避免两个补料单选中同一实例。 */
+    default int reserveAvailable(String instanceId) {
+        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId)
+                .eq(MaterialInstanceDO::getStatus, "AVAILABLE")
+                .set(MaterialInstanceDO::getStatus, "RESERVED")
+                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+    }
+
+    /**
+     * 搬运完成后提交物料的新位置，并将状态恢复为搬运前的原始状态。
+     * <p>搬运不改变物料的语义状态：AVAILABLE→AVAILABLE（补料），USED→USED（下料）。
+     */
+    default int completeTransfer(String instanceId, String slotId, String zoneCode, String targetStatus) {
+        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId)
+                .eq(MaterialInstanceDO::getStatus, "RESERVED")
+                .set(MaterialInstanceDO::getSlotId, slotId)
+                .set(MaterialInstanceDO::getZoneCode, zoneCode)
+                .set(MaterialInstanceDO::getStatus, targetStatus)
+                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+    }
+
+    /** 补料到位后提交物料的新位置（快捷方法，恢复为 AVAILABLE）。 */
+    default int completeReplenishment(String instanceId, String slotId, String zoneCode) {
+        return completeTransfer(instanceId, slotId, zoneCode, "AVAILABLE");
+    }
+
+    /**
+     * 搬运失败时将物料预留归还原始状态。
+     */
+    default int releaseReservationTo(String instanceId, String targetStatus) {
+        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId)
+                .eq(MaterialInstanceDO::getStatus, "RESERVED")
+                .set(MaterialInstanceDO::getStatus, targetStatus)
+                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+    }
+
+    /** 补料失败时归还尚未搬走的库存预留（恢复为 AVAILABLE）。 */
+    default int releaseReservation(String instanceId) {
+        return releaseReservationTo(instanceId, "AVAILABLE");
+    }
+
+    /** 下料前原子锁定已使用物料（USED → RESERVED），防并发下料任务重复选中。 */
+    default int reserveUsed(String instanceId) {
+        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId)
+                .eq(MaterialInstanceDO::getStatus, "USED")
+                .set(MaterialInstanceDO::getStatus, "RESERVED")
+                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+    }
+
+    /**
+     * 转运/下料前原子锁定物料，不限定必须处于某个固定状态（USED），而是锁定调用方
+     * 已经读到的当前状态 {@code fromStatus} → RESERVED。
+     * <p>业务上不再强制"必须是 USED 才能转运/下料"，但仍然保留 CAS 语义：如果两个请求
+     * 同时读到同一物料并都尝试锁定，只有一个会成功，避免同一物料被并发操作重复选中。
+     * 调用方应当把读到的 {@code fromStatus} 保存为 originalStatus，用于流程完成/失败后
+     * 恢复到搬运前的状态。
+     */
+    default int reserveForTransfer(String instanceId, String fromStatus) {
+        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getInstanceId, instanceId)
+                .eq(MaterialInstanceDO::getStatus, fromStatus)
+                .set(MaterialInstanceDO::getStatus, "RESERVED")
+                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+    }
+
+
     default PageResult<MaterialInstanceDO> selectPage(MaterialInstancePageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<MaterialInstanceDO>()
-                .eqIfPresent(MaterialInstanceDO::getInstanceId, reqVO.getInstanceId())
+                .likeIfPresent(MaterialInstanceDO::getInstanceId, reqVO.getInstanceId())
                 .eqIfPresent(MaterialInstanceDO::getTypeCode, reqVO.getTypeCode())
-                .eqIfPresent(MaterialInstanceDO::getBarcode, reqVO.getBarcode())
+                .likeIfPresent(MaterialInstanceDO::getBarcode, reqVO.getBarcode())
                 .eqIfPresent(MaterialInstanceDO::getParentId, reqVO.getParentId())
                 .eqIfPresent(MaterialInstanceDO::getSlotIndex, reqVO.getSlotIndex())
                 .eqIfPresent(MaterialInstanceDO::getSlotId, reqVO.getSlotId())
@@ -71,9 +175,17 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
                 .eqIfPresent(MaterialInstanceDO::getExpiredAt, reqVO.getExpiredAt())
                 .eqIfPresent(MaterialInstanceDO::getSourceExecutionId, reqVO.getSourceExecutionId())
                 .eqIfPresent(MaterialInstanceDO::getSourceNodeId, reqVO.getSourceNodeId())
-                .eqIfPresent(MaterialInstanceDO::getRemark, reqVO.getRemark())
+                .likeIfPresent(MaterialInstanceDO::getRemark, reqVO.getRemark())
                 .betweenIfPresent(MaterialInstanceDO::getCreateTime, reqVO.getCreateTime())
                 .orderByDesc(MaterialInstanceDO::getId));
     }
+
+    /**
+     * 批量更新物料实例的当前剩余量（数量/体积），单条 SQL 完成
+     *
+     * @param items instanceId + currentCount + currentVolUl 明细列表
+     * @return 更新行数
+     */
+    int updateRemainBatch(@Param("items") List<AppMaterialInstanceBatchUpdateRemainReqVO.Item> items);
 
 }

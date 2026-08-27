@@ -1,0 +1,49 @@
+pipeline:
+  key: agv_transfer
+  version: 1
+  name: agv_transfer
+  timeout_ms: 600000
+  on_failure: FAIL_FAST
+
+steps:
+
+  # STEP1: arm picks from source slot onto AGV
+  - id: s_agv_step1
+    name: s_agv_step1
+    type: INSTRUMENT
+    resource:
+      type: AGV
+    command_code: AGV_STEP1
+    input_mapping:
+      taskType:       ${input.taskType}
+      plateType:      ${input.plateType}
+      sourceArea:     ${input.sourceArea}
+      sourcePos:      ${input.sourcePos}
+      sourceStartPos: ${input.sourceStartPos}
+      count:          ${input.count}
+
+  # STEP2: AGV moves to destination station
+  - id: s_agv_step2
+    name: s_agv_step2
+    type: INSTRUMENT
+    depends_on: [s_agv_step1]
+    resource:
+      type: AGV
+    command_code: AGV_STEP2
+    input_mapping:
+      agvStationName: ${input.agvStationName}
+
+  # STEP3: arm picks from AGV onto target slot
+  - id: s_agv_step3
+    name: s_agv_step3
+    type: INSTRUMENT
+    depends_on: [s_agv_step2]
+    resource:
+      type: AGV
+    command_code: AGV_STEP3
+    input_mapping:
+      taskType:            ${input.taskType}
+      plateType:           ${input.plateType}
+      desArea:             ${input.desArea}
+      desPos:              ${input.desPos}
+      destinationStartPos: ${input.destinationStartPos}

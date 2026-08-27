@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>物料模块操作手册</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: #f5f6fa; color: #2c3e50; line-height: 1.7; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+  h1 { font-size: 2rem; font-weight: 700; color: #1a1a2e; border-bottom: 3px solid #27ae60; padding-bottom: 12px; margin-bottom: 8px; }
+  .subtitle { color: #7f8c8d; font-size: 0.95rem; margin-bottom: 40px; }
+  h2 { font-size: 1.4rem; font-weight: 700; color: #1a1a2e; margin: 44px 0 16px; padding-left: 12px; border-left: 4px solid #27ae60; }
+  h3 { font-size: 1.1rem; font-weight: 600; color: #2c3e50; margin: 28px 0 12px; }
+  h4 { font-size: 0.95rem; font-weight: 600; color: #34495e; margin: 20px 0 8px; }
+  p { margin: 10px 0; color: #4a5568; }
+
+  /* ── card ── */
+  .card { background: #fff; border-radius: 10px; padding: 28px 32px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+
+  /* ── table ── */
+  table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin: 14px 0; }
+  th { background: #2ecc71; color: #fff; padding: 10px 14px; text-align: left; font-weight: 600; }
+  td { padding: 9px 14px; border-bottom: 1px solid #ecf0f1; vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #f8fffe; }
+  td:first-child { font-weight: 600; color: #2c3e50; white-space: nowrap; }
+  td code { background: #eafaf1; color: #1e8449; padding: 1px 6px; border-radius: 3px; font-size: 0.82rem; }
+
+  /* ── code block ── */
+  pre { background: #1e2b3a; color: #a8d8a8; padding: 20px 24px; border-radius: 8px; font-size: 0.82rem; line-height: 1.7; overflow-x: auto; margin: 14px 0; }
+  pre .comment { color: #6a8fa8; }
+  pre .key { color: #79c0ff; }
+  pre .str { color: #a5d6a7; }
+  pre .num { color: #f0c27f; }
+  pre .kw { color: #ff9d6c; }
+  code { font-family: "JetBrains Mono", "Fira Code", Consolas, monospace; }
+  p code, li code { background: #eafaf1; color: #1e8449; padding: 1px 6px; border-radius: 3px; font-size: 0.85rem; }
+
+  /* ── tip / warn / info ── */
+  .tip, .warn, .info { padding: 14px 18px; border-radius: 8px; margin: 16px 0; font-size: 0.9rem; line-height: 1.6; }
+  .tip  { background: #eafaf1; border-left: 4px solid #27ae60; }
+  .warn { background: #fef9e7; border-left: 4px solid #f39c12; }
+  .info { background: #eaf4fb; border-left: 4px solid #2980b9; }
+  .tip strong, .warn strong, .info strong { display: block; margin-bottom: 4px; }
+
+  /* ── badge ── */
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; margin: 2px; }
+  .badge-green  { background: #d5f5e3; color: #1e8449; }
+  .badge-blue   { background: #d6eaf8; color: #1a5276; }
+  .badge-orange { background: #fdebd0; color: #784212; }
+  .badge-red    { background: #fadbd8; color: #922b21; }
+  .badge-gray   { background: #eaecee; color: #566573; }
+  .badge-purple { background: #e8daef; color: #4a235a; }
+
+  /* ── flow ── */
+  .flow { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; margin: 16px 0; }
+  .flow-box { background: #eafaf1; border: 1.5px solid #27ae60; border-radius: 8px; padding: 8px 16px; font-size: 0.88rem; font-weight: 600; color: #1e8449; }
+  .flow-arrow { color: #27ae60; font-size: 1.2rem; font-weight: 700; }
+
+  /* ── grid ── */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 16px 0; }
+  @media(max-width:700px){ .grid2 { grid-template-columns: 1fr; } }
+
+  /* ── section header ── */
+  .section-num { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; background: #27ae60; color: #fff; border-radius: 50%; font-weight: 700; font-size: 0.95rem; margin-right: 10px; }
+
+  /* ── status list ── */
+  .status-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #ecf0f1; }
+  .status-row:last-child { border-bottom: none; }
+  .status-name { min-width: 120px; font-weight: 600; font-size: 0.88rem; }
+  .status-desc { color: #555; font-size: 0.88rem; }
+
+  /* ── toc ── */
+  .toc { background: #fff; border-radius: 10px; padding: 24px 28px; margin-bottom: 32px; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+  .toc h3 { margin-top: 0; color: #27ae60; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 6px 0; }
+  .toc a { color: #2980b9; text-decoration: none; font-size: 0.92rem; }
+  .toc a:hover { text-decoration: underline; }
+
+  ul { padding-left: 20px; margin: 8px 0; }
+  li { margin: 4px 0; color: #4a5568; font-size: 0.92rem; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>物料模块操作手册</h1>
+<p class="subtitle">Librax 实验室信息系统 · Material Module · v1.0.2</p>
+
+<!-- TOC -->
+<div class="toc">
+  <h3>目录</h3>
+  <ol>
+    <li><a href="#overview">模块概览</a></li>
+    <li><a href="#material-def">物料定义管理</a></li>
+    <li><a href="#material-instance">物料库存管理（实例）</a></li>
+    <li><a href="#check-rule">物料检查规则</a></li>
+    <li><a href="#consumption">物料消耗记录</a></li>
+    <li><a href="#lifecycle">物料生命周期与自动化流程</a></li>
+    <li><a href="#workflow">完整操作流程</a></li>
+  </ol>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="overview"><span class="section-num">1</span>模块概览</h2>
+
+<div class="card">
+  <p>物料模块负责管理实验室所有物理耗材与试剂的全生命周期，涵盖从入库登记、流程使用到废弃丢弃的完整追踪链路。模块由 <strong>4 张核心表</strong>构成，各有明确职责：</p>
+  <br>
+  <table>
+    <tr><th>表名</th><th>中文名</th><th>职责</th></tr>
+    <tr><td><code>lab_material_def</code></td><td>物料定义</td><td>物料品类目录，描述"什么是这种物料"</td></tr>
+    <tr><td><code>lab_material_instance</code></td><td>物料实例（库存）</td><td>每个物理容器/实物的档案，描述"这瓶/这管在哪里、有多少"</td></tr>
+    <tr><td><code>lab_material_check_rule</code></td><td>物料检查规则</td><td>流程步骤执行前的物料充足性校验规则，阻止缺料步骤启动</td></tr>
+    <tr><td><code>lab_material_consumption</code></td><td>消耗记录</td><td>所有物料操作的审计日志（消耗/转移/产生/废弃）</td></tr>
+  </table>
+
+  <br>
+  <p>模块与流程引擎的集成关系如下：</p>
+  <div class="flow">
+    <div class="flow-box">物料定义<br><small>定义品类</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">物料入库<br><small>创建实例</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">配置检查规则<br><small>步骤绑定</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">流程执行前检查<br><small>充足则通过</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">步骤执行后消耗<br><small>写入审计日志</small></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="material-def"><span class="section-num">2</span>物料定义管理</h2>
+
+<div class="card">
+  <p>物料定义（<code>lab_material_def</code>）是物料的"品类目录"，描述某种物料的固有属性。一条定义对应多个库存实例，类似于"SKU"与"库存"的关系。</p>
+
+  <h3>字段说明</h3>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>说明</th><th>是否必填</th></tr>
+    <tr><td>material_code</td><td>VARCHAR</td><td>物料编码，全局唯一标识（如 <code>PH-BUFFER-7</code>、<code>ETHANOL-75PCT</code>）</td><td>必填</td></tr>
+    <tr><td>material_name</td><td>VARCHAR</td><td>物料中文名称（如 pH7 标准缓冲液、75% 乙醇）</td><td>必填</td></tr>
+    <tr><td>content_type</td><td>VARCHAR</td><td>物料类型（见下方枚举）</td><td>必填</td></tr>
+    <tr><td>unit</td><td>VARCHAR</td><td>计量单位：<code>ml</code>、<code>ul</code>、<code>mg</code>、<code>g</code>、<code>个</code></td><td>必填</td></tr>
+    <tr><td>supplier</td><td>VARCHAR</td><td>供应商名称</td><td>可选</td></tr>
+    <tr><td>catalog_no</td><td>VARCHAR</td><td>供应商货号</td><td>可选</td></tr>
+    <tr><td>cas_no</td><td>VARCHAR</td><td>化学品 CAS 编号，用于危险品追踪</td><td>可选</td></tr>
+    <tr><td>concentration</td><td>VARCHAR</td><td>标准浓度描述（如 <code>1mol/L</code>、<code>pH7.0</code>）</td><td>可选</td></tr>
+    <tr><td>storage_temp</td><td>VARCHAR</td><td>存储温度要求（如 <code>2~8℃</code>、<code>-20℃</code>、<code>室温</code>）</td><td>可选</td></tr>
+    <tr><td>shelf_life_days</td><td>INT</td><td>入库后保质期天数，NULL 表示无限期</td><td>可选</td></tr>
+    <tr><td>open_life_days</td><td>INT</td><td>开封后有效期天数，NULL 表示开封不限期</td><td>可选</td></tr>
+    <tr><td>hazard_level</td><td>VARCHAR</td><td>危险等级（见下方枚举）</td><td>可选</td></tr>
+    <tr><td>spec_json</td><td>JSON</td><td>附加规格参数，如 <code>{"purity":"≥99%","grade":"AR"}</code></td><td>可选</td></tr>
+    <tr><td>enabled</td><td>BOOLEAN</td><td>是否启用：<code>1</code>=启用，<code>0</code>=停用</td><td>必填</td></tr>
+    <tr><td>remark</td><td>VARCHAR</td><td>备注</td><td>可选</td></tr>
+  </table>
+
+  <h3>content_type 枚举</h3>
+  <p>
+    <span class="badge badge-blue">REAGENT 试剂</span>
+    <span class="badge badge-green">STANDARD 标准品</span>
+    <span class="badge badge-blue">BUFFER 缓冲液</span>
+    <span class="badge badge-orange">SAMPLE 样本</span>
+    <span class="badge badge-red">WASTE 废液</span>
+    <span class="badge badge-purple">MEDIA 培养基</span>
+    <span class="badge badge-gray">SOLVENT 溶剂</span>
+  </p>
+
+  <h3>hazard_level 枚举</h3>
+  <p>
+    <span class="badge badge-green">NONE 无危险</span>
+    <span class="badge badge-blue">LOW 低危</span>
+    <span class="badge badge-orange">MEDIUM 中危</span>
+    <span class="badge badge-red">HIGH 高危</span>
+    <span class="badge badge-red">FLAMMABLE 易燃</span>
+    <span class="badge badge-red">TOXIC 毒性</span>
+  </p>
+
+  <h3>API 接口</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>POST</td><td><code>/lab/material-def/create</code></td><td>新增物料定义</td></tr>
+    <tr><td>PUT</td><td><code>/lab/material-def/update</code></td><td>修改物料定义</td></tr>
+    <tr><td>DELETE</td><td><code>/lab/material-def/delete?id=X</code></td><td>删除单条</td></tr>
+    <tr><td>GET</td><td><code>/lab/material-def/get?id=X</code></td><td>按 ID 查询</td></tr>
+    <tr><td>GET</td><td><code>/lab/material-def/page</code></td><td>分页查询（支持多字段过滤）</td></tr>
+    <tr><td>GET</td><td><code>/lab/material-def/export-excel</code></td><td>导出 Excel</td></tr>
+  </table>
+
+  <div class="tip">
+    <strong>操作建议</strong>
+    新增物料定义时，<code>material_code</code> 一旦确定后不建议修改，因为 <code>lab_material_instance</code> 和 <code>lab_material_check_rule</code> 均以此字段关联。如需修改，需同步更新所有关联表。
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="material-instance"><span class="section-num">3</span>物料库存管理（实例）</h2>
+
+<div class="card">
+  <p>物料实例（<code>lab_material_instance</code>）代表实验室中每一个物理容器或实物，是库存管理的核心实体。每瓶试剂、每支管、每块板都对应一条实例记录。</p>
+
+  <h3>字段说明</h3>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    <tr><td>instance_id</td><td>VARCHAR</td><td>实例唯一 ID（如 <code>INST-20260501-0001</code>），系统生成或手动设置</td></tr>
+    <tr><td>type_code</td><td>VARCHAR</td><td>容器类型（如 <code>PLATE_96_WELL</code>、<code>TUBE_EP_15ML</code>）</td></tr>
+    <tr><td>barcode</td><td>VARCHAR</td><td>条形码/二维码，扫码操作的唯一标识</td></tr>
+    <tr><td>parent_id</td><td>VARCHAR</td><td>父容器实例 ID（如孔板中的某个孔的父容器是孔板），顶级容器为 NULL</td></tr>
+    <tr><td>slot_index</td><td>VARCHAR</td><td>在父容器中的位置（如 <code>A1</code>、<code>B3</code>、<code>01</code>），顶级为 NULL</td></tr>
+    <tr><td>slot_id</td><td>VARCHAR</td><td>当前存储货位 ID（仅顶级容器有），引用 <code>lab_slot_info</code></td></tr>
+    <tr><td>zone_code</td><td>VARCHAR</td><td>所在区域码，冗余字段用于快速查询（从 slot_id 推导）</td></tr>
+    <tr><td>content_type</td><td>VARCHAR</td><td>物料类型（与 material_def 一致，EMPTY 表示空容器）</td></tr>
+    <tr><td>material_code</td><td>VARCHAR</td><td>关联物料定义编码，EMPTY/载体容器为 NULL</td></tr>
+    <tr><td>batch_no</td><td>VARCHAR</td><td>内部批次号，同批到货的物料使用同一批次号</td></tr>
+    <tr><td>lot_no</td><td>VARCHAR</td><td>厂商原始批号（用于外部溯源），区别于内部 batch_no</td></tr>
+    <tr><td>current_vol_ul</td><td>DECIMAL</td><td>当前体积（μL），液体专用，固体为 NULL</td></tr>
+    <tr><td>current_count</td><td>INT</td><td>当前数量，固体/耗材专用，液体为 NULL</td></tr>
+    <tr><td>concentration</td><td>VARCHAR</td><td>当前浓度（覆盖 material_def 默认浓度，用于稀释后的物料）</td></tr>
+    <tr><td>status</td><td>VARCHAR</td><td>库存状态（见下方状态机）</td></tr>
+    <tr><td>received_at</td><td>DATE</td><td>入库日期，用于计算保质期</td></tr>
+    <tr><td>opened_at</td><td>DATE</td><td>开封日期，用于计算开封有效期，未开封为 NULL</td></tr>
+    <tr><td>expired_at</td><td>DATE</td><td>过期日期（由 received_at + shelf_life_days 计算）</td></tr>
+    <tr><td>source_execution_id</td><td>VARCHAR</td><td>产生此实例的流程执行 ID（如实验产生的样本）</td></tr>
+    <tr><td>source_node_id</td><td>VARCHAR</td><td>产生此实例的步骤节点 ID，精细追溯来源</td></tr>
+    <tr><td>remark</td><td>VARCHAR</td><td>备注</td></tr>
+  </table>
+
+  <h3>状态机（status）</h3>
+  <div class="status-row"><div class="status-name"><span class="badge badge-green">AVAILABLE</span></div><div class="status-desc">可用 — 库存充足，可被检查规则匹配和消耗</div></div>
+  <div class="status-row"><div class="status-name"><span class="badge badge-blue">RESERVED</span></div><div class="status-desc">已预留 — 某步骤已申报占用，但尚未实际使用</div></div>
+  <div class="status-row"><div class="status-name"><span class="badge badge-orange">IN_USE</span></div><div class="status-desc">使用中 — 固体/耗材正在被步骤使用</div></div>
+  <div class="status-row"><div class="status-name"><span class="badge badge-gray">USED</span></div><div class="status-desc">已用完 — 体积/数量降至 0，不再可用</div></div>
+  <div class="status-row"><div class="status-name"><span class="badge badge-red">EXPIRED</span></div><div class="status-desc">已过期 — 超出保质期或开封有效期，系统自动标记</div></div>
+  <div class="status-row"><div class="status-name"><span class="badge badge-red">DISCARDED</span></div><div class="status-desc">已废弃 — 手动标记丢弃，退出流通</div></div>
+
+  <h3>容器层级说明</h3>
+  <div class="info">
+    <strong>层级结构（parent_id / slot_index）</strong>
+    物料实例支持层级结构，例如：96 孔板（顶级容器，有 slot_id/zone_code）→ 每个孔（子容器，有 parent_id + slot_index 如 A1）。
+    顶级容器负责位置信息，子容器通过 parent_id 继承父容器位置。查找区域内可用物料时，系统通过 zone_code 快速定位顶级容器，再向下遍历子容器。
+  </div>
+
+  <h3>批次追溯说明</h3>
+  <table>
+    <tr><th>字段</th><th>含义</th><th>示例</th></tr>
+    <tr><td>batch_no</td><td>内部批次号，同一次到货分配同一批次</td><td><code>BATCH-20260501-001</code></td></tr>
+    <tr><td>lot_no</td><td>厂商原始批号，用于向供应商追溯</td><td><code>ABC12345</code></td></tr>
+  </table>
+
+  <h3>API 接口</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>POST</td><td><code>/lab/material-instance/create</code></td><td>物料入库（新建实例）</td></tr>
+    <tr><td>PUT</td><td><code>/lab/material-instance/update</code></td><td>修改实例信息</td></tr>
+    <tr><td>DELETE</td><td><code>/lab/material-instance/delete?id=X</code></td><td>删除实例</td></tr>
+    <tr><td>GET</td><td><code>/lab/material-instance/get?id=X</code></td><td>按 ID 查询</td></tr>
+    <tr><td>GET</td><td><code>/lab/material-instance/page</code></td><td>分页查询库存（支持按 materialCode/batchNo/status/zoneCode 等过滤）</td></tr>
+    <tr><td>GET</td><td><code>/lab/material-instance/export-excel</code></td><td>导出 Excel</td></tr>
+  </table>
+
+  <h3>内部查询方法（供流程引擎使用）</h3>
+  <pre><span class="comment">// 查找指定物料/类型/区域中所有 AVAILABLE 且未过期的实例</span>
+<span class="kw">selectAvailable</span>(materialCode, contentType, zoneCode) → List&lt;MaterialInstanceDO&gt;</pre>
+  <p>流程执行时，检查规则和消耗逻辑均通过此方法查找合格实例，不会操作已过期或非 AVAILABLE 的物料。</p>
+
+  <div class="warn">
+    <strong>过期判断</strong>
+    实例的 <code>expired_at</code> 字段由入库时的 <code>received_at + shelf_life_days</code>（以及开封后的 <code>opened_at + open_life_days</code>）计算，取较早者。<code>selectAvailable</code> 查询会自动排除 <code>expired_at &lt;= 今日</code> 的实例，防止过期物料进入流程。
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="check-rule"><span class="section-num">4</span>物料检查规则</h2>
+
+<div class="card">
+  <p>物料检查规则（<code>lab_material_check_rule</code>）是绑定到流程步骤的前置验证规则。每条规则指定步骤执行前必须备齐的物料类型、数量/体积和区域，不满足则阻止步骤启动，避免实验中途缺料。</p>
+
+  <h3>字段说明</h3>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    <tr><td>pipeline_step_id</td><td>BIGINT</td><td>绑定的流程步骤 ID（引用 <code>pd_pipeline_step.id</code>，步骤实例级，非模板）</td></tr>
+    <tr><td>material_code</td><td>VARCHAR</td><td>要检查的物料编码；与 content_type 至少填一个，可同时使用</td></tr>
+    <tr><td>content_type</td><td>VARCHAR</td><td>要检查的物料类型（REAGENT/BUFFER 等）；不指定 material_code 时按类型匹配所有该类物料</td></tr>
+    <tr><td>min_vol_ul</td><td>DECIMAL</td><td>最低体积要求（μL），液体专用。区域内所有可用实例体积之和必须 ≥ 此值</td></tr>
+    <tr><td>min_count</td><td>INT</td><td>最低数量要求，固体/耗材专用。区域内所有可用实例数量之和必须 ≥ 此值</td></tr>
+    <tr><td>zone_code</td><td>VARCHAR</td><td>物料所在首选区域，NULL 表示任意区域均可</td></tr>
+    <tr><td>sort_order</td><td>INT</td><td>同一步骤有多条规则时的检查顺序</td></tr>
+    <tr><td>remark</td><td>VARCHAR</td><td>规则说明（如"此步骤约消耗 50μL 缓冲液"）</td></tr>
+  </table>
+
+  <h3>检查逻辑（MaterialCheckSpiImpl）</h3>
+  <div class="flow">
+    <div class="flow-box">步骤即将执行</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">按 sort_order 逐条读取规则</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">查询区域内 AVAILABLE 实例</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">汇总体积/数量</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">满足 → 通过<br>不满足 → 阻止</div>
+  </div>
+
+  <h4>液体检查（min_vol_ul）</h4>
+  <p>统计区域内所有匹配实例的 <code>current_vol_ul</code> 之和，若小于 <code>min_vol_ul</code> 则返回失败，错误信息格式：</p>
+  <pre>物料[MATERIAL_CODE]体积不足: 需要 <span class="num">500</span>μL, 可用 <span class="num">120</span>μL (区域=ZONE-A)</pre>
+
+  <h4>固体/耗材检查（min_count）</h4>
+  <p>统计区域内所有匹配实例的 <code>current_count</code> 之和，若小于 <code>min_count</code> 则返回失败：</p>
+  <pre>物料[TUBE_EP_15ML]数量不足: 需要 <span class="num">4</span> 个, 可用 <span class="num">2</span> 个 (区域=ZONE-B)</pre>
+
+  <h4>区域优先级</h4>
+  <p>规则的 <code>zone_code</code> 优先于流程执行上下文中的 zoneCode；若规则 zone_code 为 NULL，则使用上下文 zoneCode；若上下文也无，则搜索全部区域。</p>
+
+  <h3>API 接口</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>POST</td><td><code>/lab/material-check-rule/create</code></td><td>为步骤新增检查规则</td></tr>
+    <tr><td>PUT</td><td><code>/lab/material-check-rule/update</code></td><td>修改规则</td></tr>
+    <tr><td>DELETE</td><td><code>/lab/material-check-rule/delete?id=X</code></td><td>删除规则</td></tr>
+    <tr><td>GET</td><td><code>/lab/material-check-rule/get?id=X</code></td><td>按 ID 查询</td></tr>
+    <tr><td>GET</td><td><code>/lab/material-check-rule/page</code></td><td>分页查询，支持按 pipeline_step_id 过滤查看某步骤的所有规则</td></tr>
+    <tr><td>GET</td><td><code>/lab/material-check-rule/export-excel</code></td><td>导出 Excel</td></tr>
+  </table>
+
+  <h3>配置示例</h3>
+  <p>假设"pH 调节"步骤需要：① 至少 200μL pH7 缓冲液；② 至少 1 支 EP 管。</p>
+  <table>
+    <tr><th>sort_order</th><th>material_code</th><th>content_type</th><th>min_vol_ul</th><th>min_count</th><th>zone_code</th><th>remark</th></tr>
+    <tr><td>1</td><td>PH-BUFFER-7</td><td>BUFFER</td><td>200</td><td>NULL</td><td>ZONE-REAGENT</td><td>pH 调节缓冲液，约消耗 150μL</td></tr>
+    <tr><td>2</td><td>TUBE-EP-15ML</td><td>NULL</td><td>NULL</td><td>1</td><td>ZONE-SUPPLY</td><td>收集管，每次使用 1 支</td></tr>
+  </table>
+
+  <div class="info">
+    <strong>规则绑定时机</strong>
+    规则绑定到具体流程步骤实例（<code>pd_pipeline_step.id</code>），而非步骤模板。同一步骤模板在不同流程中可以配置不同规则。配置规则前需先确认步骤已在流程中绑定。
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="consumption"><span class="section-num">5</span>物料消耗记录</h2>
+
+<div class="card">
+  <p>消耗记录（<code>lab_material_consumption</code>）是所有物料操作的<strong>不可篡改审计日志</strong>，由流程引擎在步骤执行后自动写入，也支持手动创建。</p>
+
+  <h3>字段说明</h3>
+  <table>
+    <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+    <tr><td>execution_id</td><td>VARCHAR</td><td>关联流程执行 ID</td></tr>
+    <tr><td>node_id</td><td>VARCHAR</td><td>关联步骤节点 ID</td></tr>
+    <tr><td>attempt</td><td>INT</td><td>重试次数（与 pe_step_execution.attempt 对应）</td></tr>
+    <tr><td>instance_id</td><td>VARCHAR</td><td>操作的物料实例 ID</td></tr>
+    <tr><td>material_code</td><td>VARCHAR</td><td>物料编码（冗余，供快速查询）</td></tr>
+    <tr><td>batch_no</td><td>VARCHAR</td><td>批次号（冗余，供批次追溯）</td></tr>
+    <tr><td>action</td><td>VARCHAR</td><td>操作类型（见下方枚举）</td></tr>
+    <tr><td>vol_before_ul</td><td>DECIMAL</td><td>操作前体积（μL），液体专用</td></tr>
+    <tr><td>vol_change_ul</td><td>DECIMAL</td><td>体积变化量：消耗为负，产生为正</td></tr>
+    <tr><td>vol_after_ul</td><td>DECIMAL</td><td>操作后体积 = vol_before_ul + vol_change_ul</td></tr>
+    <tr><td>count_before</td><td>INT</td><td>操作前数量，固体专用</td></tr>
+    <tr><td>count_change</td><td>INT</td><td>数量变化：消耗为负，产生为正</td></tr>
+    <tr><td>count_after</td><td>INT</td><td>操作后数量 = count_before + count_change</td></tr>
+    <tr><td>from_slot_id</td><td>VARCHAR</td><td>转移操作的来源货位（仅 TRANSFER 使用）</td></tr>
+    <tr><td>to_slot_id</td><td>VARCHAR</td><td>转移操作的目标货位（仅 TRANSFER 使用）</td></tr>
+    <tr><td>consumed_at</td><td>DATETIME</td><td>操作发生时间</td></tr>
+    <tr><td>remark</td><td>VARCHAR</td><td>备注</td></tr>
+  </table>
+
+  <h3>action 枚举</h3>
+  <p>
+    <span class="badge badge-red">CONSUME 消耗</span>
+    <span class="badge badge-blue">TRANSFER 转移</span>
+    <span class="badge badge-green">PRODUCE 产生</span>
+    <span class="badge badge-gray">DISCARD 废弃</span>
+    <span class="badge badge-orange">RESERVE 预留</span>
+    <span class="badge badge-gray">RELEASE 释放预留</span>
+  </p>
+
+  <h3>自动写入逻辑（MaterialConsumedEventListener）</h3>
+  <p>步骤执行成功后，流程引擎发布 <code>MaterialConsumedEvent</code>，监听器异步处理：</p>
+
+  <div class="grid2">
+    <div>
+      <h4>液体（vol_change_ul）</h4>
+      <ol style="padding-left: 18px; color: #4a5568; font-size: 0.88rem;">
+        <li>按顺序遍历区域内 AVAILABLE 实例</li>
+        <li>从第一个实例扣减，直至达到规则所需量</li>
+        <li>若某实例被扣减至 0，状态改为 <code>USED</code></li>
+        <li>为每次扣减写入消耗记录（含 before/change/after）</li>
+      </ol>
+    </div>
+    <div>
+      <h4>固体/耗材（count_change）</h4>
+      <ol style="padding-left: 18px; color: #4a5568; font-size: 0.88rem;">
+        <li>取第一个 AVAILABLE 实例，状态改为 <code>IN_USE</code></li>
+        <li>按规则减少 current_count</li>
+        <li>若数量降至 0，状态改为 <code>USED</code></li>
+        <li>写入消耗记录（含 before/change/after）</li>
+      </ol>
+    </div>
+  </div>
+
+  <h3>API 接口</h3>
+  <table>
+    <tr><th>方法</th><th>路径</th><th>说明</th></tr>
+    <tr><td>POST</td><td><code>/lab/material-consumption/create</code></td><td>手动记录操作</td></tr>
+    <tr><td>PUT</td><td><code>/lab/material-consumption/update</code></td><td>修改记录（谨慎使用）</td></tr>
+    <tr><td>DELETE</td><td><code>/lab/material-consumption/delete?id=X</code></td><td>删除记录（谨慎使用）</td></tr>
+    <tr><td>GET</td><td><code>/lab/material-consumption/get?id=X</code></td><td>按 ID 查询</td></tr>
+    <tr><td>GET</td><td><code>/lab/material-consumption/page</code></td><td>分页查询，支持按 executionId/materialCode/action/batchNo 等过滤</td></tr>
+    <tr><td>GET</td><td><code>/lab/material-consumption/export-excel</code></td><td>导出 Excel</td></tr>
+  </table>
+
+  <div class="warn">
+    <strong>审计日志性质</strong>
+    消耗记录由系统自动生成，建议不要手动修改或删除。若需更正，应补录一条反向操作记录（如误删除的等量 PRODUCE 记录），保持审计链条完整。
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="lifecycle"><span class="section-num">6</span>物料生命周期与自动化流程</h2>
+
+<div class="card">
+  <h3>实例状态流转</h3>
+  <div class="flow">
+    <div class="flow-box">AVAILABLE<br><small>可用</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">RESERVED<br><small>步骤预留</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">IN_USE<br><small>使用中</small></div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-box">USED<br><small>已用完</small></div>
+  </div>
+  <br>
+  <div class="flow">
+    <div class="flow-box">AVAILABLE</div>
+    <div class="flow-arrow">→（过期检测）→</div>
+    <div class="flow-box">EXPIRED<br><small>过期</small></div>
+  </div>
+  <br>
+  <div class="flow">
+    <div class="flow-box">任意状态</div>
+    <div class="flow-arrow">→（手动废弃）→</div>
+    <div class="flow-box">DISCARDED<br><small>废弃</small></div>
+  </div>
+
+  <h3>流程执行中的物料联动</h3>
+  <table>
+    <tr><th>时机</th><th>系统行为</th><th>负责组件</th></tr>
+    <tr>
+      <td>步骤执行前</td>
+      <td>按检查规则逐一验证物料充足性；不足则阻止步骤，返回缺料原因</td>
+      <td><code>MaterialCheckSpiImpl</code></td>
+    </tr>
+    <tr>
+      <td>步骤执行成功后</td>
+      <td>发布 <code>MaterialConsumedEvent</code>，异步扣减物料体积/数量，写入消耗日志</td>
+      <td><code>MaterialConsumedEventListener</code></td>
+    </tr>
+    <tr>
+      <td>步骤失败/重试</td>
+      <td>不扣减物料（事件未发布），attempt 字段记录重试次数</td>
+      <td>流程引擎</td>
+    </tr>
+    <tr>
+      <td>流程取消</td>
+      <td>已预留的物料自动释放（RESERVED → AVAILABLE）</td>
+      <td>流程引擎</td>
+    </tr>
+  </table>
+
+  <h3>SPI 集成架构</h3>
+  <p>物料检查通过 SPI（Service Provider Interface）模式与流程引擎解耦：</p>
+  <pre><span class="comment">// librax-module-flow-api（中立接口层）</span>
+<span class="kw">interface</span> MaterialCheckSpi {
+    MaterialCheckResult check(MaterialCheckRequest request);
+}
+
+<span class="comment">// librax-module-lab（业务实现层）</span>
+<span class="kw">class</span> MaterialCheckSpiImpl <span class="kw">implements</span> MaterialCheckSpi {
+    <span class="comment">// 查询 lab_material_check_rule + lab_material_instance 执行检查</span>
+}</pre>
+  <p>流程引擎调用 SPI 接口，不依赖 lab 模块，避免循环依赖。lab 模块自动注册实现，引擎透明感知。</p>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<h2 id="workflow"><span class="section-num">7</span>完整操作流程</h2>
+
+<div class="card">
+  <h3>Step 1：创建物料定义</h3>
+  <p>进入 <strong>物料定义管理</strong> 页面，点击"新增"，填写物料编码、名称、类型、单位、存储条件等固有属性。</p>
+  <div class="tip">一个物料品类只需定义一次，后续每批入库都作为"实例"挂在定义下。</div>
+
+  <h3>Step 2：物料入库（创建实例）</h3>
+  <p>进入 <strong>物料库存管理</strong> 页面，点击"新增"，填写：</p>
+  <ul>
+    <li><code>material_code</code>：选择已定义的物料</li>
+    <li><code>batch_no</code>：此批次的内部批号（同批可使用相同批号）</li>
+    <li><code>lot_no</code>：厂商批号（从标签抄写）</li>
+    <li><code>current_vol_ul</code> 或 <code>current_count</code>：初始体积或数量</li>
+    <li><code>received_at</code>：到货日期（系统据此计算 <code>expired_at</code>）</li>
+    <li><code>slot_id</code> / <code>zone_code</code>：存放货位</li>
+  </ul>
+
+  <h3>Step 3：配置步骤的检查规则</h3>
+  <p>进入 <strong>物料检查规则管理</strong> 页面，为指定流程步骤新增规则：</p>
+  <ul>
+    <li>选择 <code>pipeline_step_id</code>（需先在流程中绑定步骤）</li>
+    <li>指定 <code>material_code</code> 或 <code>content_type</code>（至少填一个）</li>
+    <li>填写 <code>min_vol_ul</code>（液体）或 <code>min_count</code>（固体）</li>
+    <li>填写 <code>zone_code</code>（推荐指定区域以提高查询效率）</li>
+    <li>设置 <code>sort_order</code>（多条规则时的检查顺序）</li>
+  </ul>
+  <div class="tip">建议在 remark 中注明"约消耗 XXμL"，方便运营人员了解实际用量与最低储备的差距。</div>
+
+  <h3>Step 4：流程执行（自动）</h3>
+  <p>流程启动后，物料模块自动介入：</p>
+  <ol style="padding-left: 20px; color: #4a5568;">
+    <li>步骤就绪前，<code>MaterialCheckSpiImpl</code> 逐条验证检查规则 → 通过则允许步骤执行</li>
+    <li>步骤成功后，流程引擎发布消耗事件 → <code>MaterialConsumedEventListener</code> 异步扣减库存</li>
+    <li>扣减记录自动写入 <code>lab_material_consumption</code></li>
+  </ol>
+
+  <h3>Step 5：查看消耗记录</h3>
+  <p>进入 <strong>物料消耗记录</strong> 页面，可按 <code>execution_id</code>、<code>material_code</code>、<code>batch_no</code>、时间范围等筛选，导出 Excel 用于报告。</p>
+
+  <h3>物料不足的处理方案</h3>
+  <table>
+    <tr><th>场景</th><th>系统行为</th><th>处理建议</th></tr>
+    <tr><td>步骤执行前检查不通过</td><td>步骤进入等待状态，记录缺料原因</td><td>补充库存后恢复流程（resume），或手动调整步骤</td></tr>
+    <tr><td>同批物料体积不足但多批合计够</td><td>消耗时自动跨实例扣减，优先消耗最早入库的批次</td><td>无需干预，系统自动处理</td></tr>
+    <tr><td>物料过期</td><td>过期实例不参与检查和消耗，等同于不存在</td><td>入库新批次物料，或人工延期（修改 expired_at 需谨慎）</td></tr>
+  </table>
+</div>
+
+<!-- ═══════════════════════════════════════════ -->
+<div style="margin-top: 48px; padding: 20px; text-align: center; color: #aaa; font-size: 0.82rem; border-top: 1px solid #eee;">
+  Librax 物料模块操作手册 · 最后更新 2026-06-09 · 适用版本 v1.0.2
+</div>
+
+</div>
+</body>
+</html>

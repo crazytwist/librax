@@ -39,11 +39,15 @@ public class StepSuccessHandler {
                           int attempt,
                           StepResult result,
                           Runnable scheduleTrigger) {
-        // 1. 更新步骤状态为 SUCCESS
-        stepStateMachine.markSuccess(executionId, node.getNodeId(), attempt, result);
-
-        // 2. 应用 output_mapping，写入上下文
+        // 1. 应用 output_mapping，写入上下文（Redis）。必须先于状态置 SUCCESS：
+        //    DagScheduler 只看 MySQL 里的状态判断下游节点是否就绪，如果先置 SUCCESS
+        //    再写输出，并行的兄弟节点完成时触发的调度扫描可能已经看到 SUCCESS、
+        //    立刻去取这里的输出，但 Redis 还没写完，取到空值。调换顺序后，
+        //    任何线程只要能看到 SUCCESS 状态，就一定已经能读到对应输出。
         applyOutputMapping(executionId, node, result);
+
+        // 2. 更新步骤状态为 SUCCESS
+        stepStateMachine.markSuccess(executionId, node.getNodeId(), attempt, result);
 
         // 3. ★ 释放资源（有则释放，无则跳过）
         stepSubmitter.releaseIfHeld(executionId, node.getNodeId(), attempt, "STEP_COMPLETE");

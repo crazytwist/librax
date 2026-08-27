@@ -2,6 +2,7 @@ package com.librax.lab.module.lab.service.materialinstance;
 
 import java.util.*;
 import java.util.List;
+
 import jakarta.validation.*;
 import com.librax.lab.module.lab.controller.admin.materialinstance.vo.*;
 import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
@@ -38,10 +39,10 @@ public interface MaterialInstanceService {
     void deleteMaterialInstance(Long id);
 
     /**
-    * 批量删除物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理
-    *
-    * @param ids 编号
-    */
+     * 批量删除物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理
+     *
+     * @param ids 编号
+     */
     void deleteMaterialInstanceListByIds(List<Long> ids);
 
     /**
@@ -84,6 +85,14 @@ public interface MaterialInstanceService {
     void batchUnloadFromSlot(List<String> instanceIds);
 
     /**
+     * 批量更新物料实例的当前剩余量（数量/体积），逐条执行，失败条目收集后返回
+     *
+     * @param items instanceId + currentCount + currentVolUl 的明细列表
+     * @return 失败条目信息（全部成功时为空列表）
+     */
+    List<String> batchUpdateRemain(List<com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceBatchUpdateRemainReqVO.Item> items);
+
+    /**
      * 上架：将物料实例绑定到指定库位
      * <p>
      * 前置校验：物料实例存在、未在任何库位中；库位存在、非 OCCUPIED、非 DISABLED
@@ -101,5 +110,38 @@ public interface MaterialInstanceService {
      * @param instanceId 物料实例ID（业务ID）
      */
     void unloadFromSlot(String instanceId);
+
+
+    /**
+     * 根据 instanceId 查询物料实例
+     *
+     * @param instanceId 物料实例ID
+     * @return 物料实例
+     */
+    MaterialInstanceDO getInstanceByInsId(String instanceId);
+
+    /**
+     * 物料位置提交：将物料移动到新库位，zoneCode 强制从 slotInfo 读取，状态恢复为 AVAILABLE。
+     *
+     * <p>适用场景：AGV 补料流程完成后，提交物料的最终位置（送达机台站位，可被取用）。
+     *
+     * @param instanceId 物料实例ID
+     * @param slotId     目标库位ID（必须存在且已启用）
+     * @return 更新行数，0 表示物料状态已变更（被并发操作），需上层处理
+     */
+    int moveTo(String instanceId, String slotId);
+
+    /**
+     * 物料位置提交（通用）：将物料移动到新库位，状态恢复为搬运前的原始状态。
+     *
+     * <p>搬运不改变物料的语义状态：原始状态是什么，到达新位置后就恢复为什么。
+     * 例如：补料时 AVAILABLE→AVAILABLE，下料时 USED→USED。
+     *
+     * @param instanceId   物料实例ID
+     * @param slotId       目标库位ID（必须存在且已启用）
+     * @param targetStatus 目标状态（搬运前的原始状态）
+     * @return 更新行数，0 表示物料状态已变更（被并发操作），需上层处理
+     */
+    int moveTo(String instanceId, String slotId, String targetStatus);
 
 }

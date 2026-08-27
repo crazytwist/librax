@@ -34,4 +34,24 @@ public interface ErrorCodeConstants {
     ErrorCode SLOT_DISABLED =
             new ErrorCode(1_070_001_007, "库位已停用，无法上架");
 
+    ErrorCode AGV_LOAD_PLAN_NOT_EXISTS =
+            new ErrorCode(1_070_001_008, "AGV装载计划不存在: {}");
+
+    ErrorCode AGV_LOAD_PLAN_STATE_INVALID =
+            new ErrorCode(1_070_001_009, "AGV装载计划状态不允许当前操作: {}");
+
+    ErrorCode SLOT_READY_CONFLICT =
+            new ErrorCode(1_070_001_010, "库位就绪冲突: {}");
+
+    ErrorCode AGV_LOAD_PLAN_INVALID =
+            new ErrorCode(1_070_001_011, "AGV装载计划参数错误: {}");
+
+    /**
+     * 专门区分于 AGV_LOAD_PLAN_INVALID：这个是"槽位当前被占用，等它释放就能重试成功"的临时性冲突，
+     * 不是参数/业务校验错误。startWarehouseOrchestration/startReturnOrchestration 捕获这个错误码时
+     * 会把请求放进 lab_agv_orchestrate_queue 排队，而不是直接让节点失败。
+     */
+    ErrorCode AGV_SLOT_UNAVAILABLE =
+            new ErrorCode(1_070_001_012, "AGV/库位槽位当前被占用: {}");
+
 }

@@ -33,7 +33,7 @@ public interface MaterialConsumptionMapper extends BaseMapperX<MaterialConsumpti
                 .eqIfPresent(MaterialConsumptionDO::getFromSlotId, reqVO.getFromSlotId())
                 .eqIfPresent(MaterialConsumptionDO::getToSlotId, reqVO.getToSlotId())
                 .eqIfPresent(MaterialConsumptionDO::getConsumedAt, reqVO.getConsumedAt())
-                .eqIfPresent(MaterialConsumptionDO::getRemark, reqVO.getRemark())
+                .likeIfPresent(MaterialConsumptionDO::getRemark, reqVO.getRemark())
                 .betweenIfPresent(MaterialConsumptionDO::getCreateTime, reqVO.getCreateTime())
                 .orderByDesc(MaterialConsumptionDO::getId));
     }

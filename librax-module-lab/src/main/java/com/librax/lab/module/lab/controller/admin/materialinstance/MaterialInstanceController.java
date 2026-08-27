@@ -29,7 +29,9 @@ import static com.librax.lab.framework.apilog.core.enums.OperateTypeEnum.*;
 import com.librax.lab.module.lab.controller.admin.materialinstance.vo.*;
 import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
 import com.librax.lab.module.lab.service.materialinstance.MaterialInstanceService;
+import com.librax.lab.module.lab.service.containertype.ContainerTypeService;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Tag(name = "管理后台 - 物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理")
 @RestController
@@ -39,6 +41,20 @@ public class MaterialInstanceController {
 
     @Resource
     private MaterialInstanceService materialInstanceService;
+
+    @Resource
+    private ContainerTypeService containerTypeService;
+
+    /** 按 typeCode 批量回填 typeName（关联 lab_container_type，不落库、纯查询期拼装） */
+    private void fillTypeName(List<MaterialInstanceRespVO> list) {
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+        List<String> typeCodes = list.stream().map(MaterialInstanceRespVO::getTypeCode)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        Map<String, String> typeNameMap = containerTypeService.getTypeNameMap(typeCodes);
+        list.forEach(item -> item.setTypeName(typeNameMap.get(item.getTypeCode())));
+    }
 
     @PostMapping("/create")
     @Operation(summary = "创建物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理")
@@ -79,7 +95,11 @@ public class MaterialInstanceController {
     @PreAuthorize("@ss.hasPermission('lab:material-instance:query')")
     public CommonResult<MaterialInstanceRespVO> getMaterialInstance(@RequestParam("id") Long id) {
         MaterialInstanceDO materialInstance = materialInstanceService.getMaterialInstance(id);
-        return success(BeanUtils.toBean(materialInstance, MaterialInstanceRespVO.class));
+        MaterialInstanceRespVO respVO = BeanUtils.toBean(materialInstance, MaterialInstanceRespVO.class);
+        if (respVO != null) {
+            fillTypeName(List.of(respVO));
+        }
+        return success(respVO);
     }
 
     @GetMapping("/page")
@@ -87,7 +107,9 @@ public class MaterialInstanceController {
     @PreAuthorize("@ss.hasPermission('lab:material-instance:query')")
     public CommonResult<PageResult<MaterialInstanceRespVO>> getMaterialInstancePage(@Valid MaterialInstancePageReqVO pageReqVO) {
         PageResult<MaterialInstanceDO> pageResult = materialInstanceService.getMaterialInstancePage(pageReqVO);
-        return success(BeanUtils.toBean(pageResult, MaterialInstanceRespVO.class));
+        PageResult<MaterialInstanceRespVO> respVOPage = BeanUtils.toBean(pageResult, MaterialInstanceRespVO.class);
+        fillTypeName(respVOPage.getList());
+        return success(respVOPage);
     }
 
     @GetMapping("/list-by-slots")
@@ -145,8 +167,10 @@ public class MaterialInstanceController {
         pageReqVO.setPageSize(PageParam.PAGE_SIZE_NONE);
         List<MaterialInstanceDO> list = materialInstanceService.getMaterialInstancePage(pageReqVO).getList();
         // 导出 Excel
+        List<MaterialInstanceRespVO> respVOList = BeanUtils.toBean(list, MaterialInstanceRespVO.class);
+        fillTypeName(respVOList);
         ExcelUtils.write(response, "物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理.xls", "数据", MaterialInstanceRespVO.class,
-                        BeanUtils.toBean(list, MaterialInstanceRespVO.class));
+                        respVOList);
     }
 
 }

@@ -188,7 +188,8 @@ librax:
     enable: true
   demo: false
   device:
-    skip-idle-check: false  # prod: 生产环境必须校验设备 IDLE 状态
+    skip-idle-check: false    # prod: 生产环境必须校验设备 IDLE 状态
+    skip-health-check: true   # TODO: 测试期间关闭，生产上线前改回 false
   sms-code:
     expire-times: 10m
     send-frequency: 1m

@@ -21,7 +21,7 @@ public interface ResourceConfigMapper extends BaseMapperX<ResourceConfigDO> {
 
     default PageResult<ResourceConfigDO> selectPage(ResourceConfigPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<ResourceConfigDO>()
-                .eqIfPresent(ResourceConfigDO::getResourceId, reqVO.getResourceId())
+                .likeIfPresent(ResourceConfigDO::getResourceId, reqVO.getResourceId())
                 .eqIfPresent(ResourceConfigDO::getResourceType, reqVO.getResourceType())
                 .eqIfPresent(ResourceConfigDO::getOwnershipType, reqVO.getOwnershipType())
                 .eqIfPresent(ResourceConfigDO::getZoneCode, reqVO.getZoneCode())

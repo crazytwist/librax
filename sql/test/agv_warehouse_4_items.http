@@ -1,0 +1,75 @@
+### 启动：仓储单机械臂逐件备料，2个中转位，4个物料
+POST {{baseUrl}}/flow/test/start
+Authorization: Bearer {{token}}
+tenant-id: {{adminTenantId}}
+Content-Type: application/json
+
+{
+  "pipelineKey": "agv_warehouse_transfer_flow",
+  "pipelineVersion": 1,
+  "inputParams": {
+    "sourceWindowCapacity": 2,
+    "agvCapacity": 8,
+    "taskType": "1",
+    "plateType": "Plate_5",
+    "transferItems": [
+      {"instanceId":"M001","warehouseSourceLocation":"W-A-01","sourceSlotId":"R-E-1","agvSlotId":"R-A-1","targetSlotId":"R_C-1-1-1","step1":{"taskName":"ENTRY_PICK","sourceArea":"R-E","sourcePos":"1","agvArea":"R-A","agvPos":"1","count":"1"},"step2":{"taskName":"AgvMove","agvStationName":"DEVICE-A"},"step3":{"taskName":"DEVICE_DROP","agvArea":"R-A","agvPos":"1","desArea":"R_C-1-1","desPos":"1","count":"1"}},
+      {"instanceId":"M002","warehouseSourceLocation":"W-A-02","sourceSlotId":"R-E-2","agvSlotId":"R-A-2","targetSlotId":"R_C-1-1-2","step1":{"taskName":"ENTRY_PICK","sourceArea":"R-E","sourcePos":"2","agvArea":"R-A","agvPos":"2","count":"1"},"step2":{"taskName":"AgvMove","agvStationName":"DEVICE-A"},"step3":{"taskName":"DEVICE_DROP","agvArea":"R-A","agvPos":"2","desArea":"R_C-1-1","desPos":"2","count":"1"}},
+      {"instanceId":"M003","warehouseSourceLocation":"W-A-03","sourceSlotId":"R-E-1","agvSlotId":"R-A-3","targetSlotId":"R_C-1-1-3","step1":{"taskName":"ENTRY_PICK","sourceArea":"R-E","sourcePos":"1","agvArea":"R-A","agvPos":"3","count":"1"},"step2":{"taskName":"AgvMove","agvStationName":"DEVICE-A"},"step3":{"taskName":"DEVICE_DROP","agvArea":"R-A","agvPos":"3","desArea":"R_C-1-1","desPos":"3","count":"1"}},
+      {"instanceId":"M004","warehouseSourceLocation":"W-A-04","sourceSlotId":"R-E-2","agvSlotId":"R-A-4","targetSlotId":"R_C-1-1-4","step1":{"taskName":"ENTRY_PICK","sourceArea":"R-E","sourcePos":"2","agvArea":"R-A","agvPos":"4","count":"1"},"step2":{"taskName":"AgvMove","agvStationName":"DEVICE-A"},"step3":{"taskName":"DEVICE_DROP","agvArea":"R-A","agvPos":"4","desArea":"R_C-1-1","desPos":"4","count":"1"}}
+    ]
+  }
+}
+
+> {% client.global.set("agvExecutionId", response.body.data.executionId); %}
+
+### 仓储第1件回调；服务端收到后才会请求第2件
+POST {{appApi}}/resource/slot/ready
+Content-Type: application/json
+
+{"requestId":"{{agvExecutionId}}-W1-I1","transferTaskId":"{{agvExecutionId}}","toLocation":"R-E-1","materialId":"M001","status":"READY","code":0}
+
+### 仓储第2件回调；本波齐备后下发AGV LOAD-1（只含step1）
+POST {{appApi}}/resource/slot/ready
+Content-Type: application/json
+
+{"requestId":"{{agvExecutionId}}-W1-I2","transferTaskId":"{{agvExecutionId}}","toLocation":"R-E-2","materialId":"M002","status":"READY","code":0}
+
+### AGV第1波取料完成；服务端随后请求仓储第3件
+POST {{appApi}}/device/agv/taskState
+Content-Type: application/json
+
+{"taskId":"{{agvExecutionId}}-LOAD-1","runState":"2","agvId":"AGV-01"}
+
+### 仓储第3、4件仍然严格串行回调
+POST {{appApi}}/resource/slot/ready
+Content-Type: application/json
+
+{"requestId":"{{agvExecutionId}}-W2-I3","transferTaskId":"{{agvExecutionId}}","toLocation":"R-E-1","materialId":"M003","status":"READY","code":0}
+
+###
+POST {{appApi}}/resource/slot/ready
+Content-Type: application/json
+
+{"requestId":"{{agvExecutionId}}-W2-I4","transferTaskId":"{{agvExecutionId}}","toLocation":"R-E-2","materialId":"M004","status":"READY","code":0}
+
+### 第2波装载完成后，服务端自动下发MOVE（只含step2）
+POST {{appApi}}/device/agv/taskState
+Content-Type: application/json
+
+{"taskId":"{{agvExecutionId}}-LOAD-2","runState":"2","agvId":"AGV-01"}
+
+### 移动完成后，服务端自动下发UNLOAD（只含step3）
+POST {{appApi}}/device/agv/taskState
+Content-Type: application/json
+
+{"taskId":"{{agvExecutionId}}-MOVE","runState":"2","agvId":"AGV-01"}
+
+### 卸载完成，唤醒流程并提交最终库位
+POST {{appApi}}/device/agv/taskState
+Content-Type: application/json
+
+{"taskId":"{{agvExecutionId}}-UNLOAD","runState":"2","agvId":"AGV-01"}
+
+### 查询车次状态
+GET {{appApi}}/resource/slot/load-progress?taskId={{agvExecutionId}}

@@ -7,6 +7,29 @@
         无法满足的场景，例如说多表关联查询，才使用 XML 编写 SQL。
         代码生成器暂时只生成 Mapper XML 文件本身，更多推荐 MybatisX 快速开发插件来生成查询。
         文档可见：https://www.iocoder.cn/MyBatis/x-plugins/
-     -->
+    -->
+
+    <!-- 批量更新物料实例剩余量（数量/体积），单条 SQL 完成，避免逐条 update -->
+    <update id="updateRemainBatch">
+        UPDATE lab_material_instance
+        SET current_count = CASE instance_id
+            <foreach collection="items" item="item">
+                WHEN #{item.instanceId} THEN #{item.currentCount}
+            </foreach>
+            ELSE current_count
+            END,
+            current_vol_ul = CASE instance_id
+            <foreach collection="items" item="item">
+                WHEN #{item.instanceId} THEN #{item.currentVolUl}
+            </foreach>
+            ELSE current_vol_ul
+            END,
+            update_time = NOW()
+        WHERE deleted = 0
+        AND instance_id IN
+        <foreach collection="items" item="item" open="(" separator="," close=")">
+            #{item.instanceId}
+        </foreach>
+    </update>
 
 </mapper>

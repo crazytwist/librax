@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>后处理机台事件驱动流程配置报告</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: #1f2933;
+      background: #f6f8fb;
+      line-height: 1.65;
+    }
+    .page {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 32px 36px 64px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      color: #111827;
+    }
+    h2 {
+      margin: 34px 0 12px;
+      font-size: 22px;
+      color: #111827;
+      border-left: 5px solid #2563eb;
+      padding-left: 10px;
+    }
+    h3 {
+      margin: 24px 0 10px;
+      font-size: 18px;
+      color: #1f2937;
+    }
+    .meta {
+      color: #5d6675;
+      margin-bottom: 24px;
+    }
+    .panel {
+      background: #fff;
+      border: 1px solid #d9e2ec;
+      border-radius: 8px;
+      padding: 18px 20px;
+      margin: 16px 0;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .kv {
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 10px 12px;
+    }
+    .kv strong {
+      display: block;
+      font-size: 13px;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #fff;
+      margin: 12px 0 22px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #d9e2ec;
+      padding: 9px 10px;
+      vertical-align: top;
+    }
+    th {
+      background: #edf2f7;
+      color: #243b53;
+      text-align: left;
+      white-space: nowrap;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      color: #0f172a;
+      background: #eef2f7;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+    pre {
+      background: #0f172a;
+      color: #e5e7eb;
+      padding: 14px 16px;
+      border-radius: 8px;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .tag {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      background: #e0f2fe;
+      color: #075985;
+    }
+    .tag.warn {
+      background: #fff7ed;
+      color: #9a3412;
+    }
+    .tag.ok {
+      background: #dcfce7;
+      color: #166534;
+    }
+    .note {
+      color: #475569;
+      background: #f8fafc;
+      border-left: 4px solid #94a3b8;
+      padding: 10px 12px;
+      margin: 12px 0;
+    }
+    .danger {
+      color: #7f1d1d;
+      background: #fef2f2;
+      border-left: 4px solid #ef4444;
+      padding: 10px 12px;
+      margin: 12px 0;
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <h1>后处理机台事件驱动流程配置报告</h1>
+  <div class="meta">流程 Key：<code>post_processor_event_batch_mock</code>　版本：<code>1</code>　生成日期：2026-07-07</div>
+
+  <div class="panel">
+    <div class="grid">
+      <div class="kv"><strong>流程名称</strong>后处理机台事件驱动批处理流程 Mock</div>
+      <div class="kv"><strong>样本模式</strong><code>OPTIONAL</code></div>
+      <div class="kv"><strong>样本绑定节点</strong><code>s_bind_samples</code></div>
+      <div class="kv"><strong>默认任务号</strong><code>PP-TASK-20260707-001</code></div>
+      <div class="kv"><strong>默认载具</strong><code>CARRIER-PP-001</code></div>
+      <div class="kv"><strong>默认区域</strong><code>ZONE-A</code></div>
+    </div>
+  </div>
+
+  <h2>一、流程拆分总览</h2>
+  <div class="panel">
+    <pre>绑定4个样本/载具
+  -> 查询载具当前位置
+  -> AGV搬运到后处理机台
+  -> 启动后处理机台任务
+  -> 等待机台事件回调
+      -> scanFailed：标记扫码失败样本
+      -> materialRequired：校验物料
+          -> 充足：等待实验结果 -> 保存结果
+          -> 不足：查询缺料位置 -> AGV补料 -> 通知机台物料到位 -> 复核物料
+              -> 充足：等待补料后实验结果 -> 保存结果
+              -> 不足：标记物料不足失败
+      -> experimentFinished：直接保存实验结果</pre>
+  </div>
+
+  <div class="note">
+    AGV 节点前已经增加了“查询载具/物料位置”步骤。AGV 下发报文只接收已经解析好的 <code>sourceArea/sourcePos/desArea/desPos</code> 等字段，不负责自己查询库位。
+  </div>
+
+  <h2>二、启动入参</h2>
+  <table>
+    <thead>
+    <tr><th>字段</th><th>示例</th><th>说明</th><th>是否需要核对</th></tr>
+    </thead>
+    <tbody>
+    <tr>
+      <td><code>taskId</code></td>
+      <td><code>PP-TASK-20260707-001</code></td>
+      <td>本次后处理批任务号，同时用于 AGV 搬运任务和机台任务关联。</td>
+      <td><span class="tag warn">需要</span></td>
+    </tr>
+    <tr>
+      <td><code>carrierId</code></td>
+      <td><code>CARRIER-PP-001</code></td>
+      <td>承载 4 个样本的载具 ID。</td>
+      <td><span class="tag warn">需要</span></td>
+    </tr>
+    <tr>
+      <td><code>sampleInfos</code></td>
+      <td><code>[{"sampleId":"SAMPLE-001","hole":1}, ...]</code></td>
+      <td>样本与孔位绑定关系。当前默认 4 个样本。</td>
+      <td><span class="tag warn">需要</span></td>
+    </tr>
+    </tbody>
+  </table>
+
+  <h3>启动请求示例</h3>
+  <pre>{
+  "pipelineKey": "post_processor_event_batch_mock",
+  "pipelineVersion": 1,
+  "triggerType": "MANUAL",
+  "triggeredBy": "admin",
+  "zoneCode": "ZONE-A",
+  "inputParams": {
+    "taskId": "PP-TASK-20260707-001",
+    "carrierId": "CARRIER-PP-001",
+    "sampleInfos": [
+      {"sampleId": "SAMPLE-001", "hole": 1},
+      {"sampleId": "SAMPLE-002", "hole": 2},
+      {"sampleId": "SAMPLE-003", "hole": 3},
+      {"sampleId": "SAMPLE-004", "hole": 4}
+    ]
+  }
+}</pre>
+
+  <h2>三、节点清单与流转参数</h2>
+  <table>
+    <thead>
+    <tr>
+      <th>序号</th>
+      <th>节点 ID</th>
+      <th>类型</th>
+      <th>依赖</th>
+      <th>输入来源 / 参数</th>
+      <th>输出字段</th>
+      <th>需要核对/填写</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr>
+      <td>1</td>
+      <td><code>s_bind_samples</code></td>
+      <td>COMPUTE</td>
+      <td>入口</td>
+      <td>启动入参：<code>carrierId</code>、<code>sampleInfos</code></td>
+      <td><code>batchId</code>, <code>carrierId</code>, <code>sampleInfos</code>, <code>sampleCount</code></td>
+      <td>样本数量、孔位、载具 ID</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><code>s_query_loaded_carrier_location</code></td>
+      <td>COMPUTE</td>
+      <td><code>s_bind_samples</code></td>
+      <td><code>carrierId = ${s_bind_samples.carrierId}</code></td>
+      <td><code>sourceArea</code>, <code>sourcePos</code>, <code>targetStation</code>, <code>agvCommand</code></td>
+      <td>载具当前位置查询接口/库位字段映射</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><code>s_agv_to_post_processor</code></td>
+      <td>INSTRUMENT</td>
+      <td><code>s_query_loaded_carrier_location</code></td>
+      <td><code>taskId = ${input.taskId}</code><br><code>command = ${s_query_loaded_carrier_location.agvCommand}</code></td>
+      <td><code>deviceTaskId</code>, <code>deviceType</code>, <code>command</code></td>
+      <td>AGV 接口地址、目标工位编码、载具取放位置</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><code>s_start_post_processor_task</code></td>
+      <td>INSTRUMENT</td>
+      <td><code>s_agv_to_post_processor</code></td>
+      <td><code>taskId</code>, <code>carrierId</code>, <code>sampleInfos</code></td>
+      <td><code>deviceTaskId</code>, <code>deviceType</code>, <code>command</code></td>
+      <td>后处理机台启动任务接口、报文结构</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td><code>s_wait_machine_event</code></td>
+      <td>WAIT</td>
+      <td><code>s_start_post_processor_task</code></td>
+      <td>等待机台回调</td>
+      <td><code>eventType</code>, <code>sampleId</code>, <code>materials</code>, <code>sampleResults</code></td>
+      <td>机台事件回调格式</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td><code>s_route_machine_event</code></td>
+      <td>CONDITION</td>
+      <td><code>s_wait_machine_event</code></td>
+      <td><code>eventType = ${s_wait_machine_event.eventType}</code></td>
+      <td><code>branchName</code>, <code>conditionResult</code></td>
+      <td>事件类型必须是 <code>scanFailed</code> / <code>materialRequired</code> / <code>experimentFinished</code></td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td><code>s_mark_scan_failed_sample</code></td>
+      <td>COMPUTE</td>
+      <td><code>s_route_machine_event</code></td>
+      <td><code>sampleId</code>, <code>reason</code></td>
+      <td><code>failedSampleId</code>, <code>validSampleCount</code></td>
+      <td>扫码失败样本状态、失败原因字段</td>
+    </tr>
+    <tr>
+      <td>8</td>
+      <td><code>s_check_required_materials</code></td>
+      <td>COMPUTE</td>
+      <td><code>s_route_machine_event</code></td>
+      <td><code>materials = ${s_wait_machine_event.materials}</code></td>
+      <td><code>materialEnough</code>, <code>missingMaterials</code>, <code>materials</code></td>
+      <td>物料库存/库位校验规则</td>
+    </tr>
+    <tr>
+      <td>9</td>
+      <td><code>s_route_material_enough</code></td>
+      <td>CONDITION</td>
+      <td><code>s_check_required_materials</code></td>
+      <td><code>materialEnough ? 'enough' : 'insufficient'</code></td>
+      <td><code>branchName</code></td>
+      <td><code>materialEnough</code> 必须是布尔值</td>
+    </tr>
+    <tr>
+      <td>10</td>
+      <td><code>s_query_replenish_material_location</code></td>
+      <td>COMPUTE</td>
+      <td><code>s_route_material_enough</code></td>
+      <td><code>missingMaterials</code></td>
+      <td><code>agvCommand</code>, <code>materials</code></td>
+      <td>缺料位置查询、补料 AGV command 生成</td>
+    </tr>
+    <tr>
+      <td>11</td>
+      <td><code>s_agv_replenish_material</code></td>
+      <td>INSTRUMENT</td>
+      <td><code>s_query_replenish_material_location</code></td>
+      <td><code>taskId = ${input.taskId}_replenish</code><br><code>command = ${s_query_replenish_material_location.agvCommand}</code></td>
+      <td><code>deviceTaskId</code>, <code>deviceType</code>, <code>command</code></td>
+      <td>补料取放路径、AGV 目标工位</td>
+    </tr>
+    <tr>
+      <td>12</td>
+      <td><code>s_notify_material_ready</code></td>
+      <td>INSTRUMENT</td>
+      <td><code>s_agv_replenish_material</code></td>
+      <td><code>taskId</code>, <code>materials</code></td>
+      <td><code>deviceTaskId</code>, <code>deviceType</code>, <code>command</code></td>
+      <td>补料完成后通知机台的接口</td>
+    </tr>
+    <tr>
+      <td>13</td>
+      <td><code>s_recheck_required_materials</code></td>
+      <td>COMPUTE</td>
+      <td><code>s_notify_material_ready</code></td>
+      <td>补料后复核</td>
+      <td><code>materialEnough</code>, <code>missingMaterials</code>, <code>materials</code></td>
+      <td>复核策略</td>
+    </tr>
+    <tr>
+      <td>14</td>
+      <td><code>s_route_material_recheck</code></td>
+      <td>CONDITION</td>
+      <td><code>s_recheck_required_materials</code></td>
+      <td><code>materialEnough ? 'enough' : 'insufficient'</code></td>
+      <td><code>branchName</code></td>
+      <td>补料后仍不足时失败处理</td>
+    </tr>
+    <tr>
+      <td>15</td>
+      <td><code>s_wait_experiment_result</code></td>
+      <td>WAIT</td>
+      <td><code>s_route_material_enough</code></td>
+      <td>物料充足后等待实验结果</td>
+      <td><code>sampleResults</code>, <code>rawResult</code></td>
+      <td>最终结果回调格式</td>
+    </tr>
+    <tr>
+      <td>16</td>
+      <td><code>s_save_experiment_result_after_material</code></td>
+      <td>COMPUTE</td>
+      <td><code>s_wait_experiment_result</code></td>
+      <td><code>sampleResults</code></td>
+      <td><code>saved</code>, <code>resultCount</code></td>
+      <td>结果入库字段</td>
+    </tr>
+    <tr>
+      <td>17</td>
+      <td><code>s_wait_experiment_result_after_replenish</code></td>
+      <td>WAIT</td>
+      <td><code>s_route_material_recheck</code></td>
+      <td>补料复核通过后等待结果</td>
+      <td><code>sampleResults</code>, <code>rawResult</code></td>
+      <td>补料后的结果回调节点 ID 要用这个</td>
+    </tr>
+    <tr>
+      <td>18</td>
+      <td><code>s_save_experiment_result_after_replenish</code></td>
+      <td>COMPUTE</td>
+      <td><code>s_wait_experiment_result_after_replenish</code></td>
+      <td><code>sampleResults</code></td>
+      <td><code>saved</code>, <code>resultCount</code></td>
+      <td>结果入库字段</td>
+    </tr>
+    <tr>
+      <td>19</td>
+      <td><code>s_save_experiment_result_direct</code></td>
+      <td>COMPUTE</td>
+      <td><code>s_route_machine_event</code></td>
+      <td><code>sampleResults = ${s_wait_machine_event.sampleResults}</code></td>
+      <td><code>saved</code>, <code>resultCount</code></td>
+      <td>机台直接回传实验完成时使用</td>
+    </tr>
+    <tr>
+      <td>20</td>
+      <td><code>s_mark_material_failed</code></td>
+      <td>COMPUTE</td>
+      <td><code>s_route_material_recheck</code></td>
+      <td><code>missingMaterials</code></td>
+      <td><code>failed</code>, <code>reason</code></td>
+      <td>物料最终不足的失败策略</td>
+    </tr>
+    </tbody>
+  </table>
+
+  <h2>四、设备接口配置</h2>
+  <table>
+    <thead>
+    <tr><th>设备类型</th><th>命令</th><th>完成模式</th><th>方法/路径</th><th>请求模板</th><th>需要替换</th></tr>
+    </thead>
+    <tbody>
+    <tr>
+      <td><code>AGV_MOCK</code></td>
+      <td><code>startTask</code></td>
+      <td><code>SYNC</code></td>
+      <td><code>POST /device/agv/startTask</code></td>
+      <td><code>{"taskId":"${taskId}","command":"${command}"}</code></td>
+      <td>真实 AGV 设备类型、baseUrl、完成模式</td>
+    </tr>
+    <tr>
+      <td><code>AGV_MOCK</code></td>
+      <td><code>startAgain</code></td>
+      <td><code>SYNC</code></td>
+      <td><code>POST /device/agv/startAgain</code></td>
+      <td><code>{"taskId":"${taskId}"}</code></td>
+      <td>真实 AGV 继续接口</td>
+    </tr>
+    <tr>
+      <td><code>POST_PROCESSOR_FLOW_MOCK</code></td>
+      <td><code>startTask</code></td>
+      <td><code>SYNC</code></td>
+      <td><code>POST /device/post-processor/startTask</code></td>
+      <td><code>{"taskId":"${taskId}","carrierId":"${carrierId}","sampleInfos":"${sampleInfos}","callbackUrl":"${callbackUrl}"}</code></td>
+      <td>后处理机台真实启动接口</td>
+    </tr>
+    <tr>
+      <td><code>POST_PROCESSOR_FLOW_MOCK</code></td>
+      <td><code>materialReady</code></td>
+      <td><code>SYNC</code></td>
+      <td><code>POST /device/post-processor/materialReady</code></td>
+      <td><code>{"taskId":"${taskId}","event":"materialReady","materials":"${materials}"}</code></td>
+      <td>补料完成通知接口</td>
+    </tr>
+    </tbody>
+  </table>
+
+  <div class="danger">
+    当前设备类型是 <code>AGV_MOCK</code> 和 <code>POST_PROCESSOR_FLOW_MOCK</code>，用于本地测试。接真实设备时，要核对设备类型、baseUrl、协议、回调模式和是否需要从 <code>SYNC</code> 改成 <code>WEBHOOK</code>。
+  </div>
+
+  <h2>五、机台事件回调</h2>
+  <h3>1. 扫码失败</h3>
+  <p>后处理机台内部扫码失败时，回调等待节点 <code>s_wait_machine_event</code>。</p>
+  <pre>{
+  "executionId": "流程执行ID",
+  "nodeId": "s_wait_machine_event",
+  "success": true,
+  "outputs": {
+    "eventType": "scanFailed",
+    "sampleId": "SAMPLE-001",
+    "reason": "barcode_unreadable"
+  }
+}</pre>
+
+  <h3>2. 请求物料</h3>
+  <pre>{
+  "executionId": "流程执行ID",
+  "nodeId": "s_wait_machine_event",
+  "success": true,
+  "outputs": {
+    "eventType": "materialRequired",
+    "materials": [
+      {
+        "materialCode": "SOLVENT_A",
+        "requiredVolume": 1000,
+        "unit": "uL"
+      }
+    ]
+  }
+}</pre>
+
+  <h3>3. 机台直接完成实验</h3>
+  <pre>{
+  "executionId": "流程执行ID",
+  "nodeId": "s_wait_machine_event",
+  "success": true,
+  "outputs": {
+    "eventType": "experimentFinished",
+    "sampleResults": [
+      {"sampleId": "SAMPLE-001", "status": "SUCCESS", "result": {}}
+    ]
+  }
+}</pre>
+
+  <h3>4. 物料充足后等待结果</h3>
+  <p>如果走了 <code>materialRequired -> materialEnough=true</code> 分支，最终结果回调节点是：</p>
+  <pre>{
+  "executionId": "流程执行ID",
+  "nodeId": "s_wait_experiment_result",
+  "success": true,
+  "outputs": {
+    "sampleResults": [
+      {"sampleId": "SAMPLE-001", "status": "SUCCESS", "result": {}}
+    ],
+    "rawResult": {}
+  }
+}</pre>
+
+  <h3>5. 补料后等待结果</h3>
+  <p>如果走了补料分支，最终结果回调节点是：</p>
+  <pre>{
+  "executionId": "流程执行ID",
+  "nodeId": "s_wait_experiment_result_after_replenish",
+  "success": true,
+  "outputs": {
+    "sampleResults": [
+      {"sampleId": "SAMPLE-001", "status": "SUCCESS", "result": {}}
+    ],
+    "rawResult": {}
+  }
+}</pre>
+
+  <h2>六、需要你逐项核对填写的清单</h2>
+  <table>
+    <thead>
+    <tr><th>模块</th><th>配置项</th><th>当前值/占位</th><th>建议填写</th></tr>
+    </thead>
+    <tbody>
+    <tr><td>Flow</td><td>流程 Key</td><td><code>post_processor_event_batch_mock</code></td><td>测试可保持不变，正式流程建议另建版本。</td></tr>
+    <tr><td>Lab</td><td>样本与孔位</td><td><code>SAMPLE-001~004 / hole 1~4</code></td><td>替换为真实样本 ID、真实孔位。</td></tr>
+    <tr><td>Resource</td><td>载具当前位置查询</td><td>mock 输出 <code>A / 1</code></td><td>接入库位表或物料实例表，输出 AGV 可用位置。</td></tr>
+    <tr><td>Device</td><td>AGV 任务接口</td><td><code>/device/agv/startTask</code></td><td>确认真实 baseUrl、路径、认证、回调方式。</td></tr>
+    <tr><td>Device</td><td>后处理机台启动接口</td><td><code>/device/post-processor/startTask</code></td><td>替换为真实接口路径和报文。</td></tr>
+    <tr><td>Task</td><td>机台事件类型</td><td><code>scanFailed/materialRequired/experimentFinished</code></td><td>与机台回调字段保持一致。</td></tr>
+    <tr><td>Resource</td><td>物料充足判断</td><td><code>materialEnough</code></td><td>必须输出布尔值：<code>true/false</code>。</td></tr>
+    <tr><td>Resource</td><td>缺料位置查询</td><td>mock 输出 <code>MAT / 1</code></td><td>根据 <code>missingMaterials</code> 查实际物料库位。</td></tr>
+    <tr><td>Device</td><td>补料完成通知</td><td><code>materialReady</code></td><td>确认机台是否需要这个接口，以及需要哪些材料字段。</td></tr>
+    <tr><td>Lab</td><td>实验结果保存</td><td><code>sampleResults</code></td><td>映射到样本结果表字段。</td></tr>
+    </tbody>
+  </table>
+
+  <h2>七、当前实现注意事项</h2>
+  <div class="panel">
+    <p>1. 目前很多 <code>COMPUTE</code> 节点是 mock 定义，真实执行时需要补 Spring Bean 或改造成你已有的服务方法。</p>
+    <p>2. AGV 下发报文已保持严格结构：<code>{"taskId":"${taskId}","command":"${command}"}</code>，不会额外注入系统字段。</p>
+    <p>3. 分支节点没有配置 <code>default</code>，这是为了避免当前分支跳过器把重复目标节点误标记为 <code>SKIPPED</code>。所以事件类型必须严格匹配。</p>
+    <p>4. 当前设备命令是 <code>SYNC</code>，适合本地 mock 跑通。接真实设备时，AGV 和后处理机台大概率要改成 <code>WEBHOOK</code> 或通过独立回调推进。</p>
+  </div>
+</div>
+</body>
+</html>

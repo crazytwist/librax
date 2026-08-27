@@ -17,9 +17,18 @@ import com.librax.lab.module.lab.controller.admin.containertype.vo.*;
 @Mapper
 public interface ContainerTypeMapper extends BaseMapperX<ContainerTypeDO> {
 
+    /** 按类型编码批量查询，用于给物料实例列表回填 typeName（冗余展示字段，不落库）。 */
+    default List<ContainerTypeDO> selectListByTypeCodes(Collection<String> typeCodes) {
+        if (typeCodes == null || typeCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<ContainerTypeDO>()
+                .in(ContainerTypeDO::getTypeCode, typeCodes));
+    }
+
     default PageResult<ContainerTypeDO> selectPage(ContainerTypePageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<ContainerTypeDO>()
-                .eqIfPresent(ContainerTypeDO::getTypeCode, reqVO.getTypeCode())
+                .likeIfPresent(ContainerTypeDO::getTypeCode, reqVO.getTypeCode())
                 .likeIfPresent(ContainerTypeDO::getTypeName, reqVO.getTypeName())
                 .eqIfPresent(ContainerTypeDO::getContainerType, reqVO.getContainerType())
                 .eqIfPresent(ContainerTypeDO::getHierarchyRole, reqVO.getHierarchyRole())

@@ -7,6 +7,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+
 import com.librax.lab.module.lab.controller.admin.containertype.vo.*;
 import com.librax.lab.module.lab.dal.dataobject.containertype.ContainerTypeDO;
 import com.librax.lab.framework.common.pojo.PageResult;
@@ -60,10 +61,10 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
     }
 
     @Override
-        public void deleteContainerTypeListByIds(List<Long> ids) {
+    public void deleteContainerTypeListByIds(List<Long> ids) {
         // 删除
         containerTypeMapper.deleteByIds(ids);
-        }
+    }
 
 
     private void validateContainerTypeExists(Long id) {
@@ -80,6 +81,19 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
     @Override
     public PageResult<ContainerTypeDO> getContainerTypePage(ContainerTypePageReqVO pageReqVO) {
         return containerTypeMapper.selectPage(pageReqVO);
+    }
+
+    @Override
+    public Map<String, String> getTypeNameMap(Collection<String> typeCodes) {
+        if (CollUtil.isEmpty(typeCodes)) {
+            return Collections.emptyMap();
+        }
+        List<ContainerTypeDO> list = containerTypeMapper.selectListByTypeCodes(typeCodes);
+        Map<String, String> map = new HashMap<>();
+        for (ContainerTypeDO item : list) {
+            map.put(item.getTypeCode(), item.getTypeName());
+        }
+        return map;
     }
 
 }

@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import com.librax.lab.module.lab.controller.admin.materialinstance.vo.*;
+import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceBatchUpdateRemainReqVO;
 import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
 import com.librax.lab.framework.common.pojo.PageResult;
 import com.librax.lab.framework.common.pojo.PageParam;
@@ -20,6 +21,7 @@ import com.librax.lab.module.resource.service.slotinfo.SlotInfoService;
 
 import static com.librax.lab.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static com.librax.lab.framework.common.util.collection.CollectionUtils.convertList;
+import static com.librax.lab.framework.common.util.collection.CollectionUtils.convertSet;
 import static com.librax.lab.framework.common.util.collection.CollectionUtils.diffList;
 import static com.librax.lab.module.lab.enums.ErrorCodeConstants.*;
 
@@ -129,6 +131,33 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
     }
 
     @Override
+    public List<String> batchUpdateRemain(List<AppMaterialInstanceBatchUpdateRemainReqVO.Item> items) {
+        if (CollUtil.isEmpty(items)) {
+            return Collections.emptyList();
+        }
+        // 1. 一次 IN 查询出所有存在的实例，避免逐条查询
+        Set<String> existInstanceIds = convertSet(
+                materialInstanceMapper.selectByInstanceIds(
+                        convertSet(items, AppMaterialInstanceBatchUpdateRemainReqVO.Item::getInstanceId)),
+                MaterialInstanceDO::getInstanceId);
+        // 2. 过滤出存在的明细，收集不存在条目的错误信息
+        List<AppMaterialInstanceBatchUpdateRemainReqVO.Item> validItems = new ArrayList<>();
+        List<String> errors = new ArrayList<>();
+        for (AppMaterialInstanceBatchUpdateRemainReqVO.Item item : items) {
+            if (existInstanceIds.contains(item.getInstanceId())) {
+                validItems.add(item);
+            } else {
+                errors.add(item.getInstanceId() + "：物料实例不存在");
+            }
+        }
+        // 3. 单条 SQL 批量更新剩余量
+        if (CollUtil.isNotEmpty(validItems)) {
+            materialInstanceMapper.updateRemainBatch(validItems);
+        }
+        return errors;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void loadToSlot(String instanceId, String slotId) {
         // 1. 校验物料实例存在
@@ -169,6 +198,25 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
                 .eq(MaterialInstanceDO::getInstanceId, instanceId)
                 .set(MaterialInstanceDO::getSlotId, null)
                 .set(MaterialInstanceDO::getZoneCode, null));
+    }
+
+    @Override
+    public MaterialInstanceDO getInstanceByInsId(String instanceId) {
+        return materialInstanceMapper.selectByInstanceId(instanceId);
+    }
+
+    @Override
+    public int moveTo(String instanceId, String slotId) {
+        return moveTo(instanceId, slotId, "AVAILABLE");
+    }
+
+    @Override
+    public int moveTo(String instanceId, String slotId, String targetStatus) {
+        SlotInfoDO slot = slotInfoService.getSlotInfoBySlotId(slotId);
+        if (slot == null) {
+            throw new IllegalStateException("目标库位不存在: " + slotId);
+        }
+        return materialInstanceMapper.completeTransfer(instanceId, slotId, slot.getZoneCode(), targetStatus);
     }
 
 }

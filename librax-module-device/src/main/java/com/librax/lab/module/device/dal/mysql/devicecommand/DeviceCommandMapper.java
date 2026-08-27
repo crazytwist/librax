@@ -18,7 +18,7 @@ public interface DeviceCommandMapper extends BaseMapperX<DeviceCommandDO> {
     default PageResult<DeviceCommandDO> selectPage(DeviceCommandPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<DeviceCommandDO>()
                 .eqIfPresent(DeviceCommandDO::getDeviceType, reqVO.getDeviceType())
-                .eqIfPresent(DeviceCommandDO::getHttpPath, reqVO.getHttpPath())
+                .likeIfPresent(DeviceCommandDO::getHttpPath, reqVO.getHttpPath())
                 .betweenIfPresent(DeviceCommandDO::getCreateTime, reqVO.getCreateTime())
                 .orderByDesc(DeviceCommandDO::getId));
     }

@@ -1,11 +1,12 @@
 package com.librax.lab.module.flow.engine.execution.event;
 
 import com.alibaba.fastjson.JSON;
+import com.librax.lab.module.flow.api.pipeline.PipelineExecutionStateHandler;
 import com.librax.lab.module.flow.dal.dataobject.executioneventlog.ExecutionEventLogDO;
 import com.librax.lab.module.flow.dal.mysql.executioneventlog.ExecutionEventLogMapper;
 import com.librax.lab.module.flow.enums.EventTypeEnum;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -15,11 +16,17 @@ import java.util.Map;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class ExecutionEventPublisher {
 
     private final ExecutionEventLogMapper eventLogMapper;
     private final ApplicationEventPublisher springEventPublisher; // ★ 新增
+    private final ObjectProvider<PipelineExecutionStateHandler> executionStateHandlers;
+
+    public ExecutionEventPublisher(ExecutionEventLogMapper eventLogMapper, ApplicationEventPublisher springEventPublisher, ObjectProvider<PipelineExecutionStateHandler> executionStateHandlers) {
+        this.eventLogMapper = eventLogMapper;
+        this.springEventPublisher = springEventPublisher;
+        this.executionStateHandlers = executionStateHandlers;
+    }
 
     /**
      * 发布流程级事件
@@ -80,11 +87,13 @@ public class ExecutionEventPublisher {
                 case PIPELINE_SUCCESS:
                     springEventPublisher.publishEvent(
                             new ExecutionCompletedEvent(this, executionId, true));
+                    notifyExecutionStateHandlers(executionId, true);
                     break;
 
                 case PIPELINE_FAILED:
                     springEventPublisher.publishEvent(
                             new ExecutionCompletedEvent(this, executionId, false));
+                    notifyExecutionStateHandlers(executionId, false);
                     break;
 
                 default:
@@ -94,6 +103,19 @@ public class ExecutionEventPublisher {
         } catch (Exception e) {
             log.error("[EventPublisher] Spring Event 发布失败 executionId={} type={}",
                     executionId, eventType, e);
+        }
+    }
+
+    private void notifyExecutionStateHandlers(String executionId, boolean success) {
+        for (PipelineExecutionStateHandler handler : executionStateHandlers.orderedStream().toList()) {
+            try {
+                if (handler.handle(executionId, success)) {
+                    return;
+                }
+            } catch (Exception e) {
+                log.error("[EventPublisher] 执行结果扩展处理失败 executionId={} handler={}",
+                        executionId, handler.getClass().getName(), e);
+            }
         }
     }
 

@@ -52,6 +52,13 @@ public class AppSlotInfoRespVO {
     @Schema(description = "宿主设备ID")
     private String ownerId;
 
+    /**
+     * 占用状态：EMPTY=空闲 OCCUPIED=已占用 DISABLED=停用（维修/封存）
+     * 物料放入/取出时实时更新，供调度模块快速查找空闲库位
+     */
+    @Schema(description = " 占用状态：EMPTY=空闲 OCCUPIED=已占用 DISABLED=停用（维修/封存）")
+    private String status;
+
     @Schema(description = "在宿主设备上的位置编号")
     private String localIndex;
 

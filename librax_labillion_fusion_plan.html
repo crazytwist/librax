@@ -1,0 +1,1977 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Librax × Labillion 融合架构全景图</title>
+<style>
+/* ===== RESET & BASE ===== */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;--card:#1a1f35;--card-hover:#222845;
+  --blue:#3b82f6;--green:#10b981;--orange:#f59e0b;--red:#ef4444;--purple:#8b5cf6;
+  --cyan:#06b6d4;--pink:#ec4899;--lime:#84cc16;
+  --text:#e2e8f0;--text-dim:#94a3b8;--text-muted:#64748b;
+  --border:#2d3555;--border-light:#3d4565;
+  --radius:12px;--radius-sm:8px;
+}
+html{scroll-behavior:smooth;font-size:15px}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--text);line-height:1.7;min-height:100vh}
+a{color:var(--blue);text-decoration:none}
+h1,h2,h3,h4,h5{font-weight:700;line-height:1.3}
+/* scrollbar */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+
+/* ===== HERO ===== */
+.hero{
+  position:relative;overflow:hidden;
+  background:linear-gradient(135deg,#0a0e1a 0%,#1a1040 40%,#0f2040 70%,#0a0e1a 100%);
+  padding:80px 40px 40px;text-align:center;
+}
+.hero::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 600px 400px at 30% 50%,rgba(59,130,246,.12),transparent),
+             radial-gradient(ellipse 500px 350px at 70% 40%,rgba(139,92,246,.10),transparent);
+}
+.hero *{position:relative;z-index:1}
+.hero h1{font-size:3rem;background:linear-gradient(135deg,var(--blue),var(--purple),var(--cyan));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:12px;letter-spacing:2px}
+.hero .subtitle{font-size:1.15rem;color:var(--text-dim);margin-bottom:8px}
+.hero .date-badge{display:inline-block;padding:4px 16px;background:rgba(59,130,246,.15);border:1px solid rgba(59,130,246,.3);border-radius:20px;font-size:.85rem;color:var(--blue);margin-bottom:32px}
+/* particles */
+.particle{position:absolute;border-radius:50%;opacity:.3;animation:float 6s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-20px) scale(1.1)}}
+.particle:nth-child(1){width:6px;height:6px;background:var(--blue);top:20%;left:15%;animation-delay:0s}
+.particle:nth-child(2){width:4px;height:4px;background:var(--purple);top:35%;left:80%;animation-delay:1s}
+.particle:nth-child(3){width:8px;height:8px;background:var(--cyan);top:60%;left:25%;animation-delay:2s}
+.particle:nth-child(4){width:5px;height:5px;background:var(--green);top:75%;left:70%;animation-delay:3s}
+.particle:nth-child(5){width:3px;height:3px;background:var(--orange);top:15%;left:55%;animation-delay:4s}
+
+/* ===== NAV TABS ===== */
+.nav-tabs{
+  position:sticky;top:0;z-index:100;
+  background:rgba(10,14,26,.92);backdrop-filter:blur(12px);
+  border-bottom:1px solid var(--border);
+  display:flex;flex-wrap:wrap;justify-content:center;gap:4px;
+  padding:8px 16px;
+}
+.nav-tabs a{
+  padding:8px 16px;border-radius:var(--radius-sm);font-size:.85rem;color:var(--text-dim);
+  transition:all .2s;white-space:nowrap;
+}
+.nav-tabs a:hover,.nav-tabs a.active{background:rgba(59,130,246,.15);color:var(--blue)}
+
+/* ===== SECTION ===== */
+.section{max-width:1400px;margin:0 auto;padding:60px 24px 40px}
+.section-title{
+  font-size:1.8rem;margin-bottom:8px;
+  display:flex;align-items:center;gap:12px;
+}
+.section-title .num{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:36px;height:36px;border-radius:10px;font-size:1rem;font-weight:800;
+  background:linear-gradient(135deg,var(--blue),var(--purple));color:#fff;flex-shrink:0;
+}
+.section-desc{color:var(--text-dim);margin-bottom:32px;font-size:.95rem}
+
+/* ===== CARDS ===== */
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;transition:all .25s}
+.card:hover{border-color:var(--border-light);background:var(--card-hover)}
+
+/* ===== COMPARISON (Section 2) ===== */
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:24px}
+.compare-col{display:flex;flex-direction:column;gap:16px}
+.compare-header{
+  text-align:center;padding:20px;border-radius:var(--radius);
+  font-size:1.2rem;font-weight:700;
+}
+.compare-header.librax{background:linear-gradient(135deg,rgba(59,130,246,.15),rgba(6,182,212,.10));border:1px solid rgba(59,130,246,.3);color:var(--blue)}
+.compare-header.labillion{background:linear-gradient(135deg,rgba(139,92,246,.15),rgba(236,72,153,.10));border:1px solid rgba(139,92,246,.3);color:var(--purple)}
+.compare-header small{display:block;font-size:.78rem;font-weight:400;color:var(--text-dim);margin-top:4px}
+.mod-card{padding:16px;border-left:3px solid var(--blue)}
+.mod-card.lab{border-left-color:var(--purple)}
+.mod-card h4{font-size:.95rem;margin-bottom:6px}
+.mod-card p{font-size:.82rem;color:var(--text-dim);line-height:1.5}
+.mod-card .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.72rem;font-weight:600}
+.tag-blue{background:rgba(59,130,246,.15);color:var(--blue)}
+.tag-green{background:rgba(16,185,129,.15);color:var(--green)}
+.tag-purple{background:rgba(139,92,246,.15);color:var(--purple)}
+.tag-orange{background:rgba(245,158,11,.15);color:var(--orange)}
+.tag-red{background:rgba(239,68,68,.15);color:var(--red)}
+.tag-cyan{background:rgba(6,182,212,.15);color:var(--cyan)}
+.tag-pink{background:rgba(236,72,153,.15);color:var(--pink)}
+
+/* ===== ARCHITECTURE DIAGRAM (Section 3) ===== */
+.arch-diagram{position:relative;width:100%;overflow-x:auto}
+.arch-layer{
+  display:flex;flex-wrap:wrap;gap:12px;
+  padding:20px 24px;margin-bottom:2px;border-radius:var(--radius);position:relative;
+}
+.arch-layer-label{
+  position:absolute;left:-8px;top:50%;transform:translateY(-50%) rotate(-90deg);
+  font-size:.75rem;font-weight:700;letter-spacing:2px;white-space:nowrap;color:var(--text-muted);
+}
+.arch-box{
+  flex:1;min-width:140px;max-width:220px;
+  padding:14px 16px;border-radius:var(--radius-sm);
+  font-size:.82rem;font-weight:600;text-align:center;
+  border:1px solid transparent;transition:all .25s;cursor:default;
+}
+.arch-box:hover{transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,.3)}
+.arch-box small{display:block;font-weight:400;font-size:.72rem;color:rgba(255,255,255,.6);margin-top:4px}
+.layer-access .arch-box{background:rgba(59,130,246,.12);border-color:rgba(59,130,246,.25);color:var(--blue)}
+.layer-biz .arch-box{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.25);color:var(--green)}
+.layer-exec .arch-box{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.25);color:var(--orange)}
+.layer-data .arch-box{background:rgba(139,92,246,.12);border-color:rgba(139,92,246,.25);color:var(--purple)}
+.layer-infra .arch-box{background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.25);color:var(--red)}
+.layer-title{
+  width:100%;text-align:left;font-size:.9rem;font-weight:700;
+  margin-bottom:4px;padding-bottom:8px;border-bottom:1px solid var(--border);
+}
+.arrow-down{text-align:center;font-size:1.5rem;color:var(--text-muted);margin:4px 0}
+
+/* ===== GAP TABLE (Section 4) ===== */
+.gap-table-wrapper{overflow-x:auto}
+.gap-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.gap-table th{
+  padding:12px 14px;text-align:left;font-weight:700;font-size:.8rem;
+  background:rgba(59,130,246,.08);color:var(--blue);
+  border-bottom:2px solid var(--border);white-space:nowrap;
+}
+.gap-table td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+.gap-table tr:hover td{background:rgba(255,255,255,.02)}
+.status-badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:.72rem;font-weight:700}
+.st-has{background:rgba(16,185,129,.15);color:var(--green)}
+.st-partial{background:rgba(245,158,11,.15);color:var(--orange)}
+.st-missing{background:rgba(239,68,68,.15);color:var(--red)}
+.strategy-badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:.72rem;font-weight:700}
+.str-keep{background:rgba(59,130,246,.15);color:var(--blue)}
+.str-adopt{background:rgba(139,92,246,.15);color:var(--purple)}
+.str-merge{background:rgba(6,182,212,.15);color:var(--cyan)}
+.str-build{background:rgba(236,72,153,.15);color:var(--pink)}
+
+/* ===== PHASE CARDS (Section 5) ===== */
+.phase-list{display:flex;flex-direction:column;gap:16px}
+.phase-card{border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);transition:all .3s}
+.phase-card:hover{border-color:var(--border-light)}
+.phase-header{
+  display:flex;align-items:center;gap:16px;padding:18px 24px;cursor:pointer;
+  background:var(--card);transition:background .2s;user-select:none;
+}
+.phase-header:hover{background:var(--card-hover)}
+.phase-num{
+  width:44px;height:44px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  font-size:1.1rem;font-weight:800;color:#fff;flex-shrink:0;
+}
+.phase-header .info{flex:1}
+.phase-header .info h3{font-size:1.05rem;margin-bottom:2px}
+.phase-header .info .meta{font-size:.8rem;color:var(--text-dim);display:flex;gap:16px;flex-wrap:wrap}
+.phase-badge{padding:4px 12px;border-radius:10px;font-size:.72rem;font-weight:700;flex-shrink:0}
+.badge-pending{background:rgba(100,116,139,.2);color:var(--text-muted)}
+.badge-active{background:rgba(59,130,246,.2);color:var(--blue);animation:pulse-badge 2s infinite}
+.badge-done{background:rgba(16,185,129,.2);color:var(--green)}
+@keyframes pulse-badge{0%,100%{opacity:1}50%{opacity:.6}}
+.phase-toggle{font-size:1.2rem;color:var(--text-muted);transition:transform .3s;flex-shrink:0}
+.phase-card.open .phase-toggle{transform:rotate(180deg)}
+.phase-body{
+  max-height:0;overflow:hidden;transition:max-height .4s ease;
+  background:rgba(0,0,0,.15);
+}
+.phase-card.open .phase-body{max-height:2000px}
+.phase-content{padding:20px 24px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.phase-tasks h4,.phase-files h4,.phase-deps h4,.phase-risks h4{font-size:.85rem;color:var(--text-dim);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
+.phase-tasks ul{list-style:none}
+.phase-tasks li{padding:4px 0;font-size:.85rem;display:flex;align-items:flex-start;gap:8px}
+.phase-tasks li::before{content:'☐';color:var(--text-muted);flex-shrink:0}
+.phase-files{font-size:.82rem;color:var(--text-dim)}
+.phase-files code{background:rgba(59,130,246,.1);color:var(--blue);padding:1px 6px;border-radius:3px;font-size:.78rem}
+.risk-indicator{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:8px;font-size:.78rem;font-weight:600}
+.risk-low{background:rgba(16,185,129,.1);color:var(--green)}
+.risk-med{background:rgba(245,158,11,.1);color:var(--orange)}
+.risk-high{background:rgba(239,68,68,.1);color:var(--red)}
+
+/* ===== MODULE CARDS (Section 6) ===== */
+.module-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px}
+.module-card{padding:20px;position:relative;overflow:hidden}
+.module-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:3px;
+}
+.module-card .mc-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.module-card .mc-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0}
+.module-card .mc-title{font-size:.95rem;font-weight:700}
+.module-card .mc-source{font-size:.72rem;padding:2px 8px;border-radius:4px;font-weight:600}
+.mc-detail{font-size:.82rem;color:var(--text-dim);margin-bottom:8px;line-height:1.6}
+.mc-detail strong{color:var(--text);font-weight:600}
+.mc-footer{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)}
+.mc-effort,.mc-priority{font-size:.75rem;font-weight:700;padding:3px 10px;border-radius:6px}
+
+/* ===== GANTT (Section 7) ===== */
+.gantt-container{overflow-x:auto;padding-bottom:16px}
+.gantt{display:flex;flex-direction:column;gap:6px;min-width:900px}
+.gantt-header{display:flex;gap:0;padding-left:180px}
+.gantt-week{
+  width:45px;text-align:center;font-size:.7rem;color:var(--text-muted);font-weight:600;
+  border-left:1px solid var(--border);padding:4px 0;flex-shrink:0;
+}
+.gantt-row{display:flex;align-items:center;height:36px}
+.gantt-label{width:180px;font-size:.82rem;font-weight:600;flex-shrink:0;padding-right:12px;text-align:right}
+.gantt-track{flex:1;position:relative;height:100%;display:flex;align-items:center}
+.gantt-bar{
+  position:absolute;height:24px;border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.7rem;font-weight:700;color:#fff;
+  transition:all .3s;cursor:default;
+}
+.gantt-bar:hover{filter:brightness(1.2);transform:scaleY(1.15)}
+.gantt-milestone{
+  position:absolute;width:12px;height:12px;transform:rotate(45deg);
+  border:2px solid var(--orange);background:var(--bg);
+}
+.gantt-grid-line{position:absolute;top:0;bottom:0;width:1px;background:var(--border);opacity:.3}
+
+/* ===== RISK MATRIX (Section 8) ===== */
+.risk-matrix-container{display:flex;justify-content:center;padding:20px 0}
+.risk-matrix{position:relative;width:600px;height:500px}
+.risk-axis-y{
+  position:absolute;left:-10px;top:0;bottom:40px;width:30px;
+  display:flex;flex-direction:column;justify-content:space-between;align-items:center;
+}
+.risk-axis-y span{font-size:.7rem;color:var(--text-muted);transform:rotate(-90deg)}
+.risk-axis-x{
+  position:absolute;bottom:-5px;left:40px;right:0;height:30px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.risk-axis-x span{font-size:.7rem;color:var(--text-muted)}
+.risk-grid{
+  position:absolute;top:0;left:40px;right:0;bottom:40px;
+  display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:1fr 1fr 1fr;
+}
+.risk-cell{border:1px solid var(--border);position:relative}
+.risk-cell.high-risk{background:rgba(239,68,68,.06)}
+.risk-cell.med-risk{background:rgba(245,158,11,.04)}
+.risk-cell.low-risk{background:rgba(16,185,129,.03)}
+.risk-bubble{
+  position:absolute;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:.6rem;font-weight:700;color:#fff;cursor:default;
+  transition:all .3s;z-index:2;
+}
+.risk-bubble:hover{transform:scale(1.3);z-index:10}
+.risk-bubble .tooltip{
+  display:none;position:absolute;bottom:calc(100% + 8px);left:50%;transform:translateX(-50%);
+  background:var(--card);border:1px solid var(--border);padding:8px 12px;border-radius:var(--radius-sm);
+  font-size:.75rem;color:var(--text);white-space:nowrap;z-index:20;
+}
+.risk-bubble:hover .tooltip{display:block}
+.risk-label-y{
+  position:absolute;left:-60px;top:50%;transform:translateY(-50%) rotate(-90deg);
+  font-size:.8rem;font-weight:600;color:var(--text-dim);white-space:nowrap;
+}
+.risk-label-x{
+  position:absolute;bottom:-40px;left:50%;transform:translateX(-50%);
+  font-size:.8rem;font-weight:600;color:var(--text-dim);
+}
+
+/* ===== DATA MODEL (Section 9) ===== */
+.dm-fusion-list{display:flex;flex-direction:column;gap:20px}
+.dm-fusion-item{
+  display:grid;grid-template-columns:1fr 60px 1fr;align-items:center;gap:12px;
+  padding:20px;
+}
+.dm-entity{padding:14px;border-radius:var(--radius-sm);font-size:.85rem}
+.dm-entity.source{background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2)}
+.dm-entity.target{background:rgba(16,185,129,.08);border:1px solid rgba(16,185,129,.2)}
+.dm-entity h5{font-size:.9rem;margin-bottom:6px}
+.dm-entity .dm-fields{font-size:.78rem;color:var(--text-dim);line-height:1.6}
+.dm-arrow{text-align:center;font-size:1.5rem;color:var(--text-muted)}
+.dm-plus{text-align:center;font-size:1rem;color:var(--orange);font-weight:700;margin:6px 0}
+
+/* ===== TECH DECISION TABLE (Section 10) ===== */
+.tech-table{width:100%;border-collapse:collapse;font-size:.85rem}
+.tech-table th{
+  padding:12px 14px;text-align:left;font-weight:700;font-size:.8rem;
+  background:rgba(139,92,246,.08);color:var(--purple);
+  border-bottom:2px solid var(--border);
+}
+.tech-table td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+.tech-table tr:hover td{background:rgba(255,255,255,.02)}
+.tech-decision{font-weight:700;color:var(--green)}
+
+/* ===== UTILITIES ===== */
+.flex-center{display:flex;align-items:center;justify-content:center}
+.text-center{text-align:center}
+.mt-8{margin-top:8px}
+.mt-16{margin-top:16px}
+.mt-24{margin-top:24px}
+.mb-16{margin-bottom:16px}
+.grid-full{grid-column:1/-1}
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:900px){
+  .compare-grid{grid-template-columns:1fr}
+  .phase-content{grid-template-columns:1fr}
+  .module-grid{grid-template-columns:1fr}
+  .dm-fusion-item{grid-template-columns:1fr;text-align:center}
+  .dm-arrow{transform:rotate(90deg)}
+  .hero h1{font-size:2rem}
+  .section{padding:40px 16px 24px}
+  .risk-matrix{width:100%;height:400px}
+}
+@media(max-width:600px){
+  .nav-tabs a{font-size:.75rem;padding:6px 10px}
+  .gap-table,.tech-table{font-size:.78rem}
+}
+
+/* ===== FADE IN ===== */
+.fade-in{opacity:0;transform:translateY(20px);transition:all .6s ease}
+.fade-in.visible{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- ============ HERO ============ -->
+<section class="hero" id="top">
+  <div class="particle"></div><div class="particle"></div><div class="particle"></div><div class="particle"></div><div class="particle"></div>
+  <h1>Librax × Labillion 融合架构全景图</h1>
+  <p class="subtitle">实验室自动化平台与科研工作流系统的深度集成方案</p>
+  <div class="date-badge">📅 2026-07-26 · Version 1.0</div>
+  <p style="color:var(--text-muted);font-size:.85rem;max-width:700px;margin:0 auto">
+    本文档详细规划了 Librax（实验室自动化平台）与 Labillion-Workflow（科研工作流系统）的融合路径，涵盖架构对齐、模块拆解、阶段路线、风险评估与数据模型映射。
+  </p>
+</section>
+
+<!-- ============ NAV ============ -->
+<nav class="nav-tabs" id="nav">
+  <a href="#sec-compare">现状对比</a>
+  <a href="#sec-arch">目标架构</a>
+  <a href="#sec-gap">差距分析</a>
+  <a href="#sec-roadmap">阶段路线</a>
+  <a href="#sec-modules">模块卡片</a>
+  <a href="#sec-gantt">甘特图</a>
+  <a href="#sec-risk">风险矩阵</a>
+  <a href="#sec-datamodel">数据模型</a>
+  <a href="#sec-techstack">技术决策</a>
+</nav>
+
+<!-- ============ SECTION 2: COMPARISON ============ -->
+<section class="section fade-in" id="sec-compare">
+  <div class="section-title"><span class="num">1</span> 现状架构对比</div>
+  <p class="section-desc">两套系统在技术栈、模块划分、能力覆盖上各有侧重。Librax 强在设备控制与资源调度，Labillion 强在工作流引擎与 AI 智能体。</p>
+
+  <div class="compare-grid">
+    <!-- LIBRAX COLUMN -->
+    <div class="compare-col">
+      <div class="compare-header librax">
+        Librax · 实验室自动化平台
+        <small>Spring Boot 3.5.5 · Java 17 · MySQL · 自研 DAG 调度器</small>
+      </div>
+
+      <div class="card mod-card">
+        <h4>librax-framework</h4>
+        <p>基础框架层：统一响应封装、全局异常处理、MyBatis-Plus 配置、Jackson 序列化、多租户拦截器、Caffeine 缓存</p>
+        <div class="tags"><span class="tag tag-blue">基础框架</span><span class="tag tag-green">多租户</span></div>
+      </div>
+
+      <div class="card mod-card">
+        <h4>librax-module-flow</h4>
+        <p>自研 DAG 调度引擎，基于 JGraphT 构建 Pipeline 有向无环图。支持步骤编排、条件分支、并行执行、事件驱动状态机。包含 PipelineExecutor、StepExecutor、ExecutionEventLog</p>
+        <div class="tags"><span class="tag tag-blue">DAG 引擎</span><span class="tag tag-cyan">JGraphT</span><span class="tag tag-green">状态机</span></div>
+      </div>
+
+      <div class="card mod-card">
+        <h4>librax-module-device</h4>
+        <p>多协议设备管理框架：TCP Socket、HTTP REST、Serial RS232、Mock 模拟器。DeviceDriver 策略模式、心跳检测、设备状态管理、指令队列。支持 AGV、液体处理站、离心机等设备类型</p>
+        <div class="tags"><span class="tag tag-orange">TCP</span><span class="tag tag-orange">HTTP</span><span class="tag tag-orange">SERIAL</span><span class="tag tag-purple">MOCK</span></div>
+      </div>
+
+      <div class="card mod-card">
+        <h4>librax-module-resource</h4>
+        <p>实验室资源管理：库位 Slot 分配与回收、AGV 运输路径规划、区域 Zone 容量管理、物料 Container 追踪、中转位管理、资源预留与释放</p>
+        <div class="tags"><span class="tag tag-green">Slot</span><span class="tag tag-green">AGV</span><span class="tag tag-green">Zone</span><span class="tag tag-cyan">Container</span></div>
+      </div>
+
+      <div class="card mod-card">
+        <h4>librax-module-lab</h4>
+        <p>实验样本管理：样本血缘追溯 (Sample Genealogy)、样本分裂/合并/转移操作、样本生命周期追踪、与库位和设备的关联</p>
+        <div class="tags"><span class="tag tag-purple">样本血缘</span><span class="tag tag-cyan">生命周期</span></div>
+      </div>
+
+      <div class="card mod-card">
+        <h4>librax-module-task</h4>
+        <p>统一任务模型 TaskDO：设备任务、人工任务、AGV 任务的统一抽象。任务状态流转、超时处理、重试机制、任务依赖管理</p>
+        <div class="tags"><span class="tag tag-blue">统一任务</span><span class="tag tag-orange">超时重试</span></div>
+      </div>
+
+      <div class="card mod-card">
+        <h4>librax-module-ai (基础)</h4>
+        <p>基础 AI 能力：实验方案推荐、简单的对话接口。尚未集成 SSE 流式输出和 Agent Runtime</p>
+        <div class="tags"><span class="tag tag-pink">AI 基础</span><span class="tag tag-red">待增强</span></div>
+      </div>
+
+      <div class="card mod-card">
+        <h4>librax-module-system</h4>
+        <p>基于 RuoYi 的权限系统：用户/角色/菜单/部门管理、数据权限过滤、操作日志。传统 RBAC 模型，缺少细粒度资源权限</p>
+        <div class="tags"><span class="tag tag-red">RuoYi RBAC</span><span class="tag tag-orange">待升级</span></div>
+      </div>
+    </div>
+
+    <!-- LABILLION COLUMN -->
+    <div class="compare-col">
+      <div class="compare-header labillion">
+        Labillion-Workflow · 科研工作流系统
+        <small>Spring Boot 3.5.7 · Java 21 · PostgreSQL · Flowable BPM</small>
+      </div>
+
+      <div class="card mod-card lab">
+        <h4>labillion-core (Security & RBAC AOP)</h4>
+        <p>安全核心：JWT 认证、AES-256-GCM 加密、RBAC 3D 权限矩阵 (角色×资源×操作)、@RequirePermission 声明式鉴权 AOP、数据隔离拦截器</p>
+        <div class="tags"><span class="tag tag-purple">RBAC 3D</span><span class="tag tag-red">AES-256</span><span class="tag tag-blue">AOP 鉴权</span></div>
+      </div>
+
+      <div class="card mod-card lab">
+        <h4>Flowable BPM 工作流</h4>
+        <p>成熟的 BPMN 2.0 工作流引擎：流程设计器、用户任务/服务任务/网关/子流程、act_* 运行时表、流程版本管理、审批流、并行网关</p>
+        <div class="tags"><span class="tag tag-purple">Flowable</span><span class="tag tag-cyan">BPMN 2.0</span><span class="tag tag-green">流程设计器</span></div>
+      </div>
+
+      <div class="card mod-card lab">
+        <h4>AI Agent Runtime</h4>
+        <p>AI 智能体运行时：AgentExecutor 多步推理、SSE 流式输出注册表、AgentTrace 执行追踪、Spring AI 集成、LLM 模型管理 (多 Provider)、工具调用 Function Calling</p>
+        <div class="tags"><span class="tag tag-pink">Agent</span><span class="tag tag-blue">SSE</span><span class="tag tag-cyan">Spring AI</span><span class="tag tag-green">Function Calling</span></div>
+      </div>
+
+      <div class="card mod-card lab">
+        <h4>NotificationCenter 通知中心</h4>
+        <p>统一通知框架：WebSocket STOMP 实时推送、邮件通知、12 种事件类型 (实验完成/审批/告警/AI 结果等)、通知模板、已读/未读状态管理</p>
+        <div class="tags"><span class="tag tag-green">WebSocket</span><span class="tag tag-blue">STOMP</span><span class="tag tag-orange">邮件</span><span class="tag tag-purple">12 事件类型</span></div>
+      </div>
+
+      <div class="card mod-card lab">
+        <h4>Bio Sample Handlers</h4>
+        <p>生物样本类型处理：SampleTypeHandler 策略模式、SampleTypeRegistry 注册表。支持 Cell（细胞）、Protein（蛋白质）、Plasmid（质粒）、Antigen（抗原）四大类型，各自独立的属性和操作逻辑</p>
+        <div class="tags"><span class="tag tag-green">Cell</span><span class="tag tag-blue">Protein</span><span class="tag tag-purple">Plasmid</span><span class="tag tag-orange">Antigen</span></div>
+      </div>
+
+      <div class="card mod-card lab">
+        <h4>Python Executor</h4>
+        <p>Python 计算节点：PythonTaskExecutor 沙箱执行、ExecutionContext 上下文注入、结果回收与类型转换、安全白名单机制、超时控制</p>
+        <div class="tags"><span class="tag tag-blue">Python 沙箱</span><span class="tag tag-orange">安全白名单</span></div>
+      </div>
+
+      <div class="card mod-card lab">
+        <h4>Gantt CPM 调度</h4>
+        <p>甘特图调度器：GanttSchedulePlanner、CPM 关键路径计算、资源冲突检测、DashboardAnomalySupport 异常预警、实验进度可视化</p>
+        <div class="tags"><span class="tag tag-cyan">CPM</span><span class="tag tag-green">关键路径</span><span class="tag tag-orange">异常预警</span></div>
+      </div>
+
+      <div class="card mod-card lab">
+        <h4>Dashboard & Report</h4>
+        <p>数据看板：实验统计、资源利用率、AI Agent 调用分析、异常趋势、Excel 批量导入/导出、PDF 报告生成</p>
+        <div class="tags"><span class="tag tag-blue">Dashboard</span><span class="tag tag-green">Excel</span><span class="tag tag-purple">PDF 报告</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECTION 3: TARGET ARCHITECTURE ============ -->
+<section class="section fade-in" id="sec-arch">
+  <div class="section-title"><span class="num">2</span> 目标融合架构</div>
+  <p class="section-desc">五层架构设计：接入层 → 业务层 → 执行层 → 数据层 → 基础设施层。蓝色来源于 Librax，紫色来源于 Labillion，青色为新建融合组件。</p>
+
+  <div class="arch-diagram">
+    <!-- 接入层 -->
+    <div class="card" style="margin-bottom:4px;border-left:3px solid var(--blue)">
+      <div class="layer-title" style="color:var(--blue)">接入层 · Access Layer</div>
+      <div class="arch-layer layer-access">
+        <div class="arch-box">REST API Gateway<small>统一 /api/v1 前缀</small></div>
+        <div class="arch-box">WebSocket STOMP<small>实时通知推送</small></div>
+        <div class="arch-box">SSE Stream Endpoint<small>AI Agent 流式输出</small></div>
+        <div class="arch-box">Device Callback<small>设备回调接收</small></div>
+        <div class="arch-box">Pipeline YAML Import<small>实验流程导入</small></div>
+      </div>
+    </div>
+
+    <div class="arrow-down">▼</div>
+
+    <!-- 业务层 -->
+    <div class="card" style="margin-bottom:4px;border-left:3px solid var(--green)">
+      <div class="layer-title" style="color:var(--green)">业务层 · Business Layer</div>
+      <div class="arch-layer layer-biz">
+        <div class="arch-box">Flow Engine (DAG)<small>Pipeline 编排调度</small></div>
+        <div class="arch-box">Flowable BPM<small>审批/人工工作流</small></div>
+        <div class="arch-box">AI Agent Runtime<small>多步推理 + 工具调用</small></div>
+        <div class="arch-box">Device Management<small>多协议设备管控</small></div>
+        <div class="arch-box">Resource Management<small>Slot/AGV/Zone 资源</small></div>
+        <div class="arch-box">Lab & Sample<small>样本血缘 + Bio 类型</small></div>
+        <div class="arch-box">Notification Center<small>12 事件 × 多通道</small></div>
+        <div class="arch-box">Gantt Scheduler<small>CPM 关键路径</small></div>
+      </div>
+    </div>
+
+    <div class="arrow-down">▼</div>
+
+    <!-- 执行层 -->
+    <div class="card" style="margin-bottom:4px;border-left:3px solid var(--orange)">
+      <div class="layer-title" style="color:var(--orange)">执行层 · Execution Layer</div>
+      <div class="arch-layer layer-exec">
+        <div class="arch-box">Device Drivers<small>TCP / HTTP / SERIAL / MOCK</small></div>
+        <div class="arch-box">Python Executor<small>沙箱计算节点</small></div>
+        <div class="arch-box">LLM Client<small>Spring AI · 多 Provider</small></div>
+        <div class="arch-box">AGV Planner<small>路径规划 + 中转位</small></div>
+        <div class="arch-box">Manual Task Handler<small>人工任务分配</small></div>
+        <div class="arch-box">Excel/PDF Engine<small>批量导入/报告生成</small></div>
+      </div>
+    </div>
+
+    <div class="arrow-down">▼</div>
+
+    <!-- 数据层 -->
+    <div class="card" style="margin-bottom:4px;border-left:3px solid var(--purple)">
+      <div class="layer-title" style="color:var(--purple)">数据层 · Data Layer</div>
+      <div class="arch-layer layer-data">
+        <div class="arch-box">MySQL 8.0<small>Librax 核心业务数据</small></div>
+        <div class="arch-box">PostgreSQL 16<small>Labillion + Flowable 数据</small></div>
+        <div class="arch-box">Redis 7<small>缓存 / 分布式锁 / 会话</small></div>
+        <div class="arch-box">MinIO<small>对象存储 / 实验附件</small></div>
+        <div class="arch-box">Caffeine<small>本地热点缓存</small></div>
+      </div>
+    </div>
+
+    <div class="arrow-down">▼</div>
+
+    <!-- 基础设施层 -->
+    <div class="card" style="border-left:3px solid var(--red)">
+      <div class="layer-title" style="color:var(--red)">基础设施层 · Infrastructure Layer</div>
+      <div class="arch-layer layer-infra">
+        <div class="arch-box">Multi-tenancy<small>租户隔离 + 数据过滤</small></div>
+        <div class="arch-box">RBAC 3D Matrix<small>角色×资源×操作</small></div>
+        <div class="arch-box">JWT Authentication<small>Token 认证 + 刷新</small></div>
+        <div class="arch-box">AES-256-GCM<small>敏感数据加密</small></div>
+        <div class="arch-box">Audit Event Log<small>操作审计追踪</small></div>
+        <div class="arch-box">Config Center<small>动态配置管理</small></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legend -->
+  <div style="display:flex;gap:24px;justify-content:center;margin-top:24px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:6px;font-size:.8rem">
+      <span style="width:12px;height:12px;border-radius:3px;background:rgba(59,130,246,.3);border:1px solid var(--blue)"></span>
+      <span style="color:var(--text-dim)">接入层 (Access)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:.8rem">
+      <span style="width:12px;height:12px;border-radius:3px;background:rgba(16,185,129,.3);border:1px solid var(--green)"></span>
+      <span style="color:var(--text-dim)">业务层 (Business)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:.8rem">
+      <span style="width:12px;height:12px;border-radius:3px;background:rgba(245,158,11,.3);border:1px solid var(--orange)"></span>
+      <span style="color:var(--text-dim)">执行层 (Execution)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:.8rem">
+      <span style="width:12px;height:12px;border-radius:3px;background:rgba(139,92,246,.3);border:1px solid var(--purple)"></span>
+      <span style="color:var(--text-dim)">数据层 (Data)</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;font-size:.8rem">
+      <span style="width:12px;height:12px;border-radius:3px;background:rgba(239,68,68,.3);border:1px solid var(--red)"></span>
+      <span style="color:var(--text-dim)">基础设施层 (Infra)</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECTION 4: GAP ANALYSIS ============ -->
+<section class="section fade-in" id="sec-gap">
+  <div class="section-title"><span class="num">3</span> 差距分析 · Gap Analysis</div>
+  <p class="section-desc">逐项对比两个系统的能力覆盖，确定融合策略与工作量估算。</p>
+
+  <div class="gap-table-wrapper">
+    <table class="gap-table">
+      <thead>
+        <tr>
+          <th style="width:18%">能力领域</th>
+          <th style="width:12%">Librax</th>
+          <th style="width:12%">Labillion</th>
+          <th style="width:12%">融合策略</th>
+          <th style="width:10%">工作量</th>
+          <th style="width:10%">来源系统</th>
+          <th style="width:26%">说明</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>DAG 调度引擎</strong></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="status-badge st-missing">无</span></td>
+          <td><span class="strategy-badge str-keep">保留</span></td>
+          <td>0.5 周</td>
+          <td>Librax</td>
+          <td>Librax 核心能力，JGraphT 驱动的 Pipeline DAG，保留并扩展节点类型</td>
+        </tr>
+        <tr>
+          <td><strong>Flowable BPM</strong></td>
+          <td><span class="status-badge st-missing">无</span></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="strategy-badge str-adopt">引入</span></td>
+          <td>4-6 周</td>
+          <td>Labillion</td>
+          <td>评估是否引入 Flowable 处理审批流/人工工作流，与 DAG 引擎互补而非替代</td>
+        </tr>
+        <tr>
+          <td><strong>AI Agent Runtime</strong></td>
+          <td><span class="status-badge st-partial">基础</span></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="strategy-badge str-adopt">引入</span></td>
+          <td>3-4 周</td>
+          <td>Labillion</td>
+          <td>引入 AgentExecutor、SSE Registry、AgentTrace，集成到 DAG 步骤节点</td>
+        </tr>
+        <tr>
+          <td><strong>设备驱动框架</strong></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="status-badge st-missing">无</span></td>
+          <td><span class="strategy-badge str-keep">保留</span></td>
+          <td>0 周</td>
+          <td>Librax</td>
+          <td>Librax 核心差异化能力，TCP/HTTP/SERIAL/MOCK 四种协议驱动</td>
+        </tr>
+        <tr>
+          <td><strong>AGV 管理</strong></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="status-badge st-missing">无</span></td>
+          <td><span class="strategy-badge str-keep">保留</span></td>
+          <td>0 周</td>
+          <td>Librax</td>
+          <td>AGV 路径规划、中转位管理、运输任务编排</td>
+        </tr>
+        <tr>
+          <td><strong>资源配额管理</strong></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="status-badge st-partial">基础</span></td>
+          <td><span class="strategy-badge str-merge">合并</span></td>
+          <td>1.5 周</td>
+          <td>双方</td>
+          <td>合并 Librax 的 Slot/Zone 管理与 Labillion 的资源池概念</td>
+        </tr>
+        <tr>
+          <td><strong>样本血缘追溯</strong></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="status-badge st-partial">部分</span></td>
+          <td><span class="strategy-badge str-keep">保留</span></td>
+          <td>0.5 周</td>
+          <td>Librax</td>
+          <td>保留 Librax 的 Sample Genealogy 模型，扩展以支持 Bio 类型</td>
+        </tr>
+        <tr>
+          <td><strong>生物样本类型</strong></td>
+          <td><span class="status-badge st-missing">无</span></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="strategy-badge str-adopt">引入</span></td>
+          <td>2-3 周</td>
+          <td>Labillion</td>
+          <td>引入 SampleTypeHandler 策略模式，Cell/Protein/Plasmid/Antigen 四种类型</td>
+        </tr>
+        <tr>
+          <td><strong>RBAC 权限系统</strong></td>
+          <td><span class="status-badge st-partial">传统</span></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="strategy-badge str-adopt">引入</span></td>
+          <td>2-3 周</td>
+          <td>Labillion</td>
+          <td>从 RuoYi 传统 RBAC 升级到 3D 权限矩阵，引入 @RequirePermission AOP</td>
+        </tr>
+        <tr>
+          <td><strong>通知中心</strong></td>
+          <td><span class="status-badge st-missing">无</span></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="strategy-badge str-adopt">引入</span></td>
+          <td>2 周</td>
+          <td>Labillion</td>
+          <td>引入 NotificationCenter，12 种事件类型，WebSocket STOMP + 邮件双通道</td>
+        </tr>
+        <tr>
+          <td><strong>Python 执行器</strong></td>
+          <td><span class="status-badge st-missing">无</span></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="strategy-badge str-adopt">引入</span></td>
+          <td>2 周</td>
+          <td>Labillion</td>
+          <td>引入 PythonTaskExecutor 沙箱执行环境，集成到 DAG 步骤</td>
+        </tr>
+        <tr>
+          <td><strong>Gantt 调度</strong></td>
+          <td><span class="status-badge st-missing">无</span></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="strategy-badge str-adopt">引入</span></td>
+          <td>2 周</td>
+          <td>Labillion</td>
+          <td>引入 GanttSchedulePlanner 和 CPM 关键路径算法</td>
+        </tr>
+        <tr>
+          <td><strong>多租户隔离</strong></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="status-badge st-partial">基础</span></td>
+          <td><span class="strategy-badge str-keep">保留</span></td>
+          <td>1 周</td>
+          <td>Librax</td>
+          <td>保留 Librax 的多租户拦截器，扩展覆盖新引入模块</td>
+        </tr>
+        <tr>
+          <td><strong>文件存储 (MinIO)</strong></td>
+          <td><span class="status-badge st-partial">本地</span></td>
+          <td><span class="status-badge st-has">MinIO</span></td>
+          <td><span class="strategy-badge str-adopt">引入</span></td>
+          <td>1 周</td>
+          <td>Labillion</td>
+          <td>统一使用 MinIO 对象存储，替代本地文件系统</td>
+        </tr>
+        <tr>
+          <td><strong>SSE 流式输出</strong></td>
+          <td><span class="status-badge st-missing">无</span></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="strategy-badge str-adopt">引入</span></td>
+          <td>1 周</td>
+          <td>Labillion</td>
+          <td>SSE Registry 管理流式连接，支持 AI Agent 实时输出</td>
+        </tr>
+        <tr>
+          <td><strong>WebSocket STOMP</strong></td>
+          <td><span class="status-badge st-missing">无</span></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="strategy-badge str-adopt">引入</span></td>
+          <td>0.5 周</td>
+          <td>Labillion</td>
+          <td>随通知中心引入，实时推送实验状态和告警</td>
+        </tr>
+        <tr>
+          <td><strong>LLM 模型管理</strong></td>
+          <td><span class="status-badge st-missing">无</span></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="strategy-badge str-adopt">引入</span></td>
+          <td>1 周</td>
+          <td>Labillion</td>
+          <td>多 Provider 模型管理、API Key 加密存储、Token 用量追踪</td>
+        </tr>
+        <tr>
+          <td><strong>审计事件日志</strong></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="strategy-badge str-merge">合并</span></td>
+          <td>1 周</td>
+          <td>双方</td>
+          <td>合并 ExecutionEventLog 与 AgentTrace 为统一审计日志</td>
+        </tr>
+        <tr>
+          <td><strong>Pipeline YAML 导入</strong></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="status-badge st-missing">无</span></td>
+          <td><span class="strategy-badge str-keep">保留</span></td>
+          <td>0 周</td>
+          <td>Librax</td>
+          <td>YAML 格式的实验流程定义导入，保留并增强</td>
+        </tr>
+        <tr>
+          <td><strong>Excel 导入/导出</strong></td>
+          <td><span class="status-badge st-partial">基础</span></td>
+          <td><span class="status-badge st-has">完备</span></td>
+          <td><span class="strategy-badge str-adopt">引入</span></td>
+          <td>1 周</td>
+          <td>Labillion</td>
+          <td>引入 Labillion 的 Excel 模板引擎，支持样本批量导入和报告导出</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Summary stats -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:32px">
+    <div class="card text-center" style="border-top:3px solid var(--blue)">
+      <div style="font-size:2rem;font-weight:800;color:var(--blue)">4</div>
+      <div style="font-size:.82rem;color:var(--text-dim)">保留 Librax</div>
+    </div>
+    <div class="card text-center" style="border-top:3px solid var(--purple)">
+      <div style="font-size:2rem;font-weight:800;color:var(--purple)">11</div>
+      <div style="font-size:.82rem;color:var(--text-dim)">引入 Labillion</div>
+    </div>
+    <div class="card text-center" style="border-top:3px solid var(--cyan)">
+      <div style="font-size:2rem;font-weight:800;color:var(--cyan)">3</div>
+      <div style="font-size:.82rem;color:var(--text-dim)">双方合并</div>
+    </div>
+    <div class="card text-center" style="border-top:3px solid var(--green)">
+      <div style="font-size:2rem;font-weight:800;color:var(--green)">~24 周</div>
+      <div style="font-size:.82rem;color:var(--text-dim)">总估算工期</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECTION 5: ROADMAP ============ -->
+<section class="section fade-in" id="sec-roadmap">
+  <div class="section-title"><span class="num">4</span> 阶段路线图 · Phase Roadmap</div>
+  <p class="section-desc">七个阶段，渐进融合。每个阶段独立可交付，降低集成风险。点击展开查看详情。</p>
+
+  <div class="phase-list">
+
+    <!-- Phase 1 -->
+    <div class="phase-card" onclick="this.classList.toggle('open')">
+      <div class="phase-header">
+        <div class="phase-num" style="background:linear-gradient(135deg,var(--blue),var(--cyan))">P1</div>
+        <div class="info">
+          <h3>Phase 1: 基础设施对齐</h3>
+          <div class="meta">
+            <span>周期：2-3 周</span>
+            <span>优先级：P0</span>
+            <span>依赖：无</span>
+          </div>
+        </div>
+        <span class="phase-badge badge-pending">待开始</span>
+        <span class="phase-toggle">▼</span>
+      </div>
+      <div class="phase-body">
+        <div class="phase-content">
+          <div class="phase-tasks">
+            <h4>任务清单</h4>
+            <ul>
+              <li>Java 17 → Java 21 升级，利用虚拟线程、Pattern Matching、Record Class</li>
+              <li>Spring Boot 3.5.5 → 3.5.7 升级，统一版本</li>
+              <li>数据库策略决定：双 DB (MySQL + PostgreSQL) 共存 vs 统一迁移</li>
+              <li>统一 Response 格式：CommonResult&lt;T&gt; 对齐，HTTP 状态码规范</li>
+              <li>引入 MinIO 依赖，配置对象存储 Bucket 策略</li>
+              <li>统一 Jackson 序列化配置：日期格式、空值处理、枚举序列化</li>
+              <li>统一异常码体系：业务异常码分段分配</li>
+              <li>Caffeine + Redis 二级缓存架构对齐</li>
+            </ul>
+          </div>
+          <div class="phase-files">
+            <h4>涉及文件/模块</h4>
+            <p>
+              <code>pom.xml</code> 全量升级 Java 版本和 Spring Boot 版本<br>
+              <code>librax-framework/</code> 统一响应格式和异常处理<br>
+              <code>librax-dependencies/pom.xml</code> BOM 依赖统一<br>
+              <code>application.yml</code> MinIO、Redis、DB 连接池配置<br>
+              <code>CacheConfig.java</code> 二级缓存配置类<br>
+              <code>MinioConfig.java</code> 新增 MinIO 配置<br>
+              <code>MinioTemplate.java</code> 新增 MinIO 操作模板
+            </p>
+            <div class="mt-16">
+              <h4>风险等级</h4>
+              <span class="risk-indicator risk-med">中等 — Java 21 升级可能存在依赖兼容性问题</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 2 -->
+    <div class="phase-card" onclick="this.classList.toggle('open')">
+      <div class="phase-header">
+        <div class="phase-num" style="background:linear-gradient(135deg,var(--purple),var(--pink))">P2</div>
+        <div class="info">
+          <h3>Phase 2: RBAC 与通知体系</h3>
+          <div class="meta">
+            <span>周期：2-3 周</span>
+            <span>优先级：P0</span>
+            <span>依赖：Phase 1</span>
+          </div>
+        </div>
+        <span class="phase-badge badge-pending">待开始</span>
+        <span class="phase-toggle">▼</span>
+      </div>
+      <div class="phase-body">
+        <div class="phase-content">
+          <div class="phase-tasks">
+            <h4>任务清单</h4>
+            <ul>
+              <li>设计 3D 权限矩阵表结构：sys_permission(role_id, resource_type, resource_id, operation)</li>
+              <li>实现 @RequirePermission("experiment:run:own") 声明式 AOP 注解</li>
+              <li>PermissionEvaluator 核心评估器：支持通配符 *、层级继承</li>
+              <li>从 RuoYi RBAC 数据迁移脚本：角色/菜单 → 3D 矩阵映射</li>
+              <li>NotificationCenter 引入：NotificationEvent、NotificationChannel 接口</li>
+              <li>实现 WebSocket STOMP 通道：/topic/user/{userId}/notifications</li>
+              <li>实现 Email 通道：基于模板的邮件通知</li>
+              <li>定义 12 种事件类型枚举：EXPERIMENT_COMPLETED, APPROVAL_REQUIRED, DEVICE_ALERT, AI_RESULT, TASK_TIMEOUT, RESOURCE_CONFLICT, SAMPLE_READY, PIPELINE_FAILED, AGV_ERROR, SYSTEM_ANNOUNCEMENT, MAINTENANCE_SCHEDULE, DATA_EXPORT_READY</li>
+              <li>通知偏好设置 API：用户自定义接收通道和事件类型</li>
+              <li>灰度发布方案：旧 RBAC 与新 3D 矩阵并行运行期</li>
+            </ul>
+          </div>
+          <div class="phase-files">
+            <h4>涉及文件/模块</h4>
+            <p>
+              <code>librax-module-system/</code> RBAC 3D 权限核心<br>
+              <code>RequirePermission.java</code> 新增声明式权限注解<br>
+              <code>PermissionAspect.java</code> AOP 切面<br>
+              <code>PermissionEvaluator.java</code> 权限评估引擎<br>
+              <code>NotificationCenter.java</code> 通知中心核心<br>
+              <code>NotificationEvent.java</code> 事件基类<br>
+              <code>WebSocketStompConfig.java</code> STOMP 配置<br>
+              <code>StompNotificationChannel.java</code> WebSocket 通道<br>
+              <code>EmailNotificationChannel.java</code> 邮件通道<br>
+              <code>NotificationEventType.java</code> 12 种事件枚举<br>
+              <code>V2_rbac_migration.sql</code> 数据迁移 SQL
+            </p>
+            <div class="mt-16">
+              <h4>风险等级</h4>
+              <span class="risk-indicator risk-high">高 — 权限系统变更影响全局，需要灰度发布</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 3 -->
+    <div class="phase-card" onclick="this.classList.toggle('open')">
+      <div class="phase-header">
+        <div class="phase-num" style="background:linear-gradient(135deg,var(--pink),var(--orange))">P3</div>
+        <div class="info">
+          <h3>Phase 3: AI Agent 节点集成</h3>
+          <div class="meta">
+            <span>周期：3-4 周</span>
+            <span>优先级：P1</span>
+            <span>依赖：Phase 1, Phase 2</span>
+          </div>
+        </div>
+        <span class="phase-badge badge-pending">待开始</span>
+        <span class="phase-toggle">▼</span>
+      </div>
+      <div class="phase-body">
+        <div class="phase-content">
+          <div class="phase-tasks">
+            <h4>任务清单</h4>
+            <ul>
+              <li>引入 Spring AI 依赖，配置多 Provider (OpenAI/Anthropic/本地模型) 支持</li>
+              <li>实现 AgentExecutor：多步推理引擎，支持 ReAct/CoT 策略</li>
+              <li>实现 SSE Registry：管理 SSE 连接生命周期，自动超时回收</li>
+              <li>实现 AgentTrace：AI 调用链追踪，记录每步推理的 Input/Output/Token 用量</li>
+              <li>LLM Model 管理后台：模型注册、API Key 管理、Token 配额</li>
+              <li>AES-256-GCM 加密器：API Key 加密存储与运行时解密</li>
+              <li>AI Agent 节点类型注册到 DAG 引擎：AgentStepExecutor implements StepExecutor</li>
+              <li>Function Calling 工具注册：设备控制、数据查询、样本操作等可被 Agent 调用</li>
+              <li>Agent 结果写入 ExecutionContext，供下游步骤消费</li>
+              <li>AI Agent 并发控制：令牌桶限流，防止 LLM API 过载</li>
+            </ul>
+          </div>
+          <div class="phase-files">
+            <h4>涉及文件/模块</h4>
+            <p>
+              <code>librax-module-ai/</code> AI 模块重构<br>
+              <code>AgentExecutor.java</code> Agent 多步推理引擎<br>
+              <code>SseStreamRegistry.java</code> SSE 连接注册表<br>
+              <code>AgentTraceEntity.java</code> Agent 追踪实体<br>
+              <code>LlmModelDO.java</code> LLM 模型数据对象<br>
+              <code>AesGcmEncryptor.java</code> AES-256-GCM 加密器<br>
+              <code>AgentStepExecutor.java</code> DAG 引擎 Agent 步骤<br>
+              <code>DeviceControlTool.java</code> Agent 工具：设备控制<br>
+              <code>SampleQueryTool.java</code> Agent 工具：样本查询<br>
+              <code>AgentRateLimiter.java</code> 令牌桶限流器
+            </p>
+            <div class="mt-16">
+              <h4>风险等级</h4>
+              <span class="risk-indicator risk-high">高 — SSE 并发稳定性、LLM API 可用性</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 4 -->
+    <div class="phase-card" onclick="this.classList.toggle('open')">
+      <div class="phase-header">
+        <div class="phase-num" style="background:linear-gradient(135deg,var(--green),var(--lime))">P4</div>
+        <div class="info">
+          <h3>Phase 4: Python Compute 节点</h3>
+          <div class="meta">
+            <span>周期：2 周</span>
+            <span>优先级：P1</span>
+            <span>依赖：Phase 1</span>
+          </div>
+        </div>
+        <span class="phase-badge badge-pending">待开始</span>
+        <span class="phase-toggle">▼</span>
+      </div>
+      <div class="phase-body">
+        <div class="phase-content">
+          <div class="phase-tasks">
+            <h4>任务清单</h4>
+            <ul>
+              <li>引入 PythonTaskExecutor：进程隔离的 Python 脚本执行器</li>
+              <li>ExecutionContext 桥接：Java 变量 → Python 命名空间注入</li>
+              <li>沙箱安全机制：白名单 import、文件系统限制、CPU/内存限额</li>
+              <li>执行结果回收：Python stdout/stderr → ExecutionContext 回写</li>
+              <li>注册 PythonStepExecutor 到 DAG 引擎</li>
+              <li>Python 环境管理：venv 隔离、依赖安装白名单</li>
+              <li>超时控制与 OOM Kill 机制</li>
+              <li>计算结果可视化：支持返回图表 (matplotlib) 和表格数据</li>
+            </ul>
+          </div>
+          <div class="phase-files">
+            <h4>涉及文件/模块</h4>
+            <p>
+              <code>librax-module-flow/</code> 新增 Python 步骤类型<br>
+              <code>PythonTaskExecutor.java</code> Python 执行器<br>
+              <code>PythonSandbox.java</code> 沙箱管理器<br>
+              <code>PythonStepExecutor.java</code> DAG 引擎 Python 步骤<br>
+              <code>PythonContextBridge.java</code> Java↔Python 桥接<br>
+              <code>python-sandbox/</code> Python 沙箱运行时<br>
+              <code>requirements-whitelist.txt</code> 允许安装的 Python 包
+            </p>
+            <div class="mt-16">
+              <h4>风险等级</h4>
+              <span class="risk-indicator risk-med">中等 — 沙箱安全边界需要充分测试</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 5 -->
+    <div class="phase-card" onclick="this.classList.toggle('open')">
+      <div class="phase-header">
+        <div class="phase-num" style="background:linear-gradient(135deg,var(--cyan),var(--blue))">P5</div>
+        <div class="info">
+          <h3>Phase 5: 生物样本模块</h3>
+          <div class="meta">
+            <span>周期：2-3 周</span>
+            <span>优先级：P1</span>
+            <span>依赖：Phase 1</span>
+          </div>
+        </div>
+        <span class="phase-badge badge-pending">待开始</span>
+        <span class="phase-toggle">▼</span>
+      </div>
+      <div class="phase-body">
+        <div class="phase-content">
+          <div class="phase-tasks">
+            <h4>任务清单</h4>
+            <ul>
+              <li>设计 SampleTypeHandler&lt;T&gt; 策略接口：validate(), process(), getMetadata()</li>
+              <li>实现 SampleTypeRegistry：自动发现 @SampleType 注解的 Handler</li>
+              <li>CellSampleHandler：传代次数、培养条件、污染检测状态</li>
+              <li>ProteinSampleHandler：分子量、纯度、表达系统、SDS-PAGE 结果</li>
+              <li>PlasmidSampleHandler：载体骨架、抗性标记、插入片段、酶切图谱</li>
+              <li>AntigenSampleHandler：免疫原性评分、表位信息、宿主物种</li>
+              <li>扩展 Librax SampleInfoDO 模型：增加 sample_type 字段和 JSON 扩展属性</li>
+              <li>Excel 批量导入模板：按样本类型动态生成列头</li>
+              <li>样本血缘追溯与 Bio 类型联动：分裂/合并保持类型一致性</li>
+              <li>样本类型转换规则引擎：定义合法的类型转换路径</li>
+            </ul>
+          </div>
+          <div class="phase-files">
+            <h4>涉及文件/模块</h4>
+            <p>
+              <code>librax-module-lab/</code> 样本模块扩展<br>
+              <code>SampleTypeHandler.java</code> 策略接口<br>
+              <code>SampleTypeRegistry.java</code> 类型注册表<br>
+              <code>CellSampleHandler.java</code> 细胞处理器<br>
+              <code>ProteinSampleHandler.java</code> 蛋白质处理器<br>
+              <code>PlasmidSampleHandler.java</code> 质粒处理器<br>
+              <code>AntigenSampleHandler.java</code> 抗原处理器<br>
+              <code>SampleExcelImporter.java</code> Excel 导入<br>
+              <code>V5_bio_sample_types.sql</code> 表结构变更
+            </p>
+            <div class="mt-16">
+              <h4>风险等级</h4>
+              <span class="risk-indicator risk-low">低 — 增量扩展，不影响现有样本逻辑</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 6 -->
+    <div class="phase-card" onclick="this.classList.toggle('open')">
+      <div class="phase-header">
+        <div class="phase-num" style="background:linear-gradient(135deg,var(--orange),var(--red))">P6</div>
+        <div class="info">
+          <h3>Phase 6: Gantt Dashboard</h3>
+          <div class="meta">
+            <span>周期：2 周</span>
+            <span>优先级：P2</span>
+            <span>依赖：Phase 1, Phase 5</span>
+          </div>
+        </div>
+        <span class="phase-badge badge-pending">待开始</span>
+        <span class="phase-toggle">▼</span>
+      </div>
+      <div class="phase-body">
+        <div class="phase-content">
+          <div class="phase-tasks">
+            <h4>任务清单</h4>
+            <ul>
+              <li>引入 GanttSchedulePlanner：基于 CPM 的关键路径计算</li>
+              <li>资源池集成：将 Librax 的 Slot/设备/AGV 作为 Gantt 资源约束</li>
+              <li>DashboardAnomalySupport：实验超时预警、资源冲突预警</li>
+              <li>前端甘特图组件：拖拽调整、依赖关系可视化</li>
+              <li>实验进度实时同步：通过 WebSocket STOMP 推送进度更新</li>
+              <li>历史数据分析：实验耗时统计、瓶颈步骤识别</li>
+            </ul>
+          </div>
+          <div class="phase-files">
+            <h4>涉及文件/模块</h4>
+            <p>
+              <code>librax-module-flow/</code> Gantt 调度扩展<br>
+              <code>GanttSchedulePlanner.java</code> CPM 调度器<br>
+              <code>CriticalPathCalculator.java</code> 关键路径算法<br>
+              <code>DashboardAnomalySupport.java</code> 异常检测<br>
+              <code>GanttResourceConstraint.java</code> 资源约束<br>
+              <code>librax-ui/</code> 前端甘特图组件
+            </p>
+            <div class="mt-16">
+              <h4>风险等级</h4>
+              <span class="risk-indicator risk-low">低 — 独立模块，不影响核心流程</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase 7 -->
+    <div class="phase-card" onclick="this.classList.toggle('open')">
+      <div class="phase-header">
+        <div class="phase-num" style="background:linear-gradient(135deg,var(--red),var(--purple))">P7</div>
+        <div class="info">
+          <h3>Phase 7: 工作流引擎评估</h3>
+          <div class="meta">
+            <span>周期：4-6 周</span>
+            <span>优先级：P2</span>
+            <span>依赖：Phase 1-6 全部完成</span>
+          </div>
+        </div>
+        <span class="phase-badge badge-pending">待开始</span>
+        <span class="phase-toggle">▼</span>
+      </div>
+      <div class="phase-body">
+        <div class="phase-content">
+          <div class="phase-tasks">
+            <h4>任务清单</h4>
+            <ul>
+              <li>Flowable 引擎评估：是否引入，以及引入范围 (全量 vs 仅审批流)</li>
+              <li>DAG 引擎 vs Flowable 职责边界划分：自动化实验用 DAG，人工审批用 Flowable</li>
+              <li>BPMN 设计器集成评估：flowable-ui 嵌入 vs 自建轻量设计器</li>
+              <li>act_* 表迁移方案：Flowable 运行时表与 Librax 业务表的共存策略</li>
+              <li>Flowable 与多租户兼容性验证：act_* 表是否需要租户隔离</li>
+              <li>混合引擎路由：FlowEngineRouter 根据流程类型选择 DAG 或 Flowable</li>
+              <li>性能基准测试：高并发下 DAG + Flowable 混合引擎的吞吐量</li>
+              <li>迁移策略制定：若决定引入，制定分批迁移计划</li>
+              <li>回滚方案设计：引入失败时的降级策略</li>
+            </ul>
+          </div>
+          <div class="phase-files">
+            <h4>涉及文件/模块</h4>
+            <p>
+              <code>librax-module-flow/</code> 引擎路由层<br>
+              <code>FlowEngineRouter.java</code> 引擎选择路由<br>
+              <code>FlowableIntegration.java</code> Flowable 集成层<br>
+              <code>flowable-config/</code> Flowable 配置目录<br>
+              <code>act_*.sql</code> Flowable 表结构<br>
+              <code>benchmark/</code> 性能测试基准
+            </p>
+            <div class="mt-16">
+              <h4>风险等级</h4>
+              <span class="risk-indicator risk-high">高 — 引擎选型影响深远，需充分评估</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ SECTION 6: MODULE CARDS ============ -->
+<section class="section fade-in" id="sec-modules">
+  <div class="section-title"><span class="num">5</span> 可提取模块单元卡片</div>
+  <p class="section-desc">每个可独立提取和集成的模块单元，标注来源、工作量和优先级。</p>
+
+  <div class="module-grid">
+
+    <!-- AI Agent Runtime -->
+    <div class="card module-card" style="border-top:3px solid var(--pink)">
+      <div class="mc-head">
+        <div class="mc-icon" style="background:rgba(236,72,153,.15);color:var(--pink)">🤖</div>
+        <div>
+          <div class="mc-title">AI Agent Runtime</div>
+          <span class="mc-source" style="background:rgba(139,92,246,.15);color:var(--purple)">Labillion</span>
+        </div>
+      </div>
+      <div class="mc-detail">
+        <strong>提取内容：</strong>AgentExecutor, AgentContext, AgentTool interface, AgentTrace, ReActStrategy, CoTStrategy<br>
+        <strong>目标位置：</strong><code>librax-module-ai/agent/</code><br>
+        <strong>集成点：</strong>DAG StepExecutor 扩展、ExecutionContext 共享、NotificationCenter 事件发布
+      </div>
+      <div class="mc-footer">
+        <span class="mc-effort" style="background:rgba(239,68,68,.15);color:var(--red)">XL · 3-4 周</span>
+        <span class="mc-priority" style="background:rgba(59,130,246,.15);color:var(--blue)">P1</span>
+      </div>
+    </div>
+
+    <!-- Notification Center -->
+    <div class="card module-card" style="border-top:3px solid var(--green)">
+      <div class="mc-head">
+        <div class="mc-icon" style="background:rgba(16,185,129,.15);color:var(--green)">🔔</div>
+        <div>
+          <div class="mc-title">Notification Center</div>
+          <span class="mc-source" style="background:rgba(139,92,246,.15);color:var(--purple)">Labillion</span>
+        </div>
+      </div>
+      <div class="mc-detail">
+        <strong>提取内容：</strong>NotificationCenter, NotificationChannel (STOMP/Email), NotificationEventType (12种), NotificationPreference, NotificationTemplate<br>
+        <strong>目标位置：</strong><code>librax-framework/notification/</code><br>
+        <strong>集成点：</strong>所有业务模块的事件发布、用户偏好设置、WebSocket 基础设施
+      </div>
+      <div class="mc-footer">
+        <span class="mc-effort" style="background:rgba(245,158,11,.15);color:var(--orange)">L · 2 周</span>
+        <span class="mc-priority" style="background:rgba(59,130,246,.15);color:var(--blue)">P0</span>
+      </div>
+    </div>
+
+    <!-- RBAC 3D Matrix -->
+    <div class="card module-card" style="border-top:3px solid var(--purple)">
+      <div class="mc-head">
+        <div class="mc-icon" style="background:rgba(139,92,246,.15);color:var(--purple)">🔐</div>
+        <div>
+          <div class="mc-title">RBAC 3D Matrix</div>
+          <span class="mc-source" style="background:rgba(139,92,246,.15);color:var(--purple)">Labillion</span>
+        </div>
+      </div>
+      <div class="mc-detail">
+        <strong>提取内容：</strong>PermissionEvaluator, @RequirePermission, PermissionAspect, Permission3dDO, PermissionCacheManager<br>
+        <strong>目标位置：</strong><code>librax-module-system/rbac/</code><br>
+        <strong>集成点：</strong>替换 RuoYi RBAC、所有 Controller 方法注解、数据过滤拦截器
+      </div>
+      <div class="mc-footer">
+        <span class="mc-effort" style="background:rgba(245,158,11,.15);color:var(--orange)">L · 2-3 周</span>
+        <span class="mc-priority" style="background:rgba(239,68,68,.15);color:var(--red)">P0</span>
+      </div>
+    </div>
+
+    <!-- Device Driver Framework -->
+    <div class="card module-card" style="border-top:3px solid var(--orange)">
+      <div class="mc-head">
+        <div class="mc-icon" style="background:rgba(245,158,11,.15);color:var(--orange)">🔌</div>
+        <div>
+          <div class="mc-title">Device Driver Framework</div>
+          <span class="mc-source" style="background:rgba(59,130,246,.15);color:var(--blue)">Librax</span>
+        </div>
+      </div>
+      <div class="mc-detail">
+        <strong>保留内容：</strong>DeviceDriver interface, TcpDeviceDriver, HttpDeviceDriver, SerialDeviceDriver, MockDeviceDriver, DeviceHeartbeat, CommandQueue<br>
+        <strong>当前位置：</strong><code>librax-module-device/</code><br>
+        <strong>集成点：</strong>Agent Function Calling 工具注册、DAG 步骤扩展、通知中心设备告警
+      </div>
+      <div class="mc-footer">
+        <span class="mc-effort" style="background:rgba(16,185,129,.15);color:var(--green)">S · 0.5 周</span>
+        <span class="mc-priority" style="background:rgba(16,185,129,.15);color:var(--green)">保留</span>
+      </div>
+    </div>
+
+    <!-- DAG Scheduler -->
+    <div class="card module-card" style="border-top:3px solid var(--blue)">
+      <div class="mc-head">
+        <div class="mc-icon" style="background:rgba(59,130,246,.15);color:var(--blue)">🔄</div>
+        <div>
+          <div class="mc-title">DAG Scheduler</div>
+          <span class="mc-source" style="background:rgba(59,130,246,.15);color:var(--blue)">Librax</span>
+        </div>
+      </div>
+      <div class="mc-detail">
+        <strong>保留内容：</strong>PipelineExecutor, StepExecutor, DAGBuilder (JGraphT), ExecutionStateMachine, PipelineExecutionDO, StepExecutionDO<br>
+        <strong>当前位置：</strong><code>librax-module-flow/</code><br>
+        <strong>集成点：</strong>新增 Agent/Python/Manual 步骤类型、Gantt 调度器对接、Flowable 路由
+      </div>
+      <div class="mc-footer">
+        <span class="mc-effort" style="background:rgba(16,185,129,.15);color:var(--green)">S · 0.5 周</span>
+        <span class="mc-priority" style="background:rgba(16,185,129,.15);color:var(--green)">保留</span>
+      </div>
+    </div>
+
+    <!-- Resource Reservation -->
+    <div class="card module-card" style="border-top:3px solid var(--cyan)">
+      <div class="mc-head">
+        <div class="mc-icon" style="background:rgba(6,182,212,.15);color:var(--cyan)">📦</div>
+        <div>
+          <div class="mc-title">Resource Reservation</div>
+          <span class="mc-source" style="background:rgba(59,130,246,.15);color:var(--blue)">Librax</span>
+        </div>
+      </div>
+      <div class="mc-detail">
+        <strong>保留内容：</strong>SlotManager, ZoneCapacityManager, AgvPlanner, ResourceReservation, ContainerTracker<br>
+        <strong>当前位置：</strong><code>librax-module-resource/</code><br>
+        <strong>集成点：</strong>Gantt 资源约束、Agent 资源查询工具、通知中心资源冲突事件
+      </div>
+      <div class="mc-footer">
+        <span class="mc-effort" style="background:rgba(59,130,246,.15);color:var(--blue)">M · 1.5 周</span>
+        <span class="mc-priority" style="background:rgba(59,130,246,.15);color:var(--blue)">P1</span>
+      </div>
+    </div>
+
+    <!-- Sample Genealogy Tracker -->
+    <div class="card module-card" style="border-top:3px solid var(--lime)">
+      <div class="mc-head">
+        <div class="mc-icon" style="background:rgba(132,204,22,.15);color:var(--lime)">🧬</div>
+        <div>
+          <div class="mc-title">Sample Genealogy Tracker</div>
+          <span class="mc-source" style="background:rgba(59,130,246,.15);color:var(--blue)">Librax</span>
+        </div>
+      </div>
+      <div class="mc-detail">
+        <strong>保留内容：</strong>SampleGenealogyService, SampleSplitOperation, SampleMergeOperation, SampleTransferOperation, GenealogyTree<br>
+        <strong>当前位置：</strong><code>librax-module-lab/</code><br>
+        <strong>集成点：</strong>Bio Sample Type 扩展、Agent 样本查询工具、Excel 导入/导出
+      </div>
+      <div class="mc-footer">
+        <span class="mc-effort" style="background:rgba(16,185,129,.15);color:var(--green)">S · 0.5 周</span>
+        <span class="mc-priority" style="background:rgba(59,130,246,.15);color:var(--blue)">P1</span>
+      </div>
+    </div>
+
+    <!-- Python Executor -->
+    <div class="card module-card" style="border-top:3px solid var(--green)">
+      <div class="mc-head">
+        <div class="mc-icon" style="background:rgba(16,185,129,.15);color:var(--green)">🐍</div>
+        <div>
+          <div class="mc-title">Python Executor</div>
+          <span class="mc-source" style="background:rgba(139,92,246,.15);color:var(--purple)">Labillion</span>
+        </div>
+      </div>
+      <div class="mc-detail">
+        <strong>提取内容：</strong>PythonTaskExecutor, PythonSandbox, PythonContextBridge, ExecutionResult, SecurityWhitelist<br>
+        <strong>目标位置：</strong><code>librax-module-flow/python/</code><br>
+        <strong>集成点：</strong>DAG PythonStepExecutor、ExecutionContext 注入、计算结果可视化
+      </div>
+      <div class="mc-footer">
+        <span class="mc-effort" style="background:rgba(245,158,11,.15);color:var(--orange)">L · 2 周</span>
+        <span class="mc-priority" style="background:rgba(59,130,246,.15);color:var(--blue)">P1</span>
+      </div>
+    </div>
+
+    <!-- Gantt Scheduler -->
+    <div class="card module-card" style="border-top:3px solid var(--orange)">
+      <div class="mc-head">
+        <div class="mc-icon" style="background:rgba(245,158,11,.15);color:var(--orange)">📊</div>
+        <div>
+          <div class="mc-title">Gantt Scheduler</div>
+          <span class="mc-source" style="background:rgba(139,92,246,.15);color:var(--purple)">Labillion</span>
+        </div>
+      </div>
+      <div class="mc-detail">
+        <strong>提取内容：</strong>GanttSchedulePlanner, CriticalPathCalculator, ResourceConstraint, DashboardAnomalySupport, GanttTaskNode<br>
+        <strong>目标位置：</strong><code>librax-module-flow/gantt/</code><br>
+        <strong>集成点：</strong>Resource Module 对接、Pipeline 进度追踪、通知中心异常预警
+      </div>
+      <div class="mc-footer">
+        <span class="mc-effort" style="background:rgba(245,158,11,.15);color:var(--orange)">L · 2 周</span>
+        <span class="mc-priority" style="background:rgba(139,92,246,.15);color:var(--purple)">P2</span>
+      </div>
+    </div>
+
+    <!-- LLM Model Manager -->
+    <div class="card module-card" style="border-top:3px solid var(--pink)">
+      <div class="mc-head">
+        <div class="mc-icon" style="background:rgba(236,72,153,.15);color:var(--pink)">🧠</div>
+        <div>
+          <div class="mc-title">LLM Model Manager</div>
+          <span class="mc-source" style="background:rgba(139,92,246,.15);color:var(--purple)">Labillion</span>
+        </div>
+      </div>
+      <div class="mc-detail">
+        <strong>提取内容：</strong>LlmModelService, ModelProviderRegistry, ApiKeyEncryptionService, TokenUsageTracker, ModelHealthChecker<br>
+        <strong>目标位置：</strong><code>librax-module-ai/llm/</code><br>
+        <strong>集成点：</strong>Agent Runtime 模型选择、AES-256-GCM 加密、管理后台 UI
+      </div>
+      <div class="mc-footer">
+        <span class="mc-effort" style="background:rgba(59,130,246,.15);color:var(--blue)">M · 1 周</span>
+        <span class="mc-priority" style="background:rgba(59,130,246,.15);color:var(--blue)">P1</span>
+      </div>
+    </div>
+
+    <!-- SSE Stream Registry -->
+    <div class="card module-card" style="border-top:3px solid var(--blue)">
+      <div class="mc-head">
+        <div class="mc-icon" style="background:rgba(59,130,246,.15);color:var(--blue)">📡</div>
+        <div>
+          <div class="mc-title">SSE Stream Registry</div>
+          <span class="mc-source" style="background:rgba(139,92,246,.15);color:var(--purple)">Labillion</span>
+        </div>
+      </div>
+      <div class="mc-detail">
+        <strong>提取内容：</strong>SseStreamRegistry, SseEmitterWrapper, SseHeartbeat, SseTimeoutManager, SseEventFormatter<br>
+        <strong>目标位置：</strong><code>librax-framework/sse/</code><br>
+        <strong>集成点：</strong>Agent Runtime 流式输出、设备状态流式推送、Pipeline 进度流
+      </div>
+      <div class="mc-footer">
+        <span class="mc-effort" style="background:rgba(59,130,246,.15);color:var(--blue)">M · 1 周</span>
+        <span class="mc-priority" style="background:rgba(59,130,246,.15);color:var(--blue)">P1</span>
+      </div>
+    </div>
+
+    <!-- Bio Sample Type System -->
+    <div class="card module-card" style="border-top:3px solid var(--cyan)">
+      <div class="mc-head">
+        <div class="mc-icon" style="background:rgba(6,182,212,.15);color:var(--cyan)">🧪</div>
+        <div>
+          <div class="mc-title">Bio Sample Type System</div>
+          <span class="mc-source" style="background:rgba(139,92,246,.15);color:var(--purple)">Labillion</span>
+        </div>
+      </div>
+      <div class="mc-detail">
+        <strong>提取内容：</strong>SampleTypeHandler, SampleTypeRegistry, CellSampleHandler, ProteinSampleHandler, PlasmidSampleHandler, AntigenSampleHandler, SampleTypeConverter<br>
+        <strong>目标位置：</strong><code>librax-module-lab/bio/</code><br>
+        <strong>集成点：</strong>Sample Genealogy 扩展、Excel 批量导入、Agent 样本操作工具
+      </div>
+      <div class="mc-footer">
+        <span class="mc-effort" style="background:rgba(245,158,11,.15);color:var(--orange)">L · 2-3 周</span>
+        <span class="mc-priority" style="background:rgba(59,130,246,.15);color:var(--blue)">P1</span>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ SECTION 7: GANTT CHART ============ -->
+<section class="section fade-in" id="sec-gantt">
+  <div class="section-title"><span class="num">6</span> 时间线甘特图 · Timeline</div>
+  <p class="section-desc">20 周融合时间线，可视化各阶段的并行与依赖关系。</p>
+
+  <div class="gantt-container">
+    <div class="gantt">
+      <!-- Header -->
+      <div class="gantt-header">
+        <div class="gantt-week" style="background:rgba(59,130,246,.05)">W1</div>
+        <div class="gantt-week">W2</div>
+        <div class="gantt-week" style="background:rgba(59,130,246,.05)">W3</div>
+        <div class="gantt-week">W4</div>
+        <div class="gantt-week" style="background:rgba(59,130,246,.05)">W5</div>
+        <div class="gantt-week">W6</div>
+        <div class="gantt-week" style="background:rgba(59,130,246,.05)">W7</div>
+        <div class="gantt-week">W8</div>
+        <div class="gantt-week" style="background:rgba(59,130,246,.05)">W9</div>
+        <div class="gantt-week">W10</div>
+        <div class="gantt-week" style="background:rgba(59,130,246,.05)">W11</div>
+        <div class="gantt-week">W12</div>
+        <div class="gantt-week" style="background:rgba(59,130,246,.05)">W13</div>
+        <div class="gantt-week">W14</div>
+        <div class="gantt-week" style="background:rgba(59,130,246,.05)">W15</div>
+        <div class="gantt-week">W16</div>
+        <div class="gantt-week" style="background:rgba(59,130,246,.05)">W17</div>
+        <div class="gantt-week">W18</div>
+        <div class="gantt-week" style="background:rgba(59,130,246,.05)">W19</div>
+        <div class="gantt-week">W20</div>
+      </div>
+
+      <!-- P1: 基础设施对齐 W1-W3 -->
+      <div class="gantt-row">
+        <div class="gantt-label" style="color:var(--blue)">P1 基础设施对齐</div>
+        <div class="gantt-track">
+          <div class="gantt-bar" style="left:0;width:calc(3 * 45px);background:linear-gradient(135deg,var(--blue),var(--cyan))">W1-W3</div>
+          <!-- Milestone -->
+          <div class="gantt-milestone" style="left:calc(3 * 45px - 6px);top:12px" title="基础设施就绪"></div>
+        </div>
+      </div>
+
+      <!-- P2: RBAC & 通知 W4-W6 -->
+      <div class="gantt-row">
+        <div class="gantt-label" style="color:var(--purple)">P2 RBAC & 通知体系</div>
+        <div class="gantt-track">
+          <div class="gantt-bar" style="left:calc(3 * 45px);width:calc(3 * 45px);background:linear-gradient(135deg,var(--purple),var(--pink))">W4-W6</div>
+          <div class="gantt-milestone" style="left:calc(6 * 45px - 6px);top:12px" title="权限体系就绪"></div>
+        </div>
+      </div>
+
+      <!-- P3: AI Agent W5-W9 (overlaps with P2 at W5-W6) -->
+      <div class="gantt-row">
+        <div class="gantt-label" style="color:var(--pink)">P3 AI Agent 集成</div>
+        <div class="gantt-track">
+          <div class="gantt-bar" style="left:calc(5 * 45px);width:calc(4 * 45px);background:linear-gradient(135deg,var(--pink),var(--orange))">W6-W9</div>
+          <div class="gantt-milestone" style="left:calc(9 * 45px - 6px);top:12px" title="Agent 上线"></div>
+        </div>
+      </div>
+
+      <!-- P4: Python Compute W4-W5 (parallel with P2) -->
+      <div class="gantt-row">
+        <div class="gantt-label" style="color:var(--green)">P4 Python Compute</div>
+        <div class="gantt-track">
+          <div class="gantt-bar" style="left:calc(3 * 45px);width:calc(2 * 45px);background:linear-gradient(135deg,var(--green),var(--lime))">W4-W5</div>
+        </div>
+      </div>
+
+      <!-- P5: 生物样本 W4-W6 (parallel with P2) -->
+      <div class="gantt-row">
+        <div class="gantt-label" style="color:var(--cyan)">P5 生物样本模块</div>
+        <div class="gantt-track">
+          <div class="gantt-bar" style="left:calc(3 * 45px);width:calc(3 * 45px);background:linear-gradient(135deg,var(--cyan),var(--blue))">W4-W6</div>
+        </div>
+      </div>
+
+      <!-- P6: Gantt Dashboard W10-W11 -->
+      <div class="gantt-row">
+        <div class="gantt-label" style="color:var(--orange)">P6 Gantt Dashboard</div>
+        <div class="gantt-track">
+          <div class="gantt-bar" style="left:calc(9 * 45px);width:calc(2 * 45px);background:linear-gradient(135deg,var(--orange),var(--red))">W10-W11</div>
+        </div>
+      </div>
+
+      <!-- P7: 工作流引擎评估 W12-W17 -->
+      <div class="gantt-row">
+        <div class="gantt-label" style="color:var(--red)">P7 工作流引擎评估</div>
+        <div class="gantt-track">
+          <div class="gantt-bar" style="left:calc(11 * 45px);width:calc(6 * 45px);background:linear-gradient(135deg,var(--red),var(--purple))">W12-W17</div>
+          <div class="gantt-milestone" style="left:calc(17 * 45px - 6px);top:12px" title="融合完成"></div>
+        </div>
+      </div>
+
+      <!-- Integration Testing W18-W20 -->
+      <div class="gantt-row">
+        <div class="gantt-label" style="color:var(--text-dim)">集成测试 & 上线</div>
+        <div class="gantt-track">
+          <div class="gantt-bar" style="left:calc(17 * 45px);width:calc(3 * 45px);background:linear-gradient(135deg,#4b5563,#6b7280);opacity:.7">W18-W20</div>
+          <div class="gantt-milestone" style="left:calc(20 * 45px - 6px);top:12px;border-color:var(--green)" title="正式发布"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dependency Legend -->
+  <div style="display:flex;gap:24px;justify-content:center;margin-top:20px;flex-wrap:wrap;font-size:.8rem;color:var(--text-dim)">
+    <span>◆ 里程碑节点</span>
+    <span>P4/P5 与 P2 并行执行 (均依赖 P1)</span>
+    <span>P3 依赖 P1+P2</span>
+    <span>P6 依赖 P1+P5</span>
+    <span>P7 依赖 P1-P6 全部</span>
+  </div>
+</section>
+
+<!-- ============ SECTION 8: RISK MATRIX ============ -->
+<section class="section fade-in" id="sec-risk">
+  <div class="section-title"><span class="num">7</span> 风险矩阵 · Risk Matrix</div>
+  <p class="section-desc">从概率和影响两个维度评估各融合风险点，颜色越深风险越高。</p>
+
+  <div class="risk-matrix-container">
+    <div class="risk-matrix" style="width:700px;height:520px">
+      <!-- Axis labels -->
+      <div class="risk-label-y" style="left:-70px">概率 (Probability) →</div>
+      <div class="risk-label-x" style="bottom:-45px">影响程度 (Impact) →</div>
+
+      <!-- Y axis ticks -->
+      <div style="position:absolute;left:20px;top:5px;font-size:.7rem;color:var(--text-muted)">高</div>
+      <div style="position:absolute;left:20px;top:calc(50% - 25px);font-size:.7rem;color:var(--text-muted)">中</div>
+      <div style="position:absolute;left:20px;bottom:45px;font-size:.7rem;color:var(--text-muted)">低</div>
+
+      <!-- X axis ticks -->
+      <div style="position:absolute;left:60px;bottom:-2px;font-size:.7rem;color:var(--text-muted)">低</div>
+      <div style="position:absolute;left:calc(50% + 10px);bottom:-2px;font-size:.7rem;color:var(--text-muted)">中</div>
+      <div style="position:absolute;right:10px;bottom:-2px;font-size:.7rem;color:var(--text-muted)">高</div>
+
+      <!-- Grid -->
+      <div class="risk-grid" style="left:45px">
+        <!-- Row 1 (high probability): low/med/high impact -->
+        <div class="risk-cell med-risk"></div>
+        <div class="risk-cell high-risk"></div>
+        <div class="risk-cell high-risk"></div>
+        <!-- Row 2 (med probability) -->
+        <div class="risk-cell low-risk"></div>
+        <div class="risk-cell med-risk"></div>
+        <div class="risk-cell high-risk"></div>
+        <!-- Row 3 (low probability) -->
+        <div class="risk-cell low-risk"></div>
+        <div class="risk-cell low-risk"></div>
+        <div class="risk-cell med-risk"></div>
+
+        <!-- Risk Bubbles -->
+        <!-- R1: DAG vs Flowable 双引擎并存 - 中概率/高影响 -->
+        <div class="risk-bubble" style="width:56px;height:56px;background:var(--red);top:35%;right:15%;font-size:.55rem;line-height:1.2;padding:4px">
+          DAG vs<br>Flowable
+          <div class="tooltip">DAG vs Flowable 双引擎并存<br>概率: 中 | 影响: 高<br>两套引擎维护成本高，需明确边界</div>
+        </div>
+
+        <!-- R2: MySQL→PostgreSQL 迁移 - 低概率/高影响 -->
+        <div class="risk-bubble" style="width:48px;height:48px;background:var(--orange);bottom:18%;right:12%;font-size:.55rem;line-height:1.2;padding:4px">
+          DB<br>迁移
+          <div class="tooltip">MySQL→PostgreSQL 迁移<br>概率: 低 | 影响: 高<br>大量 SQL 语法差异和数据迁移风险</div>
+        </div>
+
+        <!-- R3: Agent SSE 并发稳定性 - 高概率/中影响 -->
+        <div class="risk-bubble" style="width:50px;height:50px;background:var(--pink);top:10%;left:38%;font-size:.55rem;line-height:1.2;padding:4px">
+          SSE<br>并发
+          <div class="tooltip">Agent SSE 并发稳定性<br>概率: 高 | 影响: 中<br>大量并发 SSE 连接可能耗尽线程池</div>
+        </div>
+
+        <!-- R4: 多租户与新模块冲突 - 中概率/中影响 -->
+        <div class="risk-bubble" style="width:46px;height:46px;background:var(--purple);top:42%;left:42%;font-size:.55rem;line-height:1.2;padding:4px">
+          多租户<br>冲突
+          <div class="tooltip">多租户与新模块冲突<br>概率: 中 | 影响: 中<br>新引入模块需逐一适配租户隔离</div>
+        </div>
+
+        <!-- R5: RBAC 灰度发布权限漏洞 - 中概率/高影响 -->
+        <div class="risk-bubble" style="width:52px;height:52px;background:var(--red);top:38%;right:25%;font-size:.55rem;line-height:1.2;padding:4px;opacity:.85">
+          RBAC<br>漏洞
+          <div class="tooltip">RBAC 灰度发布期间权限漏洞<br>概率: 中 | 影响: 高<br>新旧权限系统切换期可能出现授权遗漏</div>
+        </div>
+
+        <!-- R6: AGV + Agent 资源竞争死锁 - 低概率/中影响 -->
+        <div class="risk-bubble" style="width:42px;height:42px;background:var(--orange);bottom:20%;left:42%;font-size:.55rem;line-height:1.2;padding:4px">
+          资源<br>死锁
+          <div class="tooltip">AGV + Agent 资源竞争死锁<br>概率: 低 | 影响: 中<br>Agent 异步操作可能与 AGV 调度产生资源竞争</div>
+        </div>
+
+        <!-- R7: Python 沙箱安全边界 - 高概率/低影响 -->
+        <div class="risk-bubble" style="width:44px;height:44px;background:var(--green);top:12%;left:8%;font-size:.55rem;line-height:1.2;padding:4px">
+          Python<br>沙箱
+          <div class="tooltip">Python 沙箱安全边界<br>概率: 高 | 影响: 低<br>沙箱逃逸风险，但影响范围有限</div>
+        </div>
+
+        <!-- R8: Flowable act_* 表迁移数据一致性 - 低概率/高影响 -->
+        <div class="risk-bubble" style="width:50px;height:50px;background:var(--orange);bottom:12%;right:20%;font-size:.5rem;line-height:1.2;padding:4px;opacity:.85">
+          act_*<br>迁移
+          <div class="tooltip">Flowable act_* 表迁移数据一致性<br>概率: 低 | 影响: 高<br>Flowable 运行时表结构复杂，迁移需极度小心</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Risk detail cards -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-top:32px">
+    <div class="card" style="border-left:3px solid var(--red);padding:16px">
+      <h4 style="font-size:.9rem;color:var(--red);margin-bottom:6px">高风险项</h4>
+      <ul style="font-size:.82rem;color:var(--text-dim);list-style:none">
+        <li style="padding:4px 0">• DAG vs Flowable 双引擎并存 — 需在 P7 明确决策</li>
+        <li style="padding:4px 0">• RBAC 灰度发布权限漏洞 — 需完善测试矩阵</li>
+      </ul>
+    </div>
+    <div class="card" style="border-left:3px solid var(--orange);padding:16px">
+      <h4 style="font-size:.9rem;color:var(--orange);margin-bottom:6px">中风险项</h4>
+      <ul style="font-size:.82rem;color:var(--text-dim);list-style:none">
+        <li style="padding:4px 0">• Agent SSE 并发稳定性 — 需压测和连接池管理</li>
+        <li style="padding:4px 0">• 多租户与新模块冲突 — 逐模块验证</li>
+        <li style="padding:4px 0">• MySQL→PostgreSQL 迁移 — 双 DB 共存降低风险</li>
+        <li style="padding:4px 0">• AGV + Agent 资源竞争死锁 — 引入分布式锁</li>
+        <li style="padding:4px 0">• Flowable act_* 表迁移 — 严格的数据校验</li>
+      </ul>
+    </div>
+    <div class="card" style="border-left:3px solid var(--green);padding:16px">
+      <h4 style="font-size:.9rem;color:var(--green);margin-bottom:6px">低风险项</h4>
+      <ul style="font-size:.82rem;color:var(--text-dim);list-style:none">
+        <li style="padding:4px 0">• Python 沙箱安全边界 — 进程隔离+白名单限制</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECTION 9: DATA MODEL FUSION ============ -->
+<section class="section fade-in" id="sec-datamodel">
+  <div class="section-title"><span class="num">8</span> 数据模型融合 · Data Model Fusion</div>
+  <p class="section-desc">核心实体的映射与合并策略，确保数据一致性和向后兼容。</p>
+
+  <div class="dm-fusion-list">
+
+    <!-- 1. Unified Execution -->
+    <div class="card dm-fusion-item">
+      <div>
+        <div class="dm-entity source">
+          <h5 style="color:var(--blue)">PipelineExecutionDO <span class="tag tag-blue" style="font-size:.65rem">Librax</span></h5>
+          <div class="dm-fields">
+            id, pipeline_id, tenant_id, status, started_at, finished_at, trigger_type, execution_context (JSON), error_message, retry_count, created_by
+          </div>
+        </div>
+        <div class="dm-plus">+</div>
+        <div class="dm-entity source">
+          <h5 style="color:var(--purple)">SilverLayerExperiment <span class="tag tag-purple" style="font-size:.65rem">Labillion</span></h5>
+          <div class="dm-fields">
+            id, experiment_name, project_id, owner_id, status, protocol_version, ai_summary, gantt_plan_id, started_at, completed_at, review_status
+          </div>
+        </div>
+      </div>
+      <div class="dm-arrow">→</div>
+      <div class="dm-entity target">
+        <h5 style="color:var(--green)">UnifiedExecution</h5>
+        <div class="dm-fields">
+          <strong>合并字段：</strong>id, pipeline_id, experiment_name, project_id, tenant_id, owner_id, status, execution_type (DAG|BPM|HYBRID), trigger_type, execution_context (JSON), ai_summary, gantt_plan_id, started_at, finished_at, review_status, error_message, retry_count, created_by, created_at, updated_at<br><br>
+          <strong>策略：</strong>以 PipelineExecutionDO 为主表，扩展 Labillion 字段。execution_type 区分执行引擎类型。
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Unified Step Execution -->
+    <div class="card dm-fusion-item">
+      <div>
+        <div class="dm-entity source">
+          <h5 style="color:var(--blue)">StepExecutionDO <span class="tag tag-blue" style="font-size:.65rem">Librax</span></h5>
+          <div class="dm-fields">
+            id, pipeline_execution_id, step_id, step_type (DEVICE|MANUAL|AGV), status, input_params, output_result, device_id, started_at, finished_at, error_message
+          </div>
+        </div>
+        <div class="dm-plus">+</div>
+        <div class="dm-entity source">
+          <h5 style="color:var(--purple)">SilverLayerProtocol <span class="tag tag-purple" style="font-size:.65rem">Labillion</span></h5>
+          <div class="dm-fields">
+            id, experiment_id, protocol_name, step_order, step_type (COMPUTE|AGENT|REVIEW), executor, python_script, agent_config, result_data, duration_estimate
+          </div>
+        </div>
+      </div>
+      <div class="dm-arrow">→</div>
+      <div class="dm-entity target">
+        <h5 style="color:var(--green)">UnifiedStepExecution</h5>
+        <div class="dm-fields">
+          <strong>合并字段：</strong>id, execution_id, step_id, step_name, step_order, step_type (DEVICE|MANUAL|AGV|COMPUTE|AGENT|REVIEW), status, input_params (JSON), output_result (JSON), executor_type, device_id, python_script, agent_config (JSON), duration_estimate, started_at, finished_at, error_message<br><br>
+          <strong>策略：</strong>扩展 step_type 枚举，统一 COMPUTE/AGENT/REVIEW 三种新步骤类型。
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Unified Task -->
+    <div class="card dm-fusion-item">
+      <div>
+        <div class="dm-entity source">
+          <h5 style="color:var(--blue)">TaskDO <span class="tag tag-blue" style="font-size:.65rem">Librax</span></h5>
+          <div class="dm-fields">
+            id, task_type (DEVICE|MANUAL|AGV), step_execution_id, assignee, status, priority, device_id, slot_id, timeout_seconds, retry_count, created_at
+          </div>
+        </div>
+        <div class="dm-plus">+</div>
+        <div class="dm-entity source">
+          <h5 style="color:var(--purple)">WorkflowNode <span class="tag tag-purple" style="font-size:.65rem">Labillion</span></h5>
+          <div class="dm-fields">
+            id, workflow_id, node_type (USER_TASK|SERVICE_TASK|GATEWAY), assignee_expression, form_key, due_date, candidate_groups, completion_condition
+          </div>
+        </div>
+      </div>
+      <div class="dm-arrow">→</div>
+      <div class="dm-entity target">
+        <h5 style="color:var(--green)">UnifiedTask</h5>
+        <div class="dm-fields">
+          <strong>合并字段：</strong>id, task_type (DEVICE|MANUAL|AGV|USER_TASK|SERVICE_TASK|AGENT_TASK|PYTHON_TASK), step_execution_id, workflow_node_id, assignee, candidate_groups, status, priority, device_id, slot_id, form_key, due_date, timeout_seconds, retry_count, completion_condition, created_at<br><br>
+          <strong>策略：</strong>以 TaskDO 为主表，扩展 Flowable 工作流任务属性。保持向后兼容。
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Extended Sample -->
+    <div class="card dm-fusion-item">
+      <div>
+        <div class="dm-entity source">
+          <h5 style="color:var(--blue)">SampleInfoDO <span class="tag tag-blue" style="font-size:.65rem">Librax</span></h5>
+          <div class="dm-fields">
+            id, sample_code, sample_name, parent_sample_id, operation_type (SPLIT|MERGE|TRANSFER), slot_id, container_id, status, tenant_id, metadata (JSON)
+          </div>
+        </div>
+        <div class="dm-plus">+</div>
+        <div class="dm-entity source">
+          <h5 style="color:var(--purple)">SampleCell / SampleProtein <span class="tag tag-purple" style="font-size:.65rem">Labillion</span></h5>
+          <div class="dm-fields">
+            Cell: passage_number, culture_condition, contamination_status, cell_line, morphology<br>
+            Protein: molecular_weight, purity, expression_system, sds_page_result, buffer_condition
+          </div>
+        </div>
+      </div>
+      <div class="dm-arrow">→</div>
+      <div class="dm-entity target">
+        <h5 style="color:var(--green)">ExtendedSample</h5>
+        <div class="dm-fields">
+          <strong>合并字段：</strong>id, sample_code, sample_name, sample_type (GENERIC|CELL|PROTEIN|PLASMID|ANTIGEN), parent_sample_id, operation_type, slot_id, container_id, status, tenant_id, metadata (JSON), type_specific_data (JSON), created_at<br><br>
+          <strong>策略：</strong>在 SampleInfoDO 基础上新增 sample_type 和 type_specific_data (JSON) 字段，由 SampleTypeHandler 解析和验证类型特有数据。
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. Unified Audit Log -->
+    <div class="card dm-fusion-item">
+      <div>
+        <div class="dm-entity source">
+          <h5 style="color:var(--blue)">ExecutionEventLogDO <span class="tag tag-blue" style="font-size:.65rem">Librax</span></h5>
+          <div class="dm-fields">
+            id, execution_id, step_id, event_type, event_data (JSON), operator, device_id, timestamp, tenant_id
+          </div>
+        </div>
+        <div class="dm-plus">+</div>
+        <div class="dm-entity source">
+          <h5 style="color:var(--purple)">AgentTraceEntity <span class="tag tag-purple" style="font-size:.65rem">Labillion</span></h5>
+          <div class="dm-fields">
+            id, agent_id, session_id, step_index, input_text, output_text, model_id, token_input, token_output, tool_calls (JSON), duration_ms, error
+          </div>
+        </div>
+      </div>
+      <div class="dm-arrow">→</div>
+      <div class="dm-entity target">
+        <h5 style="color:var(--green)">UnifiedAuditLog</h5>
+        <div class="dm-fields">
+          <strong>合并字段：</strong>id, trace_id, execution_id, step_id, event_category (EXECUTION|AGENT|DEVICE|RESOURCE|SECURITY), event_type, event_data (JSON), operator, device_id, agent_id, model_id, token_usage (JSON), tool_calls (JSON), duration_ms, error_message, tenant_id, timestamp<br><br>
+          <strong>策略：</strong>统一事件模型，event_category 区分事件来源。所有模块通过 EventPublisher 写入统一审计日志。支持 ELK 索引。
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SECTION 10: TECH STACK DECISION ============ -->
+<section class="section fade-in" id="sec-techstack">
+  <div class="section-title"><span class="num">9</span> 技术栈决策 · Tech Stack Decision</div>
+  <p class="section-desc">针对每个技术选型维度，给出最终决策和理由。</p>
+
+  <div class="gap-table-wrapper">
+    <table class="tech-table">
+      <thead>
+        <tr>
+          <th style="width:14%">技术维度</th>
+          <th style="width:14%">Librax 现状</th>
+          <th style="width:14%">Labillion 现状</th>
+          <th style="width:16%">最终决策</th>
+          <th style="width:42%">决策理由</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Java 版本</strong></td>
+          <td>Java 17</td>
+          <td>Java 21</td>
+          <td class="tech-decision">Java 21</td>
+          <td>Java 21 提供虚拟线程 (Project Loom)，对 SSE/WebSocket 高并发场景至关重要；Pattern Matching、Record 等语法糖提升开发效率；Java 17 → 21 迁移成本可控</td>
+        </tr>
+        <tr>
+          <td><strong>Spring Boot</strong></td>
+          <td>3.5.5</td>
+          <td>3.5.7</td>
+          <td class="tech-decision">3.5.7</td>
+          <td>统一到最新稳定版本，获得 Spring AI、Virtual Thread 等最新特性支持</td>
+        </tr>
+        <tr>
+          <td><strong>数据库</strong></td>
+          <td>MySQL 8.0</td>
+          <td>PostgreSQL 16</td>
+          <td class="tech-decision">双 DB 共存 (Phase 1)</td>
+          <td>短期双 DB 共存：Librax 核心业务保留 MySQL，Labillion + Flowable 使用 PostgreSQL。长期评估是否统一到 PostgreSQL。Spring 多数据源 + AbstractRoutingDataSource 路由</td>
+        </tr>
+        <tr>
+          <td><strong>认证方式</strong></td>
+          <td>JWT (RuoYi)</td>
+          <td>JWT + AES-256-GCM</td>
+          <td class="tech-decision">JWT + AES-256-GCM</td>
+          <td>保留 JWT 认证机制，引入 AES-256-GCM 加密用于 API Key 等敏感数据存储。Token 刷新机制统一</td>
+        </tr>
+        <tr>
+          <td><strong>权限模型</strong></td>
+          <td>RuoYi RBAC (2D)</td>
+          <td>RBAC 3D Matrix</td>
+          <td class="tech-decision">RBAC 3D Matrix</td>
+          <td>3D 矩阵 (角色×资源×操作) 更灵活，支持细粒度资源级权限控制，配合 @RequirePermission AOP 声明式鉴权</td>
+        </tr>
+        <tr>
+          <td><strong>缓存</strong></td>
+          <td>Caffeine</td>
+          <td>Redis + Caffeine</td>
+          <td class="tech-decision">Redis + Caffeine 二级缓存</td>
+          <td>L1 Caffeine 本地热点缓存 + L2 Redis 分布式缓存，兼顾性能和一致性</td>
+        </tr>
+        <tr>
+          <td><strong>消息队列</strong></td>
+          <td>无 (事件驱动)</td>
+          <td>无 (Spring Event)</td>
+          <td class="tech-decision">Spring Event + 可选 Redis Stream</td>
+          <td>单体架构下 Spring ApplicationEvent 足够；高吞吐场景引入 Redis Stream 作为轻量 MQ</td>
+        </tr>
+        <tr>
+          <td><strong>文件存储</strong></td>
+          <td>本地文件系统</td>
+          <td>MinIO</td>
+          <td class="tech-decision">MinIO</td>
+          <td>MinIO 兼容 S3 API，支持分布式部署、版本控制、生命周期管理，替代本地文件系统</td>
+        </tr>
+        <tr>
+          <td><strong>工作流引擎</strong></td>
+          <td>自研 DAG (JGraphT)</td>
+          <td>Flowable BPM</td>
+          <td class="tech-decision">DAG 为主 + Flowable 评估引入</td>
+          <td>自研 DAG 引擎已满足自动化实验编排需求，Flowable 作为审批/人工工作流的补充。Phase 7 进行评估，根据结果决定引入范围</td>
+        </tr>
+        <tr>
+          <td><strong>AI 框架</strong></td>
+          <td>无</td>
+          <td>Spring AI</td>
+          <td class="tech-decision">Spring AI</td>
+          <td>Spring 官方 AI 抽象层，支持 OpenAI/Anthropic/Ollama 等多 Provider，与 Spring Boot 深度集成</td>
+        </tr>
+        <tr>
+          <td><strong>实时通信</strong></td>
+          <td>无</td>
+          <td>WebSocket STOMP + SSE</td>
+          <td class="tech-decision">WebSocket STOMP + SSE</td>
+          <td>STOMP 用于双向通知推送，SSE 用于 AI Agent 单向流式输出。两种协议各有适用场景，互补使用</td>
+        </tr>
+        <tr>
+          <td><strong>ORM 框架</strong></td>
+          <td>MyBatis-Plus</td>
+          <td>Spring Data JPA</td>
+          <td class="tech-decision">MyBatis-Plus 为主</td>
+          <td>Librax 全量使用 MyBatis-Plus，迁移成本过高。新模块可选用 JPA，但主体保持 MyBatis-Plus</td>
+        </tr>
+        <tr>
+          <td><strong>API 文档</strong></td>
+          <td>Swagger / SpringDoc</td>
+          <td>SpringDoc</td>
+          <td class="tech-decision">SpringDoc OpenAPI 3</td>
+          <td>统一使用 SpringDoc，自动生成 OpenAPI 3.0 规范文档</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Final summary card -->
+  <div class="card mt-24" style="border:1px solid var(--green);background:rgba(16,185,129,.05);padding:24px">
+    <h3 style="color:var(--green);margin-bottom:12px">融合架构核心原则</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;font-size:.88rem;color:var(--text-dim)">
+      <div>
+        <strong style="color:var(--text)">1. 渐进融合，非破坏性</strong><br>
+        每个阶段独立可交付，不影响 Librax 现有功能运行。新模块通过接口抽象接入，旧模块保持向后兼容。
+      </div>
+      <div>
+        <strong style="color:var(--text)">2. 接口驱动，松耦合</strong><br>
+        所有跨模块交互通过接口或事件驱动，避免直接依赖具体实现。Spring Event 作为模块间通信的主要机制。
+      </div>
+      <div>
+        <strong style="color:var(--text)">3. 多租户优先</strong><br>
+        所有新引入模块必须适配 Librax 的多租户体系，tenant_id 作为数据隔离的基础维度。
+      </div>
+      <div>
+        <strong style="color:var(--text)">4. 可观测性内建</strong><br>
+        统一审计日志、Agent Trace、设备事件、资源操作全部汇入 UnifiedAuditLog，支持 ELK 检索和分析。
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer style="text-align:center;padding:40px 24px;border-top:1px solid var(--border);color:var(--text-muted);font-size:.8rem">
+  <p>Librax x Labillion 融合架构全景图 · 版本 1.0 · 2026-07-26</p>
+  <p style="margin-top:4px">本文档为内部技术规划参考，随项目进展持续更新</p>
+</footer>
+
+<!-- ============ SCRIPTS ============ -->
+<script>
+// Scroll-based fade-in
+(function(){
+  const obs = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');obs.unobserve(e.target)}})
+  },{threshold:0.08});
+  document.querySelectorAll('.fade-in').forEach(el=>obs.observe(el));
+})();
+
+// Nav active state
+(function(){
+  const sections = document.querySelectorAll('.section[id]');
+  const links = document.querySelectorAll('.nav-tabs a');
+  window.addEventListener('scroll',()=>{
+    let current='';
+    sections.forEach(s=>{
+      const top=s.offsetTop-120;
+      if(scrollY>=top)current=s.id;
+    });
+    links.forEach(l=>{
+      l.classList.toggle('active',l.getAttribute('href')==='#'+current);
+    });
+  });
+})();
+
+// Auto-open first phase card
+document.addEventListener('DOMContentLoaded',()=>{
+  const first=document.querySelector('.phase-card');
+  if(first)first.classList.add('open');
+});
+</script>
+</body>
+</html>

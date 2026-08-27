@@ -27,6 +27,10 @@ public class MaterialInstanceRespVO {
     @ExcelProperty("容器类型编码，关联 lab_container_type.type_code，如 PLATE_96_WELL / TUBE_EP_15ML")
     private String typeCode;
 
+    @Schema(description = "容器类型名称，按 typeCode 关联 lab_container_type.type_name 查询回填，非数据库字段")
+    @ExcelProperty("容器类型名称")
+    private String typeName;
+
     @Schema(description = "条形码/二维码，扫码追踪用，同一系统内唯一")
     @ExcelProperty("条形码/二维码，扫码追踪用，同一系统内唯一")
     private String barcode;

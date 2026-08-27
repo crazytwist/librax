@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Librax 当前架构参考文档 · Code Based</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Serif+SC:wght@400;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+  :root {
+    --bg: #0d0f14;
+    --bg2: #13161e;
+    --bg3: #1a1f2b;
+    --bg4: #202637;
+    --border: #252b3a;
+    --border2: #33405f;
+    --text: #c8d0e0;
+    --text-dim: #79839d;
+    --text-bright: #eef3ff;
+    --blue: #4a9eff;
+    --blue-dim: #1e3a5f;
+    --teal: #2dd4bf;
+    --teal-dim: #0f3330;
+    --amber: #f59e0b;
+    --amber-dim: #3d2a00;
+    --coral: #f87171;
+    --coral-dim: #3d1515;
+    --purple: #a78bfa;
+    --purple-dim: #2d1f5e;
+    --green: #4ade80;
+    --green-dim: #0f2f1a;
+    --mono: 'IBM Plex Mono', monospace;
+    --serif: 'Noto Serif SC', serif;
+    --sans: 'Inter', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.75;
+  }
+
+  .header {
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    padding: 52px 64px 44px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -80px;
+    right: -80px;
+    width: 360px;
+    height: 360px;
+    background: radial-gradient(circle, rgba(74,158,255,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .header-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--blue);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .header-title {
+    font-family: var(--serif);
+    font-size: 38px;
+    font-weight: 700;
+    color: var(--text-bright);
+    line-height: 1.22;
+    margin-bottom: 14px;
+  }
+  .header-sub {
+    color: var(--text-dim);
+    font-size: 15px;
+    max-width: 820px;
+  }
+  .header-meta {
+    display: flex;
+    gap: 12px;
+    margin-top: 28px;
+    flex-wrap: wrap;
+  }
+  .meta-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    color: var(--text-dim);
+  }
+  .meta-pill.blue { border-color: var(--blue-dim); color: var(--blue); background: rgba(74,158,255,0.05); }
+  .meta-pill.teal { border-color: var(--teal-dim); color: var(--teal); background: rgba(45,212,191,0.05); }
+  .meta-pill.amber { border-color: var(--amber-dim); color: var(--amber); background: rgba(245,158,11,0.05); }
+  .meta-pill.purple { border-color: var(--purple-dim); color: var(--purple); background: rgba(167,139,250,0.05); }
+
+  .container { max-width: 1180px; margin: 0 auto; padding: 0 48px 88px; }
+
+  .section { margin-top: 66px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 26px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--blue);
+    background: var(--blue-dim);
+    padding: 3px 10px;
+    border-radius: 4px;
+    letter-spacing: 1px;
+  }
+  .section-title {
+    font-family: var(--serif);
+    font-size: 23px;
+    font-weight: 600;
+    color: var(--text-bright);
+  }
+
+  .prose { max-width: 900px; }
+  .prose p { margin-bottom: 16px; color: var(--text); line-height: 1.85; }
+  .prose strong { color: var(--text-bright); font-weight: 600; }
+  .prose em { color: var(--amber); font-style: normal; }
+  .mono { font-family: var(--mono); }
+  code {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--teal);
+    background: rgba(45,212,191,0.07);
+    border: 1px solid rgba(45,212,191,0.14);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  .card-grid { display: grid; gap: 16px; margin-top: 22px; }
+  .card-grid.col2 { grid-template-columns: 1fr 1fr; }
+  .card-grid.col3 { grid-template-columns: repeat(3, 1fr); }
+  .card-grid.col4 { grid-template-columns: repeat(4, 1fr); }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 22px;
+  }
+  .card.blue { border-left: 3px solid var(--blue); }
+  .card.teal { border-left: 3px solid var(--teal); }
+  .card.amber { border-left: 3px solid var(--amber); }
+  .card.coral { border-left: 3px solid var(--coral); }
+  .card.purple { border-left: 3px solid var(--purple); }
+  .card.green { border-left: 3px solid var(--green); }
+  .card-title {
+    color: var(--text-bright);
+    font-weight: 700;
+    margin-bottom: 10px;
+    font-size: 15px;
+  }
+  .card p { color: var(--text-dim); font-size: 13px; line-height: 1.75; }
+
+  .insight {
+    margin: 24px 0;
+    padding: 22px 24px;
+    background: linear-gradient(135deg, rgba(74,158,255,0.08), rgba(45,212,191,0.05));
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+  }
+  .insight-label {
+    font-family: var(--mono);
+    color: var(--blue);
+    font-size: 11px;
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .insight p { color: var(--text); margin: 0; }
+
+  .diagram {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 26px;
+    overflow-x: auto;
+    margin: 24px 0;
+  }
+  .diagram-title {
+    color: var(--text-bright);
+    font-weight: 700;
+    margin-bottom: 18px;
+  }
+  .box-row { display: flex; gap: 14px; align-items: stretch; min-width: 980px; margin-bottom: 14px; }
+  .box-row.center { justify-content: center; }
+  .arch-box {
+    flex: 1;
+    min-height: 72px;
+    padding: 14px 16px;
+    border: 1px solid var(--border2);
+    border-radius: 8px;
+    background: var(--bg3);
+  }
+  .arch-box.blue { border-color: var(--blue-dim); background: rgba(74,158,255,0.08); }
+  .arch-box.teal { border-color: var(--teal-dim); background: rgba(45,212,191,0.07); }
+  .arch-box.amber { border-color: var(--amber-dim); background: rgba(245,158,11,0.07); }
+  .arch-box.purple { border-color: var(--purple-dim); background: rgba(167,139,250,0.07); }
+  .arch-box.green { border-color: var(--green-dim); background: rgba(74,222,128,0.07); }
+  .arch-box.coral { border-color: var(--coral-dim); background: rgba(248,113,113,0.07); }
+  .box-name { color: var(--text-bright); font-weight: 700; margin-bottom: 4px; }
+  .box-desc { color: var(--text-dim); font-size: 12px; line-height: 1.55; }
+  .connector {
+    min-width: 980px;
+    text-align: center;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 12px;
+    margin: 4px 0 14px;
+  }
+
+  .flowline {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 22px 0;
+  }
+  .step-line {
+    display: grid;
+    grid-template-columns: 38px 1fr;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px dashed var(--border);
+  }
+  .step-line:last-child { border-bottom: none; }
+  .step-no {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--blue-dim);
+    background: rgba(74,158,255,0.08);
+    color: var(--blue);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  .step-body strong { color: var(--text-bright); }
+  .step-body span { color: var(--text-dim); font-size: 13px; }
+
+  .module {
+    border: 1px solid var(--border);
+    background: var(--bg2);
+    border-radius: 8px;
+    padding: 24px;
+    margin-top: 22px;
+  }
+  .module-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+  }
+  .module-title {
+    font-family: var(--serif);
+    color: var(--text-bright);
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .module-path {
+    font-family: var(--mono);
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .module-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  .subblock {
+    background: rgba(255,255,255,0.018);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+  }
+  .subblock h4 {
+    color: var(--text-bright);
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  .subblock ul { padding-left: 18px; color: var(--text-dim); }
+  .subblock li { margin-bottom: 7px; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th, td {
+    border-bottom: 1px solid var(--border);
+    padding: 12px 14px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    color: var(--text-bright);
+    font-size: 12px;
+    font-family: var(--mono);
+    background: var(--bg3);
+    letter-spacing: 0.3px;
+  }
+  td { color: var(--text); font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+  td.dim { color: var(--text-dim); }
+
+  .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin: 2px 4px 2px 0;
+    border: 1px solid var(--border2);
+    color: var(--text-dim);
+  }
+  .tag.blue { color: var(--blue); border-color: var(--blue-dim); background: rgba(74,158,255,0.06); }
+  .tag.teal { color: var(--teal); border-color: var(--teal-dim); background: rgba(45,212,191,0.06); }
+  .tag.amber { color: var(--amber); border-color: var(--amber-dim); background: rgba(245,158,11,0.06); }
+  .tag.green { color: var(--green); border-color: var(--green-dim); background: rgba(74,222,128,0.06); }
+  .tag.coral { color: var(--coral); border-color: var(--coral-dim); background: rgba(248,113,113,0.06); }
+  .tag.purple { color: var(--purple); border-color: var(--purple-dim); background: rgba(167,139,250,0.06); }
+
+  .code-panel {
+    background: #0a0c11;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    margin: 20px 0;
+    overflow-x: auto;
+  }
+  pre {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    line-height: 1.7;
+    white-space: pre;
+  }
+
+  .source-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .source-item {
+    font-family: var(--mono);
+    color: var(--text-dim);
+    font-size: 12px;
+    padding: 8px 10px;
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  @media (max-width: 900px) {
+    .header { padding: 36px 24px; }
+    .header-title { font-size: 30px; }
+    .container { padding: 0 24px 64px; }
+    .card-grid.col2, .card-grid.col3, .card-grid.col4, .module-grid { grid-template-columns: 1fr; }
+    .module-head { display: block; }
+    .module-path { margin-top: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-label">Librax Lab · Code Based Architecture Reference</div>
+  <div class="header-title">当前架构参考文档<br>以代码为准的五模块拆解</div>
+  <div class="header-sub">本文档基于当前仓库实现沉淀，不以旧设计稿为事实来源。重点分析 Flow、Device、Task、Lab、Resource 五个模块的职责边界、运行链路、SPI/事件契约、已落地能力和后续演进点。</div>
+  <div class="header-meta">
+    <span class="meta-pill blue">Spring Boot 3 · Java 17</span>
+    <span class="meta-pill teal">DAG Scheduler</span>
+    <span class="meta-pill amber">ResourcePool + Redis Lock</span>
+    <span class="meta-pill purple">SPI + Spring Event</span>
+  </div>
+</div>
+
+<div class="container">
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">01</span>
+    <h2 class="section-title">架构结论</h2>
+  </div>
+  <div class="prose">
+    <p>当前 Librax 的核心不是传统后台管理系统，而是一套<strong>实验室自动化流程执行平台</strong>。它以 <code>Flow</code> 为编排大脑，以 <code>Resource</code> 约束物理设备和空间，以 <code>Task</code> 承接异步执行队列，以 <code>Device</code> 屏蔽异构仪器通信，以 <code>Lab</code> 保存样本、物料、结果和谱系。</p>
+    <p>我建议把系统边界固定为一句话：<em>Flow 管流程推进，Resource 管能不能用，Task 管怎么排队执行，Device 管怎么和设备说话，Lab 管业务事实和追溯。</em> 这个边界与当前代码里的 SPI、事件和模块依赖基本一致。</p>
+  </div>
+
+  <div class="card-grid col3">
+    <div class="card blue">
+      <div class="card-title">已经落地的能力</div>
+      <p>DAG 调度、状态机、回调 Token、DIRECT/QUEUED 分发、资源释放唤醒、断点恢复、父子流程资源继承、样本启动钩子、物料核验与扣减事件。</p>
+    </div>
+    <div class="card amber">
+      <div class="card-title">需要持续校准的地方</div>
+      <p>部分文档仍停留在早期设计；当前实现已经前进。架构参考应以代码中的 API 契约、事件流和数据对象为准。</p>
+    </div>
+    <div class="card teal">
+      <div class="card-title">当前最重要的原则</div>
+      <p>跨模块只通过 api 模块、SPI 和 Spring Event 交互。业务域和调度域保持弱耦合，避免 Lab、Device、Task 反向侵入 Flow 内部状态机。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">02</span>
+    <h2 class="section-title">标准架构图</h2>
+  </div>
+
+  <div class="diagram">
+    <div class="diagram-title">模块关系总览</div>
+    <div class="box-row center">
+      <div class="arch-box blue">
+        <div class="box-name">Admin / App / 外部系统</div>
+        <div class="box-desc">流程启动、设备回调、人工回调、管理配置、监控查询</div>
+      </div>
+    </div>
+    <div class="connector">↓ Controller / Application API</div>
+    <div class="box-row">
+      <div class="arch-box teal">
+        <div class="box-name">Lab</div>
+        <div class="box-desc">样本、物料、容器、结果、谱系、业务事件监听</div>
+      </div>
+      <div class="arch-box blue">
+        <div class="box-name">Flow</div>
+        <div class="box-desc">流程定义、DAG 调度、状态机、上下文、回调、恢复</div>
+      </div>
+      <div class="arch-box purple">
+        <div class="box-name">Task</div>
+        <div class="box-desc">统一任务主表、内存队列、执行器、超时、任务回调</div>
+      </div>
+      <div class="arch-box amber">
+        <div class="box-name">Device</div>
+        <div class="box-desc">设备注册、协议驱动、指令模板、解析器、心跳、回调</div>
+      </div>
+      <div class="arch-box green">
+        <div class="box-name">Resource</div>
+        <div class="box-desc">资源配置、区域配额、槽位、Redis 锁、占用记录</div>
+      </div>
+    </div>
+    <div class="connector">SPI / Spring Event / Mapper / Redis</div>
+    <div class="box-row">
+      <div class="arch-box">
+        <div class="box-name">MySQL</div>
+        <div class="box-desc">pd_* 定义、pe_* 执行、lab_* 业务事实和审计</div>
+      </div>
+      <div class="arch-box">
+        <div class="box-name">Redis</div>
+        <div class="box-desc">执行上下文、资源锁、等待集合、设备状态、执行缓存</div>
+      </div>
+      <div class="arch-box">
+        <div class="box-name">物理执行单元</div>
+        <div class="box-desc">HTTP/TCP/Serial/SDK/Mock 仪器、AGV、人工待办、外部 Worker</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight">
+    <div class="insight-label">我的架构判断</div>
+    <p>这套架构最有价值的部分是“执行协议层”已经被拆出来了：Flow 不直接知道设备协议，Device 不直接改流程状态，Task 不直接依赖 Flow 实现，Lab 不嵌进调度器。只要这个边界保持住，后续无论接更多设备、更多样本类型，还是将 Task 队列外置，都不会撕裂主架构。</p>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">03</span>
+    <h2 class="section-title">主执行链路</h2>
+  </div>
+
+  <div class="flowline">
+    <div class="step-line">
+      <div class="step-no">01</div>
+      <div class="step-body"><strong>启动流程</strong><br><span><code>PipelineExecutionServiceImpl.start()</code> 加载流程图、创建 <code>pe_pipeline_execution</code>、初始化 <code>pe_step_execution</code>，执行所有 <code>PipelineStartHook</code>。</span></div>
+    </div>
+    <div class="step-line">
+      <div class="step-no">02</div>
+      <div class="step-body"><strong>事务提交后调度</strong><br><span>通过 <code>TransactionSynchronization.afterCommit()</code> 发布流程启动事件并调用 <code>DagScheduler.schedule()</code>，避免调度看到未提交数据。</span></div>
+    </div>
+    <div class="step-line">
+      <div class="step-no">03</div>
+      <div class="step-body"><strong>DAG 找就绪节点</strong><br><span><code>DagScheduler</code> 读取所有步骤最新状态，筛选 <code>PENDING</code> 且依赖满足的节点，交给 <code>StepSubmitter</code>。</span></div>
+    </div>
+    <div class="step-line">
+      <div class="step-no">04</div>
+      <div class="step-body"><strong>提交前置检查</strong><br><span><code>StepSubmitter</code> 生成 <code>callbackToken</code>，解析入参，注入样本参数，调用 <code>MaterialCheckSpi</code>，再调用 <code>ResourcePool.acquire()</code>。</span></div>
+    </div>
+    <div class="step-line">
+      <div class="step-no">05</div>
+      <div class="step-body"><strong>分发执行</strong><br><span>步骤 CAS 从 <code>PENDING</code> 进入 <code>RUNNING</code> 后，按 <code>dispatchMode</code> 走 <code>DIRECT</code> 或 <code>QUEUED</code>。</span></div>
+    </div>
+    <div class="step-line">
+      <div class="step-no">06</div>
+      <div class="step-body"><strong>回调推进</strong><br><span>设备、任务、人工或子流程通过 <code>StepCallbackSpi</code>、<code>TaskCompletedEvent</code> 等路径回到 Flow，Flow 更新步骤状态、写上下文、释放资源、触发下一轮调度。</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">04</span>
+    <h2 class="section-title">Flow 模块</h2>
+  </div>
+
+  <div class="module">
+    <div class="module-head">
+      <div class="module-title">Flow：编排、调度与状态一致性中心</div>
+      <div class="module-path">librax-module-flow / librax-module-flow-api</div>
+    </div>
+    <div class="module-grid">
+      <div class="subblock">
+        <h4>核心职责</h4>
+        <ul>
+          <li>管理流程定义、步骤定义、流程实例和步骤实例。</li>
+          <li>构建并缓存 <code>PipelineGraph</code>，执行 DAG 拓扑调度。</li>
+          <li>维护 <code>ExecutionStateMachine</code> 与 <code>StepStateMachine</code>。</li>
+          <li>统一处理同步结果、设备回调、任务事件、子流程回调。</li>
+          <li>通过事件把流程状态变化广播给 Lab、监控和 WebSocket。</li>
+        </ul>
+      </div>
+      <div class="subblock">
+        <h4>关键实现</h4>
+        <ul>
+          <li><code>PipelineExecutionServiceImpl</code>：流程启动事务边界。</li>
+          <li><code>DagScheduler</code>：查找就绪节点、完成后继续调度。</li>
+          <li><code>StepSubmitter</code>：入参解析、物料核验、资源申请、分发。</li>
+          <li><code>DirectDispatchSpi</code>：本地直接执行步骤。</li>
+          <li><code>StepCallbackService</code>：外部回调统一入口。</li>
+          <li><code>RecoveryScanner</code>：应用启动后恢复 RUNNING 流程。</li>
+        </ul>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>模型</th><th>表/类</th><th>作用</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>流程定义</td><td><code>pd_pipeline_definition</code></td><td>流程 key、版本、默认参数、失败策略、样本模式。</td></tr>
+        <tr><td>流程步骤</td><td><code>pd_pipeline_step</code></td><td>DAG 节点、依赖、分支、资源开关、调度模式、参数映射。</td></tr>
+        <tr><td>步骤组件</td><td><code>pd_step_definition</code></td><td>可复用的步骤模板，包括类型、设备类型、命令、Mock 输出。</td></tr>
+        <tr><td>执行实例</td><td><code>pe_pipeline_execution</code></td><td>一次运行的主记录，锁定流程版本、父子关系和 subjectId。</td></tr>
+        <tr><td>步骤执行</td><td><code>pe_step_execution</code></td><td>每个节点每次 attempt 的运行记录，含 callbackToken、inputSnapshot、状态。</td></tr>
+        <tr><td>上下文</td><td><code>pe_execution_context</code></td><td>步骤输出和启动输入的冷备份，Redis 作为热路径。</td></tr>
+      </tbody>
+    </table>
+
+    <div class="insight">
+      <div class="insight-label">Flow 模块判断</div>
+      <p>Flow 的核心设计已经比较成熟：调度器保持“纯拓扑”，副作用放在 StepSubmitter、Success/FailureHandler 和状态机里。后续需要避免把设备选择、物料扣减、样本生命周期这样的业务逻辑写回 Flow 内部。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">05</span>
+    <h2 class="section-title">Device 模块</h2>
+  </div>
+
+  <div class="module">
+    <div class="module-head">
+      <div class="module-title">Device：异构设备通信与回调归一层</div>
+      <div class="module-path">librax-module-device / librax-module-device-api</div>
+    </div>
+    <div class="module-grid">
+      <div class="subblock">
+        <h4>核心职责</h4>
+        <ul>
+          <li>维护设备实例、协议参数、认证配置和心跳配置。</li>
+          <li>维护设备指令模板、完成模式、轮询规则和响应解析器。</li>
+          <li>通过 <code>DeviceDriverFactory</code> 选择 HTTP/TCP/Serial/SDK/Mock 驱动。</li>
+          <li>处理 WEBHOOK/POLL/SYNC 三种完成路径。</li>
+          <li>向 Resource 暴露 <code>DeviceQueryApi</code> 供健康筛选。</li>
+        </ul>
+      </div>
+      <div class="subblock">
+        <h4>关键实现</h4>
+        <ul>
+          <li><code>DeviceGatewayImpl</code>：设备选择、模板渲染、系统字段注入、驱动发送。</li>
+          <li><code>DeviceCommandSpiImpl</code>：供 Task 的仪器执行器调用设备。</li>
+          <li><code>DeviceCallbackHandler</code>：释放设备状态、解析输出、推进 Flow、关闭 Task。</li>
+          <li><code>CodecExecutor</code>：JSON/REGEX/HEX/SCRIPT 响应解析。</li>
+          <li><code>HeartbeatWatchdog</code>：设备在线状态维护。</li>
+          <li><code>DevicePollScheduler</code>：POLL 模式轮询并转为内部回调。</li>
+        </ul>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>对象</th><th>关键字段</th><th>说明</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>DeviceInfoDO</code></td><td><code>deviceId / deviceType / protocol / zoneCode / authType / heartbeatCommand</code></td><td>一台物理设备的连接和运行时基础配置。</td></tr>
+        <tr><td><code>DeviceCommandDO</code></td><td><code>commandCode / requestTemplate / completionMode / pollPath / codecId</code></td><td>设备能力的声明式指令模板。</td></tr>
+        <tr><td><code>DeviceCodecDO</code></td><td><code>parseType / fieldMapping / hexRules / regexRules / scriptContent</code></td><td>把设备私有响应转为平台 Map 输出。</td></tr>
+        <tr><td><code>DeviceStateCache</code></td><td><code>IDLE / BUSY / OFFLINE / FAULT</code></td><td>Redis 中的设备状态和 execution-node 到 device 的反向索引。</td></tr>
+      </tbody>
+    </table>
+
+    <div class="insight">
+      <div class="insight-label">Device 模块判断</div>
+      <p>设备接入的声明式程度已经不错，新增设备主要走 DeviceInfo、DeviceCommand、DeviceCodec 和 DeviceDriver 四件套。代码里需要注意的是设备健康查询当前存在实现细节不一致：<code>DeviceQueryApiImpl.getHealth()</code> 计算了 status 映射，但 builder 中固定返回 <code>HEALTHY</code>，这会影响 Resource 对故障设备的过滤判断。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">06</span>
+    <h2 class="section-title">Task 模块</h2>
+  </div>
+
+  <div class="module">
+    <div class="module-head">
+      <div class="module-title">Task：统一执行任务与异步分发层</div>
+      <div class="module-path">librax-module-task</div>
+    </div>
+    <div class="module-grid">
+      <div class="subblock">
+        <h4>核心职责</h4>
+        <ul>
+          <li>将 Flow 的步骤分发转换成统一 <code>lab_task</code> 协议。</li>
+          <li>按任务类型路由到不同执行器：仪器、AGV、人工、计算、通知。</li>
+          <li>管理任务排队、执行、回调、超时和任务审计。</li>
+          <li>通过 <code>TaskCompletedEvent</code> 异步通知 Flow 推进 DAG。</li>
+        </ul>
+      </div>
+      <div class="subblock">
+        <h4>关键实现</h4>
+        <ul>
+          <li><code>QueuedDispatchSpi</code>：Flow 到 Task 的分发入口。</li>
+          <li><code>TaskRouter</code>：按 taskType 维护内存队列和并发信号量。</li>
+          <li><code>TaskExecutorFactory</code>：自动注册任务执行器。</li>
+          <li><code>InstrumentTaskExecutor</code>：通过 <code>DeviceCommandSpi</code> 发送仪器指令。</li>
+          <li><code>TaskCallbackDispatcher</code>：任务终态 CAS、释放资源、发布完成事件。</li>
+          <li><code>TaskTimeoutWatchdog</code>：扫描执行超时、队列等待超时和人工截止时间。</li>
+        </ul>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>任务类型</th><th>执行器</th><th>完成路径</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><span class="tag blue">INSTRUMENT</span></td><td><code>InstrumentTaskExecutor</code></td><td>SYNC 直接回调；WEBHOOK/POLL 由 DeviceCallbackHandler 推进并关闭任务。</td></tr>
+        <tr><td><span class="tag amber">AGV</span></td><td><code>AgvTaskExecutor</code></td><td>提交 AGV job，等待外部回调或超时扫描。</td></tr>
+        <tr><td><span class="tag purple">MANUAL</span></td><td><code>ManualTaskExecutor</code></td><td>创建人工待办，操作人完成后携带 callbackToken 回调。</td></tr>
+        <tr><td><span class="tag teal">COMPUTE / NOTIFY</span></td><td>可扩展执行器</td><td>可走同步完成或外部 Worker 回调。</td></tr>
+      </tbody>
+    </table>
+
+    <div class="insight">
+      <div class="insight-label">Task 模块判断</div>
+      <p>Task 当前是很好的解耦层，但 <code>TaskRouter</code> 仍是进程内队列。它适合单体部署和开发验证；若后续多实例部署或要求任务不丢，建议把队列语义外置到 Redis Stream / MQ，同时保留 <code>lab_task</code> 作为事实表和审计表。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">07</span>
+    <h2 class="section-title">Lab 模块</h2>
+  </div>
+
+  <div class="module">
+    <div class="module-head">
+      <div class="module-title">Lab：样本、物料与实验事实域</div>
+      <div class="module-path">librax-module-lab</div>
+    </div>
+    <div class="module-grid">
+      <div class="subblock">
+        <h4>核心职责</h4>
+        <ul>
+          <li>维护样本主数据、样本步骤、样本结果、样本事件和样本谱系。</li>
+          <li>维护物料定义、物料实例、容器类型、物料检查规则和消耗记录。</li>
+          <li>在流程启动前绑定样本并注入实验参数。</li>
+          <li>监听 Flow 事件，将流程状态转译成样本生命周期。</li>
+          <li>通过 Material SPI 在步骤执行前核验库存，步骤成功后异步扣减。</li>
+        </ul>
+      </div>
+      <div class="subblock">
+        <h4>关键实现</h4>
+        <ul>
+          <li><code>SampleBindHook</code>：流程启动事务内绑定样本、预绑定步骤、注入参数。</li>
+          <li><code>SampleContextSpiImpl</code>：步骤入参解析时提供样本实验参数。</li>
+          <li><code>SampleFlowIntegrationListener</code>：监听 Flow 事件，更新样本状态和结果。</li>
+          <li><code>MaterialCheckSpiImpl</code>：执行前物料规则核验。</li>
+          <li><code>MaterialConsumedEventListener</code>：步骤成功后扣减库存并写消耗记录。</li>
+          <li><code>SampleSplitStepExecutor</code>：样本拆分步骤执行器。</li>
+        </ul>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>业务对象</th><th>代表表/类</th><th>作用</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>样本主数据</td><td><code>lab_sample_info</code></td><td>样本状态、实验参数、当前流程、容器与追踪主线。</td></tr>
+        <tr><td>样本步骤</td><td><code>lab_sample_step</code></td><td>样本在流程节点上的处理轨迹。</td></tr>
+        <tr><td>样本结果</td><td><code>lab_sample_result</code></td><td>从仪器输出落地的检测结果。</td></tr>
+        <tr><td>样本关系</td><td><code>lab_sample_relation</code></td><td>拆分、合并、取液等谱系关系。</td></tr>
+        <tr><td>物料实例</td><td><code>lab_material_instance</code></td><td>库存、批次、体积/数量、库位和状态。</td></tr>
+        <tr><td>物料消耗</td><td><code>lab_material_consumption</code></td><td>步骤维度消耗审计，用于试剂批次追溯。</td></tr>
+      </tbody>
+    </table>
+
+    <div class="insight">
+      <div class="insight-label">Lab 模块判断</div>
+      <p>Lab 模块最适合承载实验室业务事实，而不是控制调度。当前通过 Hook、SPI、Event 和 Flow 解耦的方式是正确方向。需要特别注意物料扣减监听器目前异步执行，若业务要求“扣减失败必须回滚步骤成功”，就需要把扣减从异步事件升级为同步事务或补偿事务。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">08</span>
+    <h2 class="section-title">Resource 模块</h2>
+  </div>
+
+  <div class="module">
+    <div class="module-head">
+      <div class="module-title">Resource：物理资源锁、区域配额与空间模型</div>
+      <div class="module-path">librax-module-resource</div>
+    </div>
+    <div class="module-grid">
+      <div class="subblock">
+        <h4>核心职责</h4>
+        <ul>
+          <li>维护可调度资源、独占/共享属性和区域配额。</li>
+          <li>维护货架、台面、槽位和物理坐标。</li>
+          <li>通过 Redis 锁保证同一资源不会被并发超卖。</li>
+          <li>写入 <code>pe_step_resource_hold</code> 占用记录用于审计和恢复。</li>
+          <li>资源释放时发布事件，唤醒等待该资源的流程。</li>
+        </ul>
+      </div>
+      <div class="subblock">
+        <h4>关键实现</h4>
+        <ul>
+          <li><code>ResourcePoolImpl</code>：资源申请、释放、继承和事件发布。</li>
+          <li><code>ResourceSelector</code>：按配置和设备健康筛选候选资源。</li>
+          <li><code>RedisResourceLock</code>：资源锁、holder 反向索引和共享资源配额计数。</li>
+          <li><code>ResourceReleaseWakeupListener</code>：释放事件唤醒等待执行。</li>
+          <li><code>ResourceWaitRegistry</code>：Redis Set 记录等待资源的 executionId。</li>
+          <li><code>SlotCoordinateSpi</code>：为 AGV/机械臂解析库位坐标。</li>
+        </ul>
+      </div>
+    </div>
+
+    <table>
+      <thead>
+        <tr><th>模型</th><th>说明</th><th>当前状态</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>lab_resource_config</code></td><td>资源 ID、资源类型、独占/共享、所属区域、最大并发、启用状态。</td><td><span class="tag green">已接入运行时</span></td></tr>
+        <tr><td><code>lab_zone_quota</code></td><td>共享资源在区域维度的最大借用量。</td><td><span class="tag green">已接入运行时</span></td></tr>
+        <tr><td><code>pe_step_resource_hold</code></td><td>步骤占用资源记录，支持 ACQUIRED / INHERITED。</td><td><span class="tag green">已接入运行时</span></td></tr>
+        <tr><td><code>pd_step_resource_req</code></td><td>步骤多资源需求定义。</td><td><span class="tag amber">有模型与管理接口，主调度仍以单资源为主</span></td></tr>
+        <tr><td><code>lab_rack_info / lab_slot_info</code></td><td>实验室空间、槽位、坐标和容量。</td><td><span class="tag teal">已建模，可供 AGV/物料位置扩展</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="insight">
+      <div class="insight-label">Resource 模块判断</div>
+      <p>Resource 已经从“配置表”升级为“运行时调度门卫”。当前强项是锁、配额、释放唤醒和父子流程继承。下一步最有价值的是把 <code>pd_step_resource_req</code> 的一步多资源定义完整接入 <code>StepSubmitter</code>，形成全量的批量申请与回滚协议。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">09</span>
+    <h2 class="section-title">跨模块契约</h2>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>契约</th><th>定义位置</th><th>实现方</th><th>调用方 / 作用</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>PipelineStartHook</code></td><td>flow-api</td><td>Lab</td><td>Flow 启动事务内调用，用于样本绑定和参数注入。</td></tr>
+      <tr><td><code>SampleContextSpi</code></td><td>flow-api</td><td>Lab</td><td>Flow 解析步骤入参时读取样本实验参数。</td></tr>
+      <tr><td><code>MaterialCheckSpi</code></td><td>flow-api</td><td>Lab</td><td>Flow 提交步骤前做物料充足性检查。</td></tr>
+      <tr><td><code>MaterialConsumedEvent</code></td><td>flow-api</td><td>Flow 发布 / Lab 监听</td><td>步骤成功后扣减库存并写消耗记录。</td></tr>
+      <tr><td><code>ResourcePool</code></td><td>flow-api</td><td>Resource</td><td>Flow/Task 申请与释放物理资源。</td></tr>
+      <tr><td><code>ResourceReleasedEvent</code></td><td>flow-api</td><td>Resource 发布 / Flow 监听</td><td>资源释放后唤醒等待流程。</td></tr>
+      <tr><td><code>DeviceQueryApi</code></td><td>device-api</td><td>Device</td><td>Resource 查询设备可用性和区域。</td></tr>
+      <tr><td><code>DeviceCommandSpi</code></td><td>flow-api</td><td>Device</td><td>Task 仪器执行器发送设备指令。</td></tr>
+      <tr><td><code>DispatchSpi</code></td><td>flow-api</td><td>Flow / Task</td><td>Flow 按 DIRECT/QUEUED 分发步骤。</td></tr>
+      <tr><td><code>TaskCompletedEvent</code></td><td>flow-api</td><td>Task 发布 / Flow 监听</td><td>Task 完成后推进 DAG。</td></tr>
+      <tr><td><code>StepCallbackSpi</code></td><td>flow-api</td><td>Flow</td><td>Device、Task、人工路径统一推进步骤。</td></tr>
+      <tr><td><code>TaskCallbackSpi</code></td><td>flow-api</td><td>Task</td><td>Device 回调后关闭 QUEUED 路径下的任务记录。</td></tr>
+      <tr><td><code>SlotCoordinateSpi</code></td><td>flow-api</td><td>Resource</td><td>AGV 或设备执行器解析库位坐标。</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">10</span>
+    <h2 class="section-title">当前能力矩阵</h2>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>能力</th><th>代码证据</th><th>我的判断</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>DAG 并行调度</td><td><code>DagScheduler</code> + <code>StepSubmitter</code></td><td><span class="tag green">已实现</span> 调度器按依赖满足提交就绪节点。</td></tr>
+      <tr><td>DIRECT / QUEUED 双执行模型</td><td><code>DirectDispatchSpi</code> + <code>QueuedDispatchSpi</code></td><td><span class="tag green">已实现</span> 本地执行和任务队列并存。</td></tr>
+      <tr><td>资源锁与释放唤醒</td><td><code>ResourcePoolImpl</code> + <code>ResourceReleaseWakeupListener</code></td><td><span class="tag green">已实现</span> 资源不足不失败，注册等待，释放后重调度。</td></tr>
+      <tr><td>断点恢复</td><td><code>RecoveryScanner</code></td><td><span class="tag green">已实现</span> RUNNING 步骤释放资源并重置为 PENDING，WAITING 保留。</td></tr>
+      <tr><td>父子流程资源继承</td><td><code>UnitLauncherBean</code> + <code>ResourcePoolImpl.tryInheritFromParent()</code></td><td><span class="tag green">已实现</span> 支持 LAZY 和 PRE_ACQUIRE 两种模式。</td></tr>
+      <tr><td>设备多完成模式</td><td><code>DeviceCommandDO.completionMode</code> + <code>DevicePollScheduler</code></td><td><span class="tag green">已实现</span> SYNC / WEBHOOK / POLL 均有路径。</td></tr>
+      <tr><td>物料前置检查与成功后扣减</td><td><code>MaterialCheckSpiImpl</code> + <code>MaterialConsumedEventListener</code></td><td><span class="tag green">已实现</span> 检查同步，扣减异步。</td></tr>
+      <tr><td>一步多资源</td><td><code>pd_step_resource_req</code> + <code>UnitLauncherBean.pre_acquire_resources</code></td><td><span class="tag amber">部分实现</span> 模型和子流程预占已具备，普通步骤主链路仍以单资源申请为主。</td></tr>
+      <tr><td>队列持久化</td><td><code>TaskRouter</code> 内存 <code>BlockingQueue</code></td><td><span class="tag amber">待增强</span> 任务事实在 DB，队列本身未外置。</td></tr>
+      <tr><td>设备健康过滤</td><td><code>DeviceQueryApiImpl.getHealth()</code></td><td><span class="tag coral">需修正</span> 当前返回值固定 HEALTHY，可能削弱 Resource 的健康筛选。</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">11</span>
+    <h2 class="section-title">我建议的演进方向</h2>
+  </div>
+
+  <div class="card-grid col2">
+    <div class="card coral">
+      <div class="card-title">P0：修正设备健康视图</div>
+      <p><code>DeviceQueryApiImpl.getHealth()</code> 应返回计算出的 <code>healthStatus</code>，否则 Resource 可能把离线/故障设备视为健康候选。</p>
+    </div>
+    <div class="card amber">
+      <div class="card-title">P0：统一资源 ID 到设备下发</div>
+      <p>StepSubmitter 已把 <code>_resourceId</code> 注入 inputParams。Device/Task 路径应优先使用该 resourceId 指定设备，避免资源锁和实际设备选择不一致。</p>
+    </div>
+    <div class="card blue">
+      <div class="card-title">P1：普通步骤一步多资源</div>
+      <p>将 <code>pd_step_resource_req</code> 接入 StepSubmitter，按 sortOrder 批量申请，任意失败则释放已申请资源并注册等待。</p>
+    </div>
+    <div class="card purple">
+      <div class="card-title">P1：任务队列外置</div>
+      <p>保留 <code>lab_task</code> 事实表，将 TaskRouter 的内存队列替换为 Redis Stream 或 MQ，以支持多实例和重启恢复。</p>
+    </div>
+    <div class="card teal">
+      <div class="card-title">P1：物料扣减一致性策略</div>
+      <p>如果实验合规要求强一致，物料扣减不应只依赖异步事件；可改为同步扣减，或引入失败补偿和待人工处理状态。</p>
+    </div>
+    <div class="card green">
+      <div class="card-title">P2：统一运行观测模型</div>
+      <p>围绕 <code>executionId / nodeId / attempt / taskId / callbackToken / resourceId</code> 建立链路视图，串起 Flow、Task、Device、Resource、Lab。</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-header">
+    <span class="section-num">12</span>
+    <h2 class="section-title">参考代码清单</h2>
+  </div>
+
+  <div class="source-list">
+    <div class="source-item">Flow 启动：librax-module-flow/src/main/java/com/librax/lab/module/flow/service/pipelineexecution/PipelineExecutionServiceImpl.java</div>
+    <div class="source-item">Flow 调度：librax-module-flow/src/main/java/com/librax/lab/module/flow/engine/execution/scheduler/DagScheduler.java</div>
+    <div class="source-item">步骤提交：librax-module-flow/src/main/java/com/librax/lab/module/flow/engine/execution/scheduler/StepSubmitter.java</div>
+    <div class="source-item">步骤回调：librax-module-flow/src/main/java/com/librax/lab/module/flow/engine/execution/callback/StepCallbackService.java</div>
+    <div class="source-item">资源池：librax-module-resource/src/main/java/com/librax/lab/module/resource/impl/ResourcePoolImpl.java</div>
+    <div class="source-item">资源唤醒：librax-module-flow/src/main/java/com/librax/lab/module/flow/engine/execution/scheduler/ResourceReleaseWakeupListener.java</div>
+    <div class="source-item">设备网关：librax-module-device/src/main/java/com/librax/lab/module/device/gateway/DeviceGatewayImpl.java</div>
+    <div class="source-item">设备回调：librax-module-device/src/main/java/com/librax/lab/module/device/callback/DeviceCallbackHandler.java</div>
+    <div class="source-item">任务队列：librax-module-task/src/main/java/com/librax/lab/module/task/executor/TaskRouter.java</div>
+    <div class="source-item">任务回调：librax-module-task/src/main/java/com/librax/lab/module/task/dispatch/TaskCallbackDispatcher.java</div>
+    <div class="source-item">样本钩子：librax-module-lab/src/main/java/com/librax/lab/module/lab/hook/SampleBindHook.java</div>
+    <div class="source-item">样本事件：librax-module-lab/src/main/java/com/librax/lab/module/lab/listener/SampleFlowIntegrationListener.java</div>
+    <div class="source-item">物料核验：librax-module-lab/src/main/java/com/librax/lab/module/lab/service/materialcheck/MaterialCheckSpiImpl.java</div>
+  </div>
+</div>
+
+</div>
+</body>
+</html>
