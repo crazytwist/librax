@@ -57,7 +57,7 @@ spring:
       # REDIS_HOST/REDIS_PORT/REDIS_PASS 由 deploy-to-server.sh 通过 -e 注入
       host: ${REDIS_HOST:redis-local}
       port: ${REDIS_PORT:6379}
-      database: 0
+      database: 10
 
 --- #################### 定时任务相关配置 ####################
 
