@@ -167,8 +167,13 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         }
         // 2. 校验物料实例当前未绑定库位
         if (instance.getSlotId() != null) {
+            // 校验 如果当前位置需要绑定的物料和已绑定的一直，则直接return
+            if(instance.getSlotId().equals(slotId)){
+                return;
+            }
             throw exception(MATERIAL_INSTANCE_ALREADY_IN_SLOT);
         }
+
         // 3. 占用库位（内部校验库位存在/可用/未停用）
         slotInfoService.occupySlot(slotId, instanceId);
         // 4. 更新物料实例的库位和区域
