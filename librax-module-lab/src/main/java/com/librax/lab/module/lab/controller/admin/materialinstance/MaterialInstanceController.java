@@ -1,5 +1,6 @@
 package com.librax.lab.module.lab.controller.admin.materialinstance;
 
+import cn.hutool.core.collection.CollUtil;
 import org.springframework.web.bind.annotation.*;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -11,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.constraints.*;
 import jakarta.validation.*;
 import jakarta.servlet.http.*;
+
 import java.util.*;
 import java.util.LinkedHashMap;
 import java.io.IOException;
@@ -19,17 +21,22 @@ import com.librax.lab.framework.common.pojo.PageParam;
 import com.librax.lab.framework.common.pojo.PageResult;
 import com.librax.lab.framework.common.pojo.CommonResult;
 import com.librax.lab.framework.common.util.object.BeanUtils;
+
 import static com.librax.lab.framework.common.pojo.CommonResult.success;
 
 import com.librax.lab.framework.excel.core.util.ExcelUtils;
 
 import com.librax.lab.framework.apilog.core.annotation.ApiAccessLog;
+
 import static com.librax.lab.framework.apilog.core.enums.OperateTypeEnum.*;
 
 import com.librax.lab.module.lab.controller.admin.materialinstance.vo.*;
 import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
+import com.librax.lab.module.lab.dal.dataobject.materialdef.MaterialDefDO;
 import com.librax.lab.module.lab.service.materialinstance.MaterialInstanceService;
 import com.librax.lab.module.lab.service.containertype.ContainerTypeService;
+import com.librax.lab.module.lab.service.materialdef.MaterialDefService;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -45,13 +52,18 @@ public class MaterialInstanceController {
     @Resource
     private ContainerTypeService containerTypeService;
 
-    /** 按 typeCode 批量回填 typeName（关联 lab_container_type，不落库、纯查询期拼装） */
+    @Resource
+    private MaterialDefService materialDefService;
+
+    /**
+     * 按 typeCode 批量回填 typeName（关联 lab_container_type，不落库、纯查询期拼装）
+     */
     private void fillTypeName(List<MaterialInstanceRespVO> list) {
         if (list == null || list.isEmpty()) {
             return;
         }
-        List<String> typeCodes = list.stream().map(MaterialInstanceRespVO::getTypeCode)
-                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        List<String> typeCodes = list.stream().map(MaterialInstanceRespVO::getTypeCode).filter(Objects::nonNull)
+                .distinct().collect(Collectors.toList());
         Map<String, String> typeNameMap = containerTypeService.getTypeNameMap(typeCodes);
         list.forEach(item -> item.setTypeName(typeNameMap.get(item.getTypeCode())));
     }
@@ -83,7 +95,7 @@ public class MaterialInstanceController {
     @DeleteMapping("/delete-list")
     @Parameter(name = "ids", description = "编号", required = true)
     @Operation(summary = "批量删除物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理")
-                @PreAuthorize("@ss.hasPermission('lab:material-instance:delete')")
+    @PreAuthorize("@ss.hasPermission('lab:material-instance:delete')")
     public CommonResult<Boolean> deleteMaterialInstanceList(@RequestParam("ids") List<Long> ids) {
         materialInstanceService.deleteMaterialInstanceListByIds(ids);
         return success(true);
@@ -105,11 +117,39 @@ public class MaterialInstanceController {
     @GetMapping("/page")
     @Operation(summary = "获得物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理分页")
     @PreAuthorize("@ss.hasPermission('lab:material-instance:query')")
-    public CommonResult<PageResult<MaterialInstanceRespVO>> getMaterialInstancePage(@Valid MaterialInstancePageReqVO pageReqVO) {
+    public CommonResult<PageResult<MaterialInstanceRespVO>> getMaterialInstancePage(
+            @Valid MaterialInstancePageReqVO pageReqVO) {
         PageResult<MaterialInstanceDO> pageResult = materialInstanceService.getMaterialInstancePage(pageReqVO);
         PageResult<MaterialInstanceRespVO> respVOPage = BeanUtils.toBean(pageResult, MaterialInstanceRespVO.class);
         fillTypeName(respVOPage.getList());
+
+        fillMaterialName(respVOPage.getList());
         return success(respVOPage);
+    }
+
+    /**
+     * 根据 materialCode 补充 materialName、materialUnit（关联 lab_material_def，不落库、纯查询期拼装）
+     *
+     * @param list 待回填的物料实例列表
+     */
+    private void fillMaterialName(List<MaterialInstanceRespVO> list) {
+        if (CollUtil.isEmpty(list)) {
+            return;
+        }
+        List<String> materialCodeList = list.stream().map(MaterialInstanceRespVO::getMaterialCode)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        if (CollUtil.isEmpty(materialCodeList)) {
+            return;
+        }
+        // 查询表lab_material_def 返回的实体类再去填充 list
+        Map<String, MaterialDefDO> materialDefMap = materialDefService.getMaterialDefMap(materialCodeList);
+        list.forEach(item -> {
+            MaterialDefDO materialDef = materialDefMap.get(item.getMaterialCode());
+            if (materialDef != null) {
+                item.setMaterialName(materialDef.getMaterialName());
+                item.setMaterialUnit(materialDef.getUnit());
+            }
+        });
     }
 
     @GetMapping("/list-by-slots")
@@ -162,15 +202,15 @@ public class MaterialInstanceController {
     @Operation(summary = "导出物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理 Excel")
     @PreAuthorize("@ss.hasPermission('lab:material-instance:export')")
     @ApiAccessLog(operateType = EXPORT)
-    public void exportMaterialInstanceExcel(@Valid MaterialInstancePageReqVO pageReqVO,
-              HttpServletResponse response) throws IOException {
+    public void exportMaterialInstanceExcel(@Valid MaterialInstancePageReqVO pageReqVO, HttpServletResponse response)
+            throws IOException {
         pageReqVO.setPageSize(PageParam.PAGE_SIZE_NONE);
         List<MaterialInstanceDO> list = materialInstanceService.getMaterialInstancePage(pageReqVO).getList();
         // 导出 Excel
         List<MaterialInstanceRespVO> respVOList = BeanUtils.toBean(list, MaterialInstanceRespVO.class);
         fillTypeName(respVOList);
-        ExcelUtils.write(response, "物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理.xls", "数据", MaterialInstanceRespVO.class,
-                        respVOList);
+        ExcelUtils.write(response, "物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理.xls",
+                "数据", MaterialInstanceRespVO.class, respVOList);
     }
 
 }

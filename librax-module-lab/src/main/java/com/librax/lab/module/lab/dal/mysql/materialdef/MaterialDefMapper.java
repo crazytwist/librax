@@ -17,6 +17,15 @@ import com.librax.lab.module.lab.controller.admin.materialdef.vo.*;
 @Mapper
 public interface MaterialDefMapper extends BaseMapperX<MaterialDefDO> {
 
+    /** 按内容物编码批量查询，用于给物料实例列表回填 materialName/materialUnit（冗余展示字段，不落库）。 */
+    default List<MaterialDefDO> selectListByMaterialCodes(Collection<String> materialCodes) {
+        if (materialCodes == null || materialCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return selectList(new LambdaQueryWrapperX<MaterialDefDO>()
+                .in(MaterialDefDO::getMaterialCode, materialCodes));
+    }
+
     default PageResult<MaterialDefDO> selectPage(MaterialDefPageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<MaterialDefDO>()
                 .likeIfPresent(MaterialDefDO::getMaterialCode, reqVO.getMaterialCode())

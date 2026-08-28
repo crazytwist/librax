@@ -59,4 +59,12 @@ public interface MaterialDefService {
      */
     PageResult<MaterialDefDO> getMaterialDefPage(MaterialDefPageReqVO pageReqVO);
 
+    /**
+     * 按内容物编码批量查询物料定义，用于给物料实例列表回填展示信息
+     *
+     * @param materialCodes 内容物编码集合
+     * @return materialCode -> 物料定义 映射，查不到的编码不会出现在返回结果里
+     */
+    Map<String, MaterialDefDO> getMaterialDefMap(Collection<String> materialCodes);
+
 }

@@ -82,4 +82,17 @@ public class MaterialDefServiceImpl implements MaterialDefService {
         return materialDefMapper.selectPage(pageReqVO);
     }
 
+    @Override
+    public Map<String, MaterialDefDO> getMaterialDefMap(Collection<String> materialCodes) {
+        if (CollUtil.isEmpty(materialCodes)) {
+            return Collections.emptyMap();
+        }
+        List<MaterialDefDO> list = materialDefMapper.selectListByMaterialCodes(materialCodes);
+        Map<String, MaterialDefDO> map = new HashMap<>();
+        for (MaterialDefDO item : list) {
+            map.put(item.getMaterialCode(), item);
+        }
+        return map;
+    }
+
 }

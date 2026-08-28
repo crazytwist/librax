@@ -59,6 +59,13 @@ public class MaterialInstanceRespVO {
     @ExcelProperty("内容物编码，关联 lab_material_def.material_code，EMPTY或CARRIER类型为NULL")
     private String materialCode;
 
+
+    @Schema(description = "内容物名称，关联 lab_material_def.material_name，EMPTY或CARRIER类型为NULL")
+    private String materialName;
+
+    @Schema(description = "内容物计量单位，关联 lab_material_def.unit，EMPTY或CARRIER类型为NULL")
+    private String materialUnit;
+
     @Schema(description = "批次号，试剂溯源用，同一批次的试剂 batch_no 相同")
     @ExcelProperty("批次号，试剂溯源用，同一批次的试剂 batch_no 相同")
     private String batchNo;
