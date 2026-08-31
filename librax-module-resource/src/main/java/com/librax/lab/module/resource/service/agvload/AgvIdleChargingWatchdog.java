@@ -45,7 +45,9 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class AgvIdleChargingWatchdog implements JobHandler {
 
-    /** lab_device_command 里 device_type=AGV, command_code=Charging 那条指令（id=910182）。 */
+    /**
+     * lab_device_command 里 device_type=AGV, command_code=Charging 那条指令（id=910182）。
+     */
     private static final String CHARGING_COMMAND_CODE = "Charging";
 
     private final AgvTaskQueueMapper queueMapper;
@@ -56,22 +58,26 @@ public class AgvIdleChargingWatchdog implements JobHandler {
 
     @Override
     public String execute(String param) {
-        int checked = 0;
-        int charged = 0;
-        for (String deviceId : queueMapper.selectDistinctDeviceIds()) {
-            checked++;
-            try {
-                if (checkOne(deviceId)) charged++;
-            } catch (Exception e) {
-                log.error("[AgvIdleCharging] 巡检异常 deviceId={}", deviceId, e);
-            }
-        }
-        String result = String.format("巡检%d台AGV，下发充电指令%d次", checked, charged);
-        log.info("[AgvIdleCharging] {}", result);
-        return result;
+        //TODO 暂时去掉充电
+        //        int checked = 0;
+        //        int charged = 0;
+        //        for (String deviceId : queueMapper.selectDistinctDeviceIds()) {
+        //            checked++;
+        //            try {
+        //                if (checkOne(deviceId)) charged++;
+        //            } catch (Exception e) {
+        //                log.error("[AgvIdleCharging] 巡检异常 deviceId={}", deviceId, e);
+        //            }
+        //        }
+        //        String result = String.format("巡检%d台AGV，下发充电指令%d次", checked, charged);
+        //        log.info("[AgvIdleCharging] {}", result);
+        //        return result;
+        return "temp not charge";
     }
 
-    /** @return 本次是否实际下发了充电指令 */
+    /**
+     * @return 本次是否实际下发了充电指令
+     */
     private boolean checkOne(String deviceId) {
         // 队列（lab_agv_task_queue）不够用来单独判断"空闲"：taskState=2 一到，队列项会
         // 立刻同步标记DONE（见 AgvLoadPlanServiceImpl#handle），但下一阶段的真正指令
@@ -100,8 +106,7 @@ public class AgvIdleChargingWatchdog implements JobHandler {
             return false; // 这段空闲期已经发过一次，不重复发
         }
 
-        deviceCommandSpi.send("AGV", CHARGING_COMMAND_CODE,
-                Map.of("disableSysFieldInjection", true),
+        deviceCommandSpi.send("AGV", CHARGING_COMMAND_CODE, Map.of("disableSysFieldInjection", true),
                 "SYSTEM-AGV-CHARGE-" + deviceId, "agv_idle_charging", null);
         chargingStateTracker.markCharging(deviceId);
         log.info("[AgvIdleCharging] AGV空闲，已下发充电指令 deviceId={}", deviceId);
