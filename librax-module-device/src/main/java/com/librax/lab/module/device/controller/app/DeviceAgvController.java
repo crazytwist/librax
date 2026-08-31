@@ -116,6 +116,12 @@ public class DeviceAgvController {
             log.info("[AGV] taskState 充电指令回调，忽略 runState={}", req.getRunState());
             return success(true);
         }
+        // 20260831 由于 AGV失败可能引发流程失败阻塞，因此判断如果是状态255则打印错误日志，后续可以页面提示，如失败，人工介入处理，直至成功
+        if ("255".equals(req.getRunState())) {
+            log.error("[AGV] taskState 任务失败，请检查 taskId={} executionId={}", req.getTaskId(), req.getExecutionId());
+            // TODO 后续可以页面提示，人工介入。记录AGV设备日志，websocket推送给用户。255处理会标记失败并清空预占位置
+            return success(true);
+        }
 
         for (AgvTaskStateHandler handler : taskStateHandlers) {
             if (handler.handle(req.getTaskId(), req.getRunState(), req.getAgvId())) {
