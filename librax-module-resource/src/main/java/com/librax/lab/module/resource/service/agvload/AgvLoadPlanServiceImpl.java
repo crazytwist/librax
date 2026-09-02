@@ -931,25 +931,16 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         params.put("toLocation", next.getSourceSlotId());             // 中转位（AGV来此取料）
         params.put("callbackUrl", plan.getWarehouseCallbackUrl());
         params.put("disableSysFieldInjection", true);
-        // 不在这里同步阻塞重试（之前是1s/2s/4s的Thread.sleep循环）：这个方法通常在持有
-        // plan行锁（selectByTaskIdForUpdate）的事务里被调用，同步sleep重试会让锁被
-        // 持有好几秒，等价于用"一个请求"去处理本该异步的事情，跟AGV那边"必须等
-        // taskState=2回调才能发下一条"的原则是一回事——仓储这边也不该在一次调用里
-        // 反复堵着等。只请求一次：成功就成功，失败（比如"移栽模组非空闲"）就立即
-        // 抛出，由调用方（refillWarehouseWindow等）捕获后放弃本次，等下一次自然
-        // 触发（同一计划的其它物料就绪/被抓走事件，或兜底轮询Job）重试。
+        // 只对 message 含"非空闲"（如 code=500 "移栽模组非空闲"，仓储机械臂正忙、瞬时状态）
+        // 做有限次同步重试：每 2 秒一次、最多重试 5 次（共 6 次尝试），见
+        // sendWarehousePrepareWithRetry。这种失败是瞬时繁忙而不是真错误，仓储腾出机械臂后
+        // 重试就能成功，比直接抛出等事件链/兜底巡检再触发更及时。注意本方法通常在持有
+        // plan 行锁（selectByTaskIdForUpdate）的事务里被调用，重试期间锁一直被持有
+        // （最坏约10秒），因此重试只限于"非空闲"这一种瞬时繁忙，其它失败仍然立即抛出，
+        // 交回调用方（refillWarehouseWindow等）放弃本次，等下一次自然触发（同一计划的其它
+        // 物料就绪/被抓走事件，或兜底轮询Job）再试。
         try {
-            DeviceCommandSpi.Result response = deviceCommandSpi.send("WAREHOUSE", "prepareMaterials", params,
-                    plan.getTaskId(), "warehouse_prepare_" + next.getSequenceNo(), null);
-            if (response.getResponseBody() != null && !response.getResponseBody().isBlank()) {
-                Integer code = JSON.parseObject(response.getResponseBody()).getInteger("code");
-                if (code != null && code != 0 && code != 1005) {
-                    String message = JSON.parseObject(response.getResponseBody()).getString("message");
-                    if (message == null) message = JSON.parseObject(response.getResponseBody()).getString("msg");
-                    throw exception(AGV_LOAD_PLAN_STATE_INVALID,
-                            "仓储拒绝备料 code=" + code + ", message=" + message);
-                }
-            }
+            sendWarehousePrepareWithRetry(plan, next, params);
         } catch (RuntimeException e) {
             // 关键：请求失败时必须把上面已经落库的副作用（源槽位预留、warehouseRequestId标记）
             // 完全撤销，让这件物料恢复成"从没请求过"的干净状态。之前没做这一步的话，
@@ -966,6 +957,48 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         }
         log.info("[AgvWarehouse] 请求仓储备料成功 taskId={} subRequestId={} from={} to={}",
                 plan.getTaskId(), subRequestId, next.getWarehouseSourceLocation(), next.getSourceSlotId());
+    }
+
+    /**
+     * 发送仓储备料请求（prepareMaterials）。当仓储返回的消息里带"非空闲"（如 code=500
+     * "移栽模组非空闲"，机械臂正在处理上一件搬运，属瞬时繁忙）时，sleep 2 秒后重试，
+     * 最多重试 5 次（共 6 次尝试）；仍失败才抛出异常，交回调用方现有兜底机制（同计划其它
+     * 物料就绪/被抓走事件，或兜底巡检Job）再试。与 AgvReturnPlanServiceImpl 入库侧
+     * 的"非空闲"重试策略一致，只是这里重试次数更多。其余错误立即抛出，不在这里耗锁重试。
+     */
+    private void sendWarehousePrepareWithRetry(AgvLoadPlanDO plan, AgvLoadItemDO next,
+            Map<String, Object> params) {
+        final int maxAttempts = 5; // 首次尝试 + 最多5次重试
+        int attempt = 0;
+        while (true) {
+            attempt++;
+            DeviceCommandSpi.Result response = deviceCommandSpi.send("WAREHOUSE", "prepareMaterials", params,
+                    plan.getTaskId(), "warehouse_prepare_" + next.getSequenceNo(), null);
+            if (response.getResponseBody() == null || response.getResponseBody().isBlank()) {
+                return; // 与原有逻辑一致：无响应体视为成功
+            }
+            Integer code = JSON.parseObject(response.getResponseBody()).getInteger("code");
+            if (code == null || code == 0 || code == 1005) {
+                return; // 成功，或幂等已处理
+            }
+            String message = JSON.parseObject(response.getResponseBody()).getString("message");
+            if (message == null) {
+                message = JSON.parseObject(response.getResponseBody()).getString("msg");
+            }
+            if (attempt < maxAttempts && message != null && message.contains("非空闲")) {
+                log.info("[AgvWarehouse] 仓储移栽模组非空闲，2s后重试 taskId={} subRequestId={} attempt={}/{} message={}",
+                        plan.getTaskId(), next.getWarehouseRequestId(), attempt, maxAttempts, message);
+                try {
+                    Thread.sleep(2000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw exception(AGV_LOAD_PLAN_STATE_INVALID,
+                            "仓储备料重试被中断 code=" + code + ", message=" + message);
+                }
+                continue;
+            }
+            throw exception(AGV_LOAD_PLAN_STATE_INVALID, "仓储拒绝备料 code=" + code + ", message=" + message);
+        }
     }
 
     /**
