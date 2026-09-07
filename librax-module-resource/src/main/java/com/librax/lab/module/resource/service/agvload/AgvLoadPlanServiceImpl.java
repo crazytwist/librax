@@ -152,6 +152,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                 .doorCommandCode(string(inputParams.get("doorCommandCode"), null))
                 .doorPermissionGateRequired(bool(inputParams.get("doorPermissionGateRequired")))
                 .doorPermissionReceived(false)
+                .doorOpened(false)
                 .status("WAIT_WAREHOUSE")
                 .build();
         planMapper.insert(plan);
@@ -506,7 +507,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
      *
      * <p>只在 UNLOAD 阶段、且本车次 doorRequired=true 时才生效；其它情况（非UNLOAD阶段的现场
      * 等待，或本车次不需要开关门）维持原有行为——停在 WAIT_SITE_ACTION，不自动放行，
-     * 需要外部显式调用 resume()。
+     * 需要外部显式调用 resume()。若门已在最后一次LOAD完成时提前打开，这里不再重复开门，
+     * 只放行AGV继续卸货。
      */
     private void maybeGateOnDoorOrResume(AgvLoadPlanDO plan) {
         if (!"UNLOAD".equals(plan.getCurrentAgvOperation()) || !Boolean.TRUE.equals(plan.getDoorRequired())) {
@@ -518,22 +520,42 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                     plan.getTaskId(), plan.getCurrentAgvTaskId());
             return;
         }
-        openDoorThenResume(plan);
+        resumeUnloadAfterDoorReady(plan);
     }
 
-    /** 同步调用开关门指令（op=open），成功后放行AGV继续执行卸货。 */
-    private void openDoorThenResume(AgvLoadPlanDO plan) {
+    /**
+     * 同步调用开门指令；同一车次成功一次后持久化标记，后续提前开门、permission回调和
+     * UNLOAD waitSignal 并发或重试时不再重复调用设备。
+     */
+    private boolean openDoorIfNeeded(AgvLoadPlanDO plan) {
+        if (Boolean.TRUE.equals(plan.getDoorOpened())) {
+            return true;
+        }
         String deviceType = string(plan.getDoorDeviceId(), "Feeding-Reaction");
         String commandCode = string(plan.getDoorCommandCode(), "OpenCloseDoor");
         DeviceCommandSpi.Result result = deviceCommandSpi.send(
                 deviceType, commandCode, Map.of("op", "open", "disableSysFieldInjection", true),
-                plan.getTaskId(), "door_open_" + plan.getCurrentAgvTaskId(), null);
+                plan.getTaskId(), "door_open_" + plan.getTaskId(), null);
         if (!result.isSyncCompleted()) {
-            log.warn("[AgvWarehouse] 开门指令未同步完成，暂不放行AGV taskId={} deviceType={} commandCode={}",
+            log.warn("[AgvWarehouse] 开门指令未同步完成 taskId={} deviceType={} commandCode={}",
                     plan.getTaskId(), deviceType, commandCode);
+            return false;
+        }
+        plan.setDoorOpened(true);
+        planMapper.updateById(plan);
+        log.info("[AgvWarehouse] 开门完成并记录幂等状态 taskId={} agvTaskId={} operation={}",
+                plan.getTaskId(), plan.getCurrentAgvTaskId(), plan.getCurrentAgvOperation());
+        return true;
+    }
+
+    /** 确认门已打开后，放行当前正在等待的UNLOAD子任务。 */
+    private void resumeUnloadAfterDoorReady(AgvLoadPlanDO plan) {
+        if (!openDoorIfNeeded(plan)) {
+            log.warn("[AgvWarehouse] 开门未完成，暂不放行AGV taskId={} agvTaskId={}",
+                    plan.getTaskId(), plan.getCurrentAgvTaskId());
             return;
         }
-        log.info("[AgvWarehouse] 开门完成，放行AGV继续执行卸货 taskId={} agvTaskId={}",
+        log.info("[AgvWarehouse] 门已打开，放行AGV继续执行卸货 taskId={} agvTaskId={}",
                 plan.getTaskId(), plan.getCurrentAgvTaskId());
         sendResumeCommand(plan);
     }
@@ -550,7 +572,12 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         plan.setDoorPermissionReceived(true);
         planMapper.updateById(plan);
         if ("WAIT_SITE_ACTION".equals(plan.getStatus()) && "UNLOAD".equals(plan.getCurrentAgvOperation())) {
-            openDoorThenResume(plan);
+            resumeUnloadAfterDoorReady(plan);
+        } else if (isReadyToOpenSynthesisDoorBeforeUnload(plan)) {
+            if (openDoorIfNeeded(plan)) {
+                log.info("[AgvWarehouse] 收到机台开门许可，已在AGV前往合成站途中提前开门 taskId={} status={}",
+                        taskId, plan.getStatus());
+            }
         } else {
             log.info("[AgvWarehouse] 收到机台开门许可，记录待用 taskId={} status={}", taskId, plan.getStatus());
         }
@@ -1206,6 +1233,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             afterWarehouseReady(plan); // 立刻检查是否已有备好的下一件可以马上抓，同时继续补窗口
         } else {
             planMapper.updateById(plan);
+            tryOpenSynthesisDoorBeforeMove(plan);
             sendMoveTask(plan);
         }
     }
@@ -1236,8 +1264,46 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             markCurrentWaveReadyDirect(plan);
             afterWarehouseReadyBatch(plan);
         } else {
+            planMapper.updateById(plan);
+            tryOpenSynthesisDoorBeforeMove(plan);
             sendMoveTask(plan);
         }
+    }
+
+    /**
+     * 最后一次LOAD完成、下发MOVE前尝试提前打开合成站门。失败或尚未收到机台许可均不阻断MOVE，
+     * 后续permission回调或UNLOAD waitSignal仍会重试。
+     */
+    private void tryOpenSynthesisDoorBeforeMove(AgvLoadPlanDO plan) {
+        if (!isReadyToOpenSynthesisDoorBeforeUnload(plan)) {
+            return;
+        }
+        if (!openDoorIfNeeded(plan)) {
+            log.warn("[AgvWarehouse] LOAD完成后提前打开合成站门失败，继续下发MOVE并保留UNLOAD兜底 taskId={}",
+                    plan.getTaskId());
+        }
+    }
+
+    /** 当前车次是否已经装载完毕，且目标是需要开门的合成站并满足机台许可条件。 */
+    private boolean isReadyToOpenSynthesisDoorBeforeUnload(AgvLoadPlanDO plan) {
+        if (!Boolean.TRUE.equals(plan.getDoorRequired())
+                || plan.getLoadedCount() == null
+                || plan.getExpectedCount() == null
+                || plan.getLoadedCount() < plan.getExpectedCount()
+                || !isSynthesisStationDestination(plan)) {
+            return false;
+        }
+        return !Boolean.TRUE.equals(plan.getDoorPermissionGateRequired())
+                || Boolean.TRUE.equals(plan.getDoorPermissionReceived());
+    }
+
+    /** step3工作流编码 AGV_STX 表示本车次最终卸货到手套箱合成站。 */
+    private boolean isSynthesisStationDestination(AgvLoadPlanDO plan) {
+        return itemMapper.selectByTaskId(plan.getTaskId()).stream()
+                .map(AgvLoadItemDO::getStep3Json)
+                .filter(Objects::nonNull)
+                .map(JSON::parseObject)
+                .anyMatch(step3 -> "AGV_STX".equals(step3.getString("taskName")));
     }
 
     @SuppressWarnings("unchecked")

@@ -63,6 +63,8 @@ public class AgvLoadPlanDO extends BaseDO {
     private Boolean doorPermissionReceived;
     /** 是否需要额外等机台开门许可信号（同单第一车=0，第二车起=1） */
     private Boolean doorPermissionGateRequired;
+    /** 当前车次合成站门是否已成功打开，用于提前开门及UNLOAD兜底幂等 */
+    private Boolean doorOpened;
     /** LOADING / LOAD_COMPLETE / COMPLETED / FAILED / CANCELLED */
     private String status;
 }
