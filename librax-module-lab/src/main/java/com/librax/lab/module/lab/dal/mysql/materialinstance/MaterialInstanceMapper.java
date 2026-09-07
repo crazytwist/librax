@@ -77,6 +77,20 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
                                 .ge(MaterialInstanceDO::getExpiredAt, java.time.LocalDate.now())));
     }
 
+    default List<MaterialInstanceDO> selectAvailableSlot(String typeCode, String materialCode, String contentType,
+            String zoneCode) {
+        return selectList(
+                new LambdaQueryWrapperX<MaterialInstanceDO>().eqIfPresent(MaterialInstanceDO::getTypeCode, typeCode)
+                        .eqIfPresent(MaterialInstanceDO::getMaterialCode, materialCode)
+                        .eqIfPresent(MaterialInstanceDO::getContentType, contentType)
+                        .eqIfPresent(MaterialInstanceDO::getZoneCode, zoneCode)
+                        .eq(MaterialInstanceDO::getStatus, "AVAILABLE")
+                        .and(w -> w.isNotNull(MaterialInstanceDO::getSlotId)
+                                .ne(MaterialInstanceDO::getSlotId, ""))
+                        .and(w -> w.isNull(MaterialInstanceDO::getExpiredAt).or()
+                                .ge(MaterialInstanceDO::getExpiredAt, java.time.LocalDate.now())));
+    }
+
     /**
      * 原子预留可用物料，避免两个补料单选中同一实例。
      */
