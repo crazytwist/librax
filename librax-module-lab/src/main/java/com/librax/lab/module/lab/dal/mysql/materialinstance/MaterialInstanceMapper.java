@@ -25,8 +25,8 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
      * 条件：status=AVAILABLE, 未过期
      */
     default MaterialInstanceDO selectByInstanceId(String instanceId) {
-        return selectOne(new LambdaQueryWrapperX<MaterialInstanceDO>()
-                .eq(MaterialInstanceDO::getInstanceId, instanceId));
+        return selectOne(
+                new LambdaQueryWrapperX<MaterialInstanceDO>().eq(MaterialInstanceDO::getInstanceId, instanceId));
     }
 
     /**
@@ -36,8 +36,8 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
         if (instanceIds == null || instanceIds.isEmpty()) {
             return java.util.Collections.emptyList();
         }
-        return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>()
-                .in(MaterialInstanceDO::getInstanceId, instanceIds));
+        return selectList(
+                new LambdaQueryWrapperX<MaterialInstanceDO>().in(MaterialInstanceDO::getInstanceId, instanceIds));
     }
 
     /**
@@ -47,8 +47,7 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
         if (slotIds == null || slotIds.isEmpty()) {
             return java.util.Collections.emptyList();
         }
-        return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>()
-                .in(MaterialInstanceDO::getSlotId, slotIds));
+        return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>().in(MaterialInstanceDO::getSlotId, slotIds));
     }
 
     /**
@@ -59,38 +58,33 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
         if (parentIds == null || parentIds.isEmpty()) {
             return java.util.Collections.emptyList();
         }
-        return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>()
-                .in(MaterialInstanceDO::getParentId, parentIds));
+        return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>().in(MaterialInstanceDO::getParentId, parentIds));
     }
 
-    default List<MaterialInstanceDO> selectAvailable(String materialCode,
-                                                      String contentType,
-                                                      String zoneCode) {
+    default List<MaterialInstanceDO> selectAvailable(String materialCode, String contentType, String zoneCode) {
         return selectAvailable(null, materialCode, contentType, zoneCode);
     }
 
-    default List<MaterialInstanceDO> selectAvailable(String typeCode,
-                                                      String materialCode,
-                                                      String contentType,
-                                                      String zoneCode) {
-        return selectList(new LambdaQueryWrapperX<MaterialInstanceDO>()
-                .eqIfPresent(MaterialInstanceDO::getTypeCode, typeCode)
-                .eqIfPresent(MaterialInstanceDO::getMaterialCode, materialCode)
-                .eqIfPresent(MaterialInstanceDO::getContentType, contentType)
-                .eqIfPresent(MaterialInstanceDO::getZoneCode, zoneCode)
-                .eq(MaterialInstanceDO::getStatus, "AVAILABLE")
-                .and(w -> w.isNull(MaterialInstanceDO::getExpiredAt)
-                        .or()
-                        .ge(MaterialInstanceDO::getExpiredAt, java.time.LocalDate.now())));
+    default List<MaterialInstanceDO> selectAvailable(String typeCode, String materialCode, String contentType,
+            String zoneCode) {
+        return selectList(
+                new LambdaQueryWrapperX<MaterialInstanceDO>().eqIfPresent(MaterialInstanceDO::getTypeCode, typeCode)
+                        .eqIfPresent(MaterialInstanceDO::getMaterialCode, materialCode)
+                        .eqIfPresent(MaterialInstanceDO::getContentType, contentType)
+                        .eqIfPresent(MaterialInstanceDO::getZoneCode, zoneCode)
+                        .eq(MaterialInstanceDO::getStatus, "AVAILABLE")
+                        .and(w -> w.isNull(MaterialInstanceDO::getExpiredAt).or()
+                                .ge(MaterialInstanceDO::getExpiredAt, java.time.LocalDate.now())));
     }
 
-    /** 原子预留可用物料，避免两个补料单选中同一实例。 */
+    /**
+     * 原子预留可用物料，避免两个补料单选中同一实例。
+     */
     default int reserveAvailable(String instanceId) {
-        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
-                .eq(MaterialInstanceDO::getInstanceId, instanceId)
-                .eq(MaterialInstanceDO::getStatus, "AVAILABLE")
-                .set(MaterialInstanceDO::getStatus, "RESERVED")
-                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+        return update(null,
+                new LambdaUpdateWrapper<MaterialInstanceDO>().eq(MaterialInstanceDO::getInstanceId, instanceId)
+                        .eq(MaterialInstanceDO::getStatus, "AVAILABLE").set(MaterialInstanceDO::getStatus, "RESERVED")
+                        .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
     }
 
     /**
@@ -98,16 +92,16 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
      * <p>搬运不改变物料的语义状态：AVAILABLE→AVAILABLE（补料），USED→USED（下料）。
      */
     default int completeTransfer(String instanceId, String slotId, String zoneCode, String targetStatus) {
-        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
-                .eq(MaterialInstanceDO::getInstanceId, instanceId)
-                .eq(MaterialInstanceDO::getStatus, "RESERVED")
-                .set(MaterialInstanceDO::getSlotId, slotId)
-                .set(MaterialInstanceDO::getZoneCode, zoneCode)
-                .set(MaterialInstanceDO::getStatus, targetStatus)
-                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+        return update(null,
+                new LambdaUpdateWrapper<MaterialInstanceDO>().eq(MaterialInstanceDO::getInstanceId, instanceId)
+                        .eq(MaterialInstanceDO::getStatus, "RESERVED").set(MaterialInstanceDO::getSlotId, slotId)
+                        .set(MaterialInstanceDO::getZoneCode, zoneCode).set(MaterialInstanceDO::getStatus, targetStatus)
+                        .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
     }
 
-    /** 补料到位后提交物料的新位置（快捷方法，恢复为 AVAILABLE）。 */
+    /**
+     * 补料到位后提交物料的新位置（快捷方法，恢复为 AVAILABLE）。
+     */
     default int completeReplenishment(String instanceId, String slotId, String zoneCode) {
         return completeTransfer(instanceId, slotId, zoneCode, "AVAILABLE");
     }
@@ -116,25 +110,27 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
      * 搬运失败时将物料预留归还原始状态。
      */
     default int releaseReservationTo(String instanceId, String targetStatus) {
-        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
-                .eq(MaterialInstanceDO::getInstanceId, instanceId)
-                .eq(MaterialInstanceDO::getStatus, "RESERVED")
-                .set(MaterialInstanceDO::getStatus, targetStatus)
-                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+        return update(null,
+                new LambdaUpdateWrapper<MaterialInstanceDO>().eq(MaterialInstanceDO::getInstanceId, instanceId)
+                        .eq(MaterialInstanceDO::getStatus, "RESERVED").set(MaterialInstanceDO::getStatus, targetStatus)
+                        .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
     }
 
-    /** 补料失败时归还尚未搬走的库存预留（恢复为 AVAILABLE）。 */
+    /**
+     * 补料失败时归还尚未搬走的库存预留（恢复为 AVAILABLE）。
+     */
     default int releaseReservation(String instanceId) {
         return releaseReservationTo(instanceId, "AVAILABLE");
     }
 
-    /** 下料前原子锁定已使用物料（USED → RESERVED），防并发下料任务重复选中。 */
+    /**
+     * 下料前原子锁定已使用物料（USED → RESERVED），防并发下料任务重复选中。
+     */
     default int reserveUsed(String instanceId) {
-        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
-                .eq(MaterialInstanceDO::getInstanceId, instanceId)
-                .eq(MaterialInstanceDO::getStatus, "USED")
-                .set(MaterialInstanceDO::getStatus, "RESERVED")
-                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+        return update(null,
+                new LambdaUpdateWrapper<MaterialInstanceDO>().eq(MaterialInstanceDO::getInstanceId, instanceId)
+                        .eq(MaterialInstanceDO::getStatus, "USED").set(MaterialInstanceDO::getStatus, "RESERVED")
+                        .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
     }
 
     /**
@@ -146,17 +142,17 @@ public interface MaterialInstanceMapper extends BaseMapperX<MaterialInstanceDO> 
      * 恢复到搬运前的状态。
      */
     default int reserveForTransfer(String instanceId, String fromStatus) {
-        return update(null, new LambdaUpdateWrapper<MaterialInstanceDO>()
-                .eq(MaterialInstanceDO::getInstanceId, instanceId)
-                .eq(MaterialInstanceDO::getStatus, fromStatus)
-                .set(MaterialInstanceDO::getStatus, "RESERVED")
-                .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
+        return update(null,
+                new LambdaUpdateWrapper<MaterialInstanceDO>().eq(MaterialInstanceDO::getInstanceId, instanceId)
+                        .eq(MaterialInstanceDO::getStatus, fromStatus).set(MaterialInstanceDO::getStatus, "RESERVED")
+                        .set(MaterialInstanceDO::getUpdateTime, java.time.LocalDateTime.now()));
     }
 
 
     default PageResult<MaterialInstanceDO> selectPage(MaterialInstancePageReqVO reqVO) {
         return selectPage(reqVO, new LambdaQueryWrapperX<MaterialInstanceDO>()
-                .likeIfPresent(MaterialInstanceDO::getInstanceId, reqVO.getInstanceId())
+                //                .likeIfPresent(MaterialInstanceDO::getInstanceId, reqVO.getInstanceId())
+                .eqIfPresent(MaterialInstanceDO::getInstanceId, reqVO.getInstanceId())
                 .eqIfPresent(MaterialInstanceDO::getTypeCode, reqVO.getTypeCode())
                 .likeIfPresent(MaterialInstanceDO::getBarcode, reqVO.getBarcode())
                 .eqIfPresent(MaterialInstanceDO::getParentId, reqVO.getParentId())

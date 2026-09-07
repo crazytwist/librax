@@ -121,6 +121,19 @@ public interface MaterialInstanceService {
     MaterialInstanceDO getInstanceByInsId(String instanceId);
 
     /**
+     * 扫码更新物料实例 remark：写入/移除合成站目标位 gloveboxTargetSlotId 与带盖信息 hasCap
+     *
+     * <p>remark 约定为 JSON 对象，如 {"gloveboxTargetSlotId":"R_A-1-3-7","hasCap":false}。
+     * 若原 remark 为合法 JSON 对象，则在保留其它字段的基础上：参数有值则写入（覆盖）对应键，
+     * 参数为空则从 JSON 中移除对应键；若原 remark 为空或非 JSON，则用有值的参数组装 JSON 写入。
+     *
+     * @param instId              物料实例ID
+     * @param gloveboxTargetSlotId 合成站指定位置，如 R_A-1-3-7；为空则移除该配置
+     * @param hasCap              是否有盖子；为空则移除该配置
+     */
+    void updateGloveboxRemark(String instId, String gloveboxTargetSlotId, Boolean hasCap);
+
+    /**
      * 物料位置提交：将物料移动到新库位，zoneCode 强制从 slotInfo 读取，状态恢复为 AVAILABLE。
      *
      * <p>适用场景：AGV 补料流程完成后，提交物料的最终位置（送达机台站位，可被取用）。

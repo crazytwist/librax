@@ -13,6 +13,7 @@ import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialI
 import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceListReqVO;
 import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstancePageReqVO;
 import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceRespVO;
+import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceUpdateRemarkReqVO;
 import com.librax.lab.module.lab.dal.dataobject.containertype.ContainerTypeDO;
 import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
 import com.librax.lab.module.lab.service.containertype.ContainerTypeService;
@@ -184,6 +185,15 @@ public class AppMaterialInstanceController {
     @PermitAll
     public CommonResult<Boolean> unloadFromSlot(@RequestParam("instanceId") String instanceId) {
         materialInstanceService.unloadFromSlot(instanceId);
+        return success(true);
+    }
+
+    @PutMapping("/update-remark")
+    @Operation(summary = "扫码更新物料实例 remark - 写入合成站目标位与带盖信息")
+    @PermitAll
+    public CommonResult<Boolean> updateGloveboxRemark(@Valid @RequestBody AppMaterialInstanceUpdateRemarkReqVO reqVO) {
+        materialInstanceService.updateGloveboxRemark(reqVO.getInstId(), reqVO.getGloveboxTargetSlotId(),
+                reqVO.getHasCap());
         return success(true);
     }
 

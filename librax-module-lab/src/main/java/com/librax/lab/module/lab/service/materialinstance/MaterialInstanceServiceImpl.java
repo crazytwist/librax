@@ -2,6 +2,8 @@ package com.librax.lab.module.lab.service.materialinstance;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.librax.lab.framework.common.exception.ServiceException;
@@ -244,6 +246,42 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
     @Override
     public MaterialInstanceDO getInstanceByInsId(String instanceId) {
         return materialInstanceMapper.selectByInstanceId(instanceId);
+    }
+
+    @Override
+    public void updateGloveboxRemark(String instId, String gloveboxTargetSlotId, Boolean hasCap) {
+        // 1. 查询并校验物料实例存在
+        MaterialInstanceDO instance = materialInstanceMapper.selectByInstanceId(instId);
+        if (instance == null) {
+            throw exception(MATERIAL_INSTANCE_NOT_EXISTS);
+        }
+        // 2. 解析原 remark：合法 JSON 对象则在其基础上补充，否则（空/非 JSON）重新组装
+        JSONObject remarkObj = null;
+        String remark = instance.getRemark();
+        if (StrUtil.isNotBlank(remark)) {
+            try {
+                remarkObj = JSON.parseObject(remark);
+            } catch (Exception ignore) {
+                remarkObj = null; // 非 JSON 文本，忽略并按新 JSON 组装
+            }
+        }
+        if (remarkObj == null) {
+            remarkObj = new JSONObject();
+        }
+        // 3. 写入/移除合成站目标位与带盖信息：参数有值则写入（覆盖），为空则从 JSON 中移除对应配置
+        if (StrUtil.isNotBlank(gloveboxTargetSlotId)) {
+            remarkObj.put("gloveboxTargetSlotId", gloveboxTargetSlotId);
+        } else {
+            remarkObj.remove("gloveboxTargetSlotId");
+        }
+        if (hasCap != null) {
+            remarkObj.put("hasCap", hasCap);
+        } else {
+            remarkObj.remove("hasCap");
+        }
+        // 4. 组装 remark 后以实体对象方式更新
+        instance.setRemark(remarkObj.toJSONString());
+        materialInstanceMapper.updateById(instance);
     }
 
     @Override
