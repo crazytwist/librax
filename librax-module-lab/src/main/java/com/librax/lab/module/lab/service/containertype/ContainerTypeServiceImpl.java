@@ -96,4 +96,17 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
         return map;
     }
 
+    @Override
+    public Map<String, ContainerTypeDO> getContainerTypeMap(Collection<String> typeCodes) {
+        if (CollUtil.isEmpty(typeCodes)) {
+            return Collections.emptyMap();
+        }
+        List<ContainerTypeDO> list = containerTypeMapper.selectListByTypeCodes(typeCodes);
+        Map<String, ContainerTypeDO> map = new HashMap<>();
+        for (ContainerTypeDO item : list) {
+            map.put(item.getTypeCode(), item);
+        }
+        return map;
+    }
+
 }

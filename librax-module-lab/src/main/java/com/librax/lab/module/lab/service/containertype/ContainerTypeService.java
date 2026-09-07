@@ -67,4 +67,13 @@ public interface ContainerTypeService {
      */
     Map<String, String> getTypeNameMap(Collection<String> typeCodes);
 
+    /**
+     * 按类型编码批量查询完整容器类型，用于给物料实例等列表回填容器角色（hierarchyRole）、
+     * 耗材属性（consumable）等非落库展示字段
+     *
+     * @param typeCodes 容器类型编码集合
+     * @return typeCode -> 容器类型定义 映射，查不到的编码不会出现在返回结果里
+     */
+    Map<String, ContainerTypeDO> getContainerTypeMap(Collection<String> typeCodes);
+
 }

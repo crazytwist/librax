@@ -20,6 +20,12 @@ public class AppMaterialInstanceRespVO {
     @Schema(description = "容器类型编码", requiredMode = Schema.RequiredMode.REQUIRED)
     private String typeCode;
 
+    @Schema(description = "容器类型描述 CARRIER=载体，CHILD 孔位", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String containerRole;
+
+    @Schema(description = "是否为耗材 是-true 否-false", requiredMode = Schema.RequiredMode.REQUIRED)
+    private boolean consumable;
+
     @Schema(description = "条形码/二维码")
     private String barcode;
 

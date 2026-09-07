@@ -134,7 +134,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         AgvLoadPlanDO plan = AgvLoadPlanDO.builder()
                 .taskId(taskId)
                 .deviceId(string(inputParams.get("agvDeviceId"), "AGV-01"))
-                .loadStation(string(inputParams.get("loadStation"), null))
+                .loadStation(string(inputParams.get("sourceAgvStationName"),
+                        string(inputParams.get("loadStation"), "WAREHOUSE")))
                 .expectedCount(transferItems.size())
                 .loadedCount(0)
                 .waveSize(waveSize)
@@ -145,7 +146,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                 .taskType(string(inputParams.get("taskType"), "1"))
                 .plateType(string(inputParams.get("plateType"), "Plate_5"))
                 .warehouseCallbackUrl(string(inputParams.get("warehouseCallbackUrl"),
-                        "http://localhost:48080/app-api/resource/slot/ready"))
+                        "http://localhost:48080/app-api/resource/slot/warehouse-callback"))
                 .sourceReadyMode(sourceReadyMode)
                 .doorRequired(bool(inputParams.get("doorRequired")))
                 .doorDeviceId(string(inputParams.get("doorDeviceId"), null))
@@ -185,8 +186,9 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             markCurrentWaveReadyDirect(plan);
             afterWarehouseReadyBatch(plan);
         } else {
-            // WAREHOUSE 模式：只按并发窗口先请求第一件，AGV 抓取永远逐件进行，见 afterWarehouseReady。
-            refillWarehouseWindow(plan);
+            // prepareMaterials 与 AGV 预定位并行：仓储接受首件请求后，只下发独立的
+            // AgvMove 到仓储站点；真正的 step1/LOAD 仍严格等待 READY。
+            afterWarehouseReady(plan);
         }
         log.info("[AgvWarehouse] 启动搬运编排 taskId={} count={} waveSize={} sourceReadyMode={}",
                 taskId, transferItems.size(), waveSize, sourceReadyMode);
@@ -505,10 +507,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     /**
      * AGV 到达卸货等待点（WAIT_SITE_ACTION）后的门禁联动入口。
      *
-     * <p>只在 UNLOAD 阶段、且本车次 doorRequired=true 时才生效；其它情况（非UNLOAD阶段的现场
-     * 等待，或本车次不需要开关门）维持原有行为——停在 WAIT_SITE_ACTION，不自动放行，
-     * 需要外部显式调用 resume()。若门已在最后一次LOAD完成时提前打开，这里不再重复开门，
-     * 只放行AGV继续卸货。
+     * <p>只在 UNLOAD 阶段、且本车次 doorRequired=true 时才生效；其它情况维持原有行为，
+     * 停在 WAIT_SITE_ACTION，需要外部显式调用 resume()。
      */
     private void maybeGateOnDoorOrResume(AgvLoadPlanDO plan) {
         if (!"UNLOAD".equals(plan.getCurrentAgvOperation()) || !Boolean.TRUE.equals(plan.getDoorRequired())) {
@@ -704,6 +704,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             log.info("[AgvLoadPlan] advanceAfterTaskStateAsync 加锁读取到计划状态 taskId={} status={} currentAgvOperation={} loadedCount={}",
                     taskId, plan.getStatus(), plan.getCurrentAgvOperation(), plan.getLoadedCount());
             switch (plan.getCurrentAgvOperation()) {
+                case "PREPOSITION" -> completePrepositionAndContinue(plan);
                 case "LOAD" -> completeLoadAndContinue(plan);   // 内部可能调 sendMoveTask，走队列
                 case "MOVE" -> sendUnloadTask(plan);             // 走队列
                 case "UNLOAD" -> {
@@ -1031,10 +1032,10 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     /**
      * 物料状态变化时的统一入口（新建计划、仓储备好一件、AGV抓完一件都会调到这里）。
      *
-     * <p>WAREHOUSE 模式（仓储备料，默认）：AGV 永远一次只抓一件，必须收到这一件的
-     * taskState=2 确认后才会去抓下一件；仓储那边则按 sourceWindowCapacity 控制的并发窗口
-     * 提前备料，让"AGV抓当前件"和"仓储备下一件"这两个动作并行——AGV不用在两次抓取之间
-     * 空等仓储，但也绝不会一次收到打包了多件物料的抓取指令。见 {@link #tryDispatchReadyItem}
+     * <p>WAREHOUSE 模式（仓储备料，默认）：首件 prepareMaterials 被接受后，独立下发
+     * PREPOSITION/AgvMove 到仓储站；真正 step1 仍等待 READY。AGV 永远一次只抓一件，必须收到
+     * 当前件 taskState=2 后才抓下一件。仓储按 sourceWindowCapacity 提前备料，使两侧并行，
+     * 但绝不会一次收到打包了多件物料的抓取指令。见 {@link #tryDispatchReadyItem}
      * / {@link #refillWarehouseWindow}。
      *
      * <p>DIRECT 模式（机台转运等，源头物料本就就绪、没有仓储备料瓶颈）维持原有"整波一次性
@@ -1045,12 +1046,41 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         if ("DIRECT".equals(plan.getSourceReadyMode())) {
             return afterWarehouseReadyBatch(plan);
         }
-        boolean dispatched = tryDispatchReadyItem(plan);
         boolean requested = refillWarehouseWindow(plan);
+        if (shouldStartPreposition(plan)) {
+            sendPrepositionTask(plan);
+            return true;
+        }
+        boolean dispatched = tryDispatchReadyItem(plan);
         return dispatched || requested;
     }
 
-    /** AGV当前空闲（这个计划没有正在处理的抓取子任务）时，把序号最小的一件已备好(READY)物料单独发给AGV。 */
+    /**
+     * 首件 prepareMaterials 已被仓储接受且 AGV 空闲时，启动独立预定位任务。
+     */
+    private boolean shouldStartPreposition(AgvLoadPlanDO plan) {
+        if (plan.getLoadedCount() != 0 || plan.getCurrentAgvOperation() != null
+                || !"WAIT_WAREHOUSE".equals(plan.getStatus())) {
+            return false;
+        }
+        return itemMapper.selectByTaskId(plan.getTaskId()).stream()
+                .anyMatch(item -> item.getWarehouseRequestId() != null);
+    }
+
+    private void sendPrepositionTask(AgvLoadPlanDO plan) {
+        String agvTaskId = plan.getTaskId() + "-PREPOSITION";
+        Map<String, Object> command = new LinkedHashMap<>();
+        command.put("taskType", plan.getTaskType());
+        command.put("plateType", plan.getPlateType());
+        command.put("step2", Map.of(
+                "taskName", "AgvMove",
+                "agvStationName", plan.getLoadStation()));
+        sendAndEnqueue(plan, agvTaskId, "PREPOSITION",
+                Map.of("taskId", agvTaskId, "agvCmdList", List.of(command),
+                        "disableSysFieldInjection", true));
+    }
+
+    /** AGV空闲时，把序号最小的一件已备好(READY)物料单独发给AGV抓取。 */
     private boolean tryDispatchReadyItem(AgvLoadPlanDO plan) {
         if (plan.getCurrentAgvOperation() != null) {
             log.info("[AgvLoadPlan] tryDispatchReadyItem: AGV有子任务在途，跳过 taskId={} currentAgvOperation={} currentAgvTaskId={}",
@@ -1192,6 +1222,23 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             return MAGNETIC_PLATE_TYPE;
         }
         return plan.getPlateType();
+    }
+
+    /**
+     * AGV 到达仓储站点后释放预定位子任务；若物料已经 READY，立即沿用原有 LOAD 调度，
+     * 否则保持在仓储站点等待仓储回调。
+     */
+    private void completePrepositionAndContinue(AgvLoadPlanDO plan) {
+        plan.setCurrentAgvTaskId(null);
+        plan.setCurrentAgvOperation(null);
+        if ("FAILED".equals(plan.getStatus())) {
+            planMapper.updateById(plan);
+            agvQueueService.dispatchNext(plan.getDeviceId());
+            return;
+        }
+        plan.setStatus("WAIT_WAREHOUSE_PREPOSITIONED");
+        planMapper.updateById(plan);
+        afterWarehouseReady(plan);
     }
 
     /** taskState=2 确认一次LOAD子任务完成后的推进入口，按模式分派。 */
@@ -1460,7 +1507,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     private AgvLoadPlanDO requireActivePlanForWarehouseReady(String taskId) {
         AgvLoadPlanDO plan = planMapper.selectByTaskIdForUpdate(taskId);
         if (plan == null) throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
-        if (!Set.of("LOADING", "WAIT_WAREHOUSE", "QUEUED", "WAIT_AGV_LOAD").contains(plan.getStatus())) {
+        if (!Set.of("LOADING", "WAIT_WAREHOUSE", "WAIT_WAREHOUSE_PREPOSITIONED",
+                "QUEUED", "WAIT_AGV_PREPOSITION", "WAIT_AGV_LOAD").contains(plan.getStatus())) {
             throw exception(AGV_LOAD_PLAN_STATE_INVALID, plan.getStatus());
         }
         return plan;

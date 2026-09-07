@@ -41,7 +41,7 @@ public class AgvLoadPlanDO extends BaseDO {
      */
     @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String currentAgvTaskId;
-    /** LOAD / MOVE / UNLOAD。同上，必须ALWAYS策略，否则清空后无法真正落库。 */
+    /** PREPOSITION / LOAD / MOVE / UNLOAD。同上，必须ALWAYS策略，否则清空后无法真正落库。 */
     @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String currentAgvOperation;
     private String taskType;
@@ -65,6 +65,6 @@ public class AgvLoadPlanDO extends BaseDO {
     private Boolean doorPermissionGateRequired;
     /** 当前车次合成站门是否已成功打开，用于提前开门及UNLOAD兜底幂等 */
     private Boolean doorOpened;
-    /** LOADING / LOAD_COMPLETE / COMPLETED / FAILED / CANCELLED */
+    /** WAIT_WAREHOUSE / WAIT_WAREHOUSE_PREPOSITIONED / WAIT_AGV_* / COMPLETED / FAILED / CANCELLED */
     private String status;
 }

@@ -101,5 +101,7 @@ public class ContainerTypeDO extends BaseDO {
      */
     private String remark;
 
+    private boolean consumable;
+
 
 }

@@ -1,5 +1,6 @@
 package com.librax.lab.module.lab.controller.app.materialinstance;
 
+import cn.hutool.core.collection.CollUtil;
 import com.librax.lab.framework.common.pojo.CommonResult;
 import com.librax.lab.framework.common.pojo.PageParam;
 import com.librax.lab.framework.common.pojo.PageResult;
@@ -12,7 +13,9 @@ import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialI
 import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceListReqVO;
 import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstancePageReqVO;
 import com.librax.lab.module.lab.controller.app.materialinstance.vo.AppMaterialInstanceRespVO;
+import com.librax.lab.module.lab.dal.dataobject.containertype.ContainerTypeDO;
 import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
+import com.librax.lab.module.lab.service.containertype.ContainerTypeService;
 import com.librax.lab.module.lab.service.materialinstance.MaterialInstanceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -24,9 +27,10 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static com.librax.lab.framework.common.pojo.CommonResult.success;
 
@@ -38,6 +42,32 @@ public class AppMaterialInstanceController {
 
     @Resource
     private MaterialInstanceService materialInstanceService;
+
+    @Resource
+    private ContainerTypeService containerTypeService;
+
+    /**
+     * 按 typeCode 批量回填容器角色 containerRole 与耗材属性 consumable
+     * （关联 lab_container_type，不落库、纯查询期拼装）
+     */
+    private void fillContainerInfo(List<AppMaterialInstanceRespVO> list) {
+        if (CollUtil.isEmpty(list)) {
+            return;
+        }
+        List<String> typeCodes = list.stream().map(AppMaterialInstanceRespVO::getTypeCode)
+                .filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        if (CollUtil.isEmpty(typeCodes)) {
+            return;
+        }
+        Map<String, ContainerTypeDO> containerTypeMap = containerTypeService.getContainerTypeMap(typeCodes);
+        list.forEach(item -> {
+            ContainerTypeDO containerType = containerTypeMap.get(item.getTypeCode());
+            if (containerType != null) {
+                item.setContainerRole(containerType.getHierarchyRole());
+                item.setConsumable(containerType.isConsumable());
+            }
+        });
+    }
 
     @PostMapping("/create")
     @Operation(summary = "创建物料实例")
@@ -99,7 +129,10 @@ public class AppMaterialInstanceController {
         MaterialInstancePageReqVO pageReqVO = BeanUtils.toBean(listReqVO, MaterialInstancePageReqVO.class);
         pageReqVO.setPageSize(PageParam.PAGE_SIZE_NONE);
         List<MaterialInstanceDO> list = materialInstanceService.getMaterialInstancePage(pageReqVO).getList();
-        return success(BeanUtils.toBean(list, AppMaterialInstanceRespVO.class));
+        List<AppMaterialInstanceRespVO> voList = BeanUtils.toBean(list, AppMaterialInstanceRespVO.class);
+        // 补充实例容器角色 containerRole 和是否为耗材 consumable（查询表 lab_container_type 回填）
+        fillContainerInfo(voList);
+        return success(voList);
     }
 
     @PostMapping("/list-by-slots")
