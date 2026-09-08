@@ -61,10 +61,12 @@ public class MaterialInstanceDO extends BaseDO {
     /**
      * 内容物类型：REAGENT/STANDARD/BUFFER/SAMPLE/WASTE/EMPTY。EMPTY表示空容器，CARRIER类型容器此字段为NULL
      */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String contentType;
     /**
      * 内容物编码，关联 lab_material_def.material_code，EMPTY或CARRIER类型为NULL
      */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private String materialCode;
     /**
      * 批次号，试剂溯源用，同一批次的试剂 batch_no 相同
