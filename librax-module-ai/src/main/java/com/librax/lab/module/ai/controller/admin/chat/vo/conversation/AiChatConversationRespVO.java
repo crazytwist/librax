@@ -40,6 +40,9 @@ public class AiChatConversationRespVO implements VO {
     @Schema(description = "模型名字", requiredMode = Schema.RequiredMode.REQUIRED, example = "张三")
     private String modelName;
 
+    @Schema(description = "对话意图", example = "DEVICE")
+    private String intent; // 参见 AiChatIntentEnum 枚举类
+
     @Schema(description = "角色设定", example = "一个快乐的程序员")
     private String systemMessage;
 

@@ -170,4 +170,9 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
         return chatConversationMapper.selectChatConversationPage(pageReqVO);
     }
 
+    @Override
+    public void updateConversationIntent(Long id, String intent) {
+        chatConversationMapper.updateById(new AiChatConversationDO().setId(id).setIntent(intent));
+    }
+
 }

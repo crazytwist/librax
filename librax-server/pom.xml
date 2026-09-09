@@ -173,6 +173,14 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- fat jar 超过 Nexus/反向代理上传上限，可执行包不发 Maven 仓库 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <configuration>
+                    <skip>true</skip>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
