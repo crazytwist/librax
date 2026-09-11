@@ -505,6 +505,26 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     }
 
     /**
+     * 事务提交后异步提前打开合成站门（由最后一次 LOAD 完成后的 afterCommit 调度）。
+     * 重新 FOR UPDATE 读取计划，禁止复用 LOAD 线程里的 plan 对象，以免覆盖 MOVE 已写入的字段。
+     */
+    @Async
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public void openSynthesisDoorBeforeMoveAsync(String taskId) {
+        try {
+            AgvLoadPlanDO plan = planMapper.selectByTaskIdForUpdate(taskId);
+            if (plan == null) {
+                log.warn("[AgvWarehouse] 异步提前开门：计划不存在 taskId={}", taskId);
+                return;
+            }
+            tryOpenSynthesisDoorBeforeMove(plan);
+        } catch (Exception e) {
+            log.error("[AgvWarehouse] 异步提前开门失败，保留UNLOAD兜底 taskId={}", taskId, e);
+        }
+    }
+
+    /**
      * AGV 到达卸货等待点（WAIT_SITE_ACTION）后的门禁联动入口。
      *
      * <p>只在 UNLOAD 阶段、且本车次 doorRequired=true 时才生效；其它情况维持原有行为，
@@ -1280,8 +1300,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             afterWarehouseReady(plan); // 立刻检查是否已有备好的下一件可以马上抓，同时继续补窗口
         } else {
             planMapper.updateById(plan);
-            tryOpenSynthesisDoorBeforeMove(plan);
             sendMoveTask(plan);
+            scheduleOpenSynthesisDoorAfterCommit(plan.getTaskId());
         }
     }
 
@@ -1312,13 +1332,23 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             afterWarehouseReadyBatch(plan);
         } else {
             planMapper.updateById(plan);
-            tryOpenSynthesisDoorBeforeMove(plan);
             sendMoveTask(plan);
+            scheduleOpenSynthesisDoorAfterCommit(plan.getTaskId());
         }
     }
 
+    /** 当前推进事务提交后再异步提前开门，避免占用线程空等行锁，也不挡住 MOVE。 */
+    private void scheduleOpenSynthesisDoorAfterCommit(String taskId) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                self.openSynthesisDoorBeforeMoveAsync(taskId);
+            }
+        });
+    }
+
     /**
-     * 最后一次LOAD完成、下发MOVE前尝试提前打开合成站门。失败或尚未收到机台许可均不阻断MOVE，
+     * 装载完成后尝试提前打开合成站门。失败或尚未收到机台许可均不阻断MOVE，
      * 后续permission回调或UNLOAD waitSignal仍会重试。
      */
     private void tryOpenSynthesisDoorBeforeMove(AgvLoadPlanDO plan) {
@@ -1326,7 +1356,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             return;
         }
         if (!openDoorIfNeeded(plan)) {
-            log.warn("[AgvWarehouse] LOAD完成后提前打开合成站门失败，继续下发MOVE并保留UNLOAD兜底 taskId={}",
+            log.warn("[AgvWarehouse] LOAD完成后提前打开合成站门失败，MOVE已下发并保留UNLOAD兜底 taskId={}",
                     plan.getTaskId());
         }
     }

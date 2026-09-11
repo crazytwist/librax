@@ -48,6 +48,12 @@ public interface AgvLoadPlanService {
     void maybeGateOnDoorOrResumeAsync(String taskId);
 
     /**
+     * 最后一次 LOAD 完成后、事务提交后再提前打开合成站门。
+     * 与 MOVE 解耦：调用方应先下发 MOVE，再经 afterCommit 调度本方法，避免同步开门挡住 startTask。
+     */
+    void openSynthesisDoorBeforeMoveAsync(String taskId);
+
+    /**
      * 事务提交后异步推进AGV分阶段任务的下一步（LOAD->MOVE / MOVE->UNLOAD / UNLOAD->完成），
      * 确保 taskState() 先把ACK返回给AGV，再发下一条 startTask 指令。
      */
