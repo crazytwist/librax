@@ -55,7 +55,8 @@ public class SlotReadyController {
      * <ul>
      *   <li>taskId 对应<b>补料计划</b> → 中转位已就绪，通知 AGV 来取料</li>
      *   <li>taskId 对应<b>下料计划</b> → 物料已入库，触发同波次下一件或进入下一波次</li>
-     *   <li>taskId 为空 → 独立操作，仅更新库位状态</li>
+     *   <li>taskId 为空，或 requestId/transferTaskId 对不上任何计划 → 独立仓储搬运：
+     *       from 解绑、to 占用，并回写物料 slot_id，不报错</li>
      * </ul>
      *
      * <p><b>必填字段：</b>{@code requestId}、{@code slotId}（中转位ID）、{@code instanceId}、{@code status}
@@ -72,7 +73,7 @@ public class SlotReadyController {
      */
     @PostMapping("/warehouse-callback")
     @Operation(summary = "仓储操作完成统一回调（补料/下料共用）",
-            description = "必填：requestId、slotId（中转位/toLocation/fromLocation）、instanceId/materialId、status(SUCCESS/FAILED)；联动流程时还需传 taskId/transferTaskId。librax 自动按 taskId 路由到补料或下料逻辑。")
+            description = "必填：requestId、materialId、status(SUCCESS/FAILED)、fromLocation/toLocation。联动流程传 transferTaskId：有补料计划走备料就绪，有下料计划走入库确认；查不到计划则按 from 解绑、to 占用并回写物料 slot_id，不报错。")
     @PermitAll
     @TenantIgnore
     public CommonResult<Map<String, Object>> warehouseCallback(@Valid @RequestBody WarehouseCallbackReqVO req) {
@@ -86,7 +87,7 @@ public class SlotReadyController {
                 return CommonResult.success(agvReturnPlanService.markSlotReturned(req));
             }
         }
-        // taskId 为空或无匹配计划：独立操作，仅更新库位状态
+        // taskId 为空或无匹配计划：独立仓储搬运，按 from/to 解绑/占用并回写物料位置
         return CommonResult.success(agvLoadPlanService.markSlotReady(req));
     }
 

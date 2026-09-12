@@ -129,6 +129,21 @@ public interface SlotInfoMapper extends BaseMapperX<SlotInfoDO> {
     }
 
     /**
+     * 独立仓储搬运：不校验原状态，直接把库位置为 OCCUPIED。
+     * 停用/未启用库位不会被更新。
+     */
+    default int occupyDirect(String slotId, String instanceId) {
+        return update(null, new LambdaUpdateWrapper<SlotInfoDO>()
+                .eq(SlotInfoDO::getSlotId, slotId)
+                .eq(SlotInfoDO::getEnabled, true)
+                .ne(SlotInfoDO::getStatus, "DISABLED")
+                .set(SlotInfoDO::getStatus, "OCCUPIED")
+                .set(SlotInfoDO::getCurrentCount, 1)
+                .set(SlotInfoDO::getOccupiedBy, instanceId)
+                .set(SlotInfoDO::getUpdateTime, LocalDateTime.now()));
+    }
+
+    /**
      * 查找指定区域内可用于入库的空闲仓储库位（下料回库用）。
      * slot_usage 匹配物料 typeCode，或 slot_usage 为 NULL（通用位）。
      * 按层/行/列升序排列，保证分配顺序稳定。

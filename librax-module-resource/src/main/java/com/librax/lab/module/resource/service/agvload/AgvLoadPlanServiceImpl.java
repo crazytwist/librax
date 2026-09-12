@@ -9,6 +9,7 @@ import com.librax.lab.module.device.api.AgvResumeHandler;
 import com.librax.lab.module.flow.api.callback.CallbackResult;
 import com.librax.lab.module.flow.api.callback.StepCallbackSpi;
 import com.librax.lab.module.flow.api.device.DeviceCommandSpi;
+import com.librax.lab.module.flow.api.material.MaterialLocationSpi;
 import com.librax.lab.module.flow.api.pipeline.PipelineExecutionSpi;
 import com.librax.lab.module.resource.controller.app.slotinfo.vo.WarehouseCallbackReqVO;
 import com.librax.lab.module.resource.dal.dataobject.agvload.AgvLoadItemDO;
@@ -48,10 +49,13 @@ import static com.librax.lab.module.resource.enums.ErrorCodeConstants.*;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignalHandler, AgvTaskStateHandler,
-        AgvResumeHandler, AgvDoorPermissionHandler {
+public class AgvLoadPlanServiceImpl
+        implements AgvLoadPlanService, AgvWaitSignalHandler, AgvTaskStateHandler, AgvResumeHandler,
+        AgvDoorPermissionHandler {
 
-    /** 自注入，用于在事务提交后通过 Spring 代理调用 @Async 方法 */
+    /**
+     * 自注入，用于在事务提交后通过 Spring 代理调用 @Async 方法
+     */
     @Lazy
     @Autowired
     private AgvLoadPlanService self;
@@ -65,15 +69,15 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     private final SlotInfoMapper slotMapper;
     private final DeviceCommandSpi deviceCommandSpi;
     private final StepCallbackSpi stepCallbackSpi;
+    private final MaterialLocationSpi materialLocationSpi;
     private final AgvQueueService agvQueueService;
     private final PipelineExecutionSpi executionSpi;
 
     @Override
-    public void startWarehouseOrchestration(String taskId,
-                                            String nodeId,
-                                            List<Map<String, Object>> transferItems,
-                                            Map<String, Object> inputParams) {
-        if (planMapper.selectByTaskId(taskId) != null) return;
+    public void startWarehouseOrchestration(String taskId, String nodeId, List<Map<String, Object>> transferItems,
+            Map<String, Object> inputParams) {
+        if (planMapper.selectByTaskId(taskId) != null)
+            return;
         if (orchestrateQueueMapper.selectByExecutionId(taskId) != null) {
             log.info("[AgvWarehouse] taskId={} 已在编排排队队列中，忽略重复请求", taskId);
             return;
@@ -84,18 +88,17 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             if (!AGV_SLOT_UNAVAILABLE.getCode().equals(e.getCode())) {
                 throw e; // 非槽位冲突（参数错误、容量超限等）维持原有硬失败行为，不排队
             }
-            enqueueOrchestrateRequest("LOAD", string(inputParams.get("agvDeviceId"), "AGV-01"),
-                    taskId, nodeId, transferItems, inputParams, e.getMessage());
+            enqueueOrchestrateRequest("LOAD", string(inputParams.get("agvDeviceId"), "AGV-01"), taskId, nodeId,
+                    transferItems, inputParams, e.getMessage());
         }
     }
 
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
-    public void attemptStartWarehouseOrchestration(String taskId,
-                                                    String nodeId,
-                                                    List<Map<String, Object>> transferItems,
-                                                    Map<String, Object> inputParams) {
-        if (planMapper.selectByTaskId(taskId) != null) return;
+    public void attemptStartWarehouseOrchestration(String taskId, String nodeId,
+            List<Map<String, Object>> transferItems, Map<String, Object> inputParams) {
+        if (planMapper.selectByTaskId(taskId) != null)
+            return;
         if (transferItems == null || transferItems.isEmpty()) {
             throw exception(AGV_LOAD_PLAN_INVALID, "transferItems不能为空");
         }
@@ -106,8 +109,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         int waveSize = positiveInt(inputParams.get("sourceWindowCapacity"), 1);
         int agvCapacity = positiveInt(inputParams.get("agvCapacity"), 8);
         if (transferItems.size() > agvCapacity) {
-            throw exception(AGV_LOAD_PLAN_INVALID,
-                    "单车物料数" + transferItems.size() + "超过AGV容量" + agvCapacity);
+            throw exception(AGV_LOAD_PLAN_INVALID, "单车物料数" + transferItems.size() + "超过AGV容量" + agvCapacity);
         }
         String sourceReadyMode = string(inputParams.get("sourceReadyMode"), "WAREHOUSE").toUpperCase();
 
@@ -131,55 +133,38 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             reserved.add(target);
         }
 
-        AgvLoadPlanDO plan = AgvLoadPlanDO.builder()
-                .taskId(taskId)
-                .deviceId(string(inputParams.get("agvDeviceId"), "AGV-01"))
-                .loadStation(string(inputParams.get("sourceAgvStationName"),
-                        string(inputParams.get("loadStation"), "WAREHOUSE")))
-                .expectedCount(transferItems.size())
-                .loadedCount(0)
-                .waveSize(waveSize)
-                .currentWave(1)
-                .allowPartialLoad(false)
-                .agvWaiting(false)
-                .orchestrationNodeId(nodeId)
+        AgvLoadPlanDO plan = AgvLoadPlanDO.builder().taskId(taskId)
+                .deviceId(string(inputParams.get("agvDeviceId"), "AGV-01")).loadStation(
+                        string(inputParams.get("sourceAgvStationName"),
+                                string(inputParams.get("loadStation"), "WAREHOUSE")))
+                .expectedCount(transferItems.size()).loadedCount(0).waveSize(waveSize).currentWave(1)
+                .allowPartialLoad(false).agvWaiting(false).orchestrationNodeId(nodeId)
                 .taskType(string(inputParams.get("taskType"), "1"))
-                .plateType(string(inputParams.get("plateType"), "Plate_5"))
-                .warehouseCallbackUrl(string(inputParams.get("warehouseCallbackUrl"),
-                        "http://localhost:48080/app-api/resource/slot/warehouse-callback"))
-                .sourceReadyMode(sourceReadyMode)
-                .doorRequired(bool(inputParams.get("doorRequired")))
+                .plateType(string(inputParams.get("plateType"), "Plate_5")).warehouseCallbackUrl(
+                        string(inputParams.get("warehouseCallbackUrl"),
+                                "http://localhost:48080/app-api/resource/slot/warehouse-callback"))
+                .sourceReadyMode(sourceReadyMode).doorRequired(bool(inputParams.get("doorRequired")))
                 .doorDeviceId(string(inputParams.get("doorDeviceId"), null))
                 .doorCommandCode(string(inputParams.get("doorCommandCode"), null))
                 .doorPermissionGateRequired(bool(inputParams.get("doorPermissionGateRequired")))
-                .doorPermissionReceived(false)
-                .doorOpened(false)
-                .status("WAIT_WAREHOUSE")
-                .build();
+                .doorPermissionReceived(false).doorOpened(false).status("WAIT_WAREHOUSE").build();
         planMapper.insert(plan);
 
         for (int i = 0; i < transferItems.size(); i++) {
             Map<String, Object> item = transferItems.get(i);
             // DIRECT 模式下物料已在源库位上，warehouseSourceLocation 允许直接等于 sourceSlotId
             String sourceSlotId = required(item, "sourceSlotId");
-            String warehouseSourceLocation = "DIRECT".equals(sourceReadyMode)
-                    ? string(item.get("warehouseSourceLocation"), sourceSlotId)
-                    : required(item, "warehouseSourceLocation");
-            itemMapper.insert(AgvLoadItemDO.builder()
-                    .taskId(taskId)
-                    .sequenceNo(i + 1)
-                    .waveNo(i / waveSize + 1)
-                    .sourceSlotId(sourceSlotId)
-                    .warehouseSourceLocation(warehouseSourceLocation)
-                    .agvSlotId(required(item, "agvSlotId"))
-                    .targetSlotId(required(item, "targetSlotId"))
-                    .instanceId(required(item, "instanceId"))
-                    .containerType(string(item.get("containerType"), null))
+            String warehouseSourceLocation = "DIRECT".equals(sourceReadyMode) ?
+                    string(item.get("warehouseSourceLocation"), sourceSlotId) :
+                    required(item, "warehouseSourceLocation");
+            itemMapper.insert(AgvLoadItemDO.builder().taskId(taskId).sequenceNo(i + 1).waveNo(i / waveSize + 1)
+                    .sourceSlotId(sourceSlotId).warehouseSourceLocation(warehouseSourceLocation)
+                    .agvSlotId(required(item, "agvSlotId")).targetSlotId(required(item, "targetSlotId"))
+                    .instanceId(required(item, "instanceId")).containerType(string(item.get("containerType"), null))
                     .step1Json(JSON.toJSONString(requiredMap(item, "step1")))
                     .step2Json(item.get("step2") instanceof Map<?, ?> ? JSON.toJSONString(item.get("step2")) : null)
                     .step3Json(item.get("step3") instanceof Map<?, ?> ? JSON.toJSONString(item.get("step3")) : null)
-                    .status("WAIT_SOURCE")
-                    .build());
+                    .status("WAIT_SOURCE").build());
         }
 
         if ("DIRECT".equals(sourceReadyMode)) {
@@ -190,8 +175,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             // AgvMove 到仓储站点；真正的 step1/LOAD 仍严格等待 READY。
             afterWarehouseReady(plan);
         }
-        log.info("[AgvWarehouse] 启动搬运编排 taskId={} count={} waveSize={} sourceReadyMode={}",
-                taskId, transferItems.size(), waveSize, sourceReadyMode);
+        log.info("[AgvWarehouse] 启动搬运编排 taskId={} count={} waveSize={} sourceReadyMode={}", taskId,
+                transferItems.size(), waveSize, sourceReadyMode);
     }
 
     /**
@@ -201,28 +186,27 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     private void markCurrentWaveReadyDirect(AgvLoadPlanDO plan) {
         List<AgvLoadItemDO> waveItems = itemMapper.selectByTaskId(plan.getTaskId()).stream()
                 .filter(item -> Objects.equals(item.getWaveNo(), plan.getCurrentWave()))
-                .filter(item -> "WAIT_SOURCE".equals(item.getStatus()))
-                .toList();
+                .filter(item -> "WAIT_SOURCE".equals(item.getStatus())).toList();
         LocalDateTime now = LocalDateTime.now();
         for (AgvLoadItemDO item : waveItems) {
             item.setStatus("READY");
             item.setReadyAt(now);
             itemMapper.updateById(item);
         }
-        log.info("[AgvWarehouse] DIRECT模式波次就绪 taskId={} wave={} count={}",
-                plan.getTaskId(), plan.getCurrentWave(), waveItems.size());
+        log.info("[AgvWarehouse] DIRECT模式波次就绪 taskId={} wave={} count={}", plan.getTaskId(),
+                plan.getCurrentWave(), waveItems.size());
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void registerIfEnabled(String taskId,
-                                  List<Map<String, Object>> transferItems,
-                                  Map<String, Object> inputParams) {
-        if (!bool(inputParams.get("multiLoadEnabled"))) return;
-        if (planMapper.selectByTaskId(taskId) != null) return;
+    public void registerIfEnabled(String taskId, List<Map<String, Object>> transferItems,
+            Map<String, Object> inputParams) {
+        if (!bool(inputParams.get("multiLoadEnabled")))
+            return;
+        if (planMapper.selectByTaskId(taskId) != null)
+            return;
         if (!bool(inputParams.get("waitSignalEnabled"))) {
-            throw exception(AGV_LOAD_PLAN_INVALID,
-                    "multiLoadEnabled=true时waitSignalEnabled必须为true");
+            throw exception(AGV_LOAD_PLAN_INVALID, "multiLoadEnabled=true时waitSignalEnabled必须为true");
         }
         if (transferItems == null || transferItems.isEmpty()) {
             throw exception(AGV_LOAD_PLAN_INVALID, "transferItems不能为空");
@@ -231,23 +215,16 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         int waveSize = positiveInt(inputParams.get("sourceWindowCapacity"), 2);
         int agvCapacity = positiveInt(inputParams.get("agvCapacity"), 8);
         if (transferItems.size() > agvCapacity) {
-            throw exception(AGV_LOAD_PLAN_INVALID,
-                    "单车物料数" + transferItems.size() + "超过AGV容量" + agvCapacity);
+            throw exception(AGV_LOAD_PLAN_INVALID, "单车物料数" + transferItems.size() + "超过AGV容量" + agvCapacity);
         }
         int firstWaveCount = Math.min(waveSize, transferItems.size());
         Set<String> firstWaveSources = new HashSet<>();
 
-        AgvLoadPlanDO plan = AgvLoadPlanDO.builder()
-                .taskId(taskId)
+        AgvLoadPlanDO plan = AgvLoadPlanDO.builder().taskId(taskId)
                 .deviceId(string(inputParams.get("agvDeviceId"), "AGV-01"))
-                .loadStation(string(inputParams.get("loadStation"), null))
-                .expectedCount(transferItems.size())
-                .loadedCount(0)
-                .waveSize(waveSize)
-                .currentWave(1)
-                .allowPartialLoad(bool(inputParams.get("allowPartialLoad")))
-                .agvWaiting(false)
-                .status("LOADING")
+                .loadStation(string(inputParams.get("loadStation"), null)).expectedCount(transferItems.size())
+                .loadedCount(0).waveSize(waveSize).currentWave(1)
+                .allowPartialLoad(bool(inputParams.get("allowPartialLoad"))).agvWaiting(false).status("LOADING")
                 .build();
         planMapper.insert(plan);
 
@@ -271,40 +248,34 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                 status = "DISPATCHED"; // startTask 负责执行第一波
                 dispatchedAt = LocalDateTime.now();
             }
-            itemMapper.insert(AgvLoadItemDO.builder()
-                    .taskId(taskId)
-                    .sequenceNo(i + 1)
-                    .sourceSlotId(sourceSlotId)
-                    .agvSlotId(required(item, "agvSlotId"))
-                    .targetSlotId(required(item, "targetSlotId"))
-                    .instanceId(instanceId)
-                    .status(status)
-                    .dispatchedAt(dispatchedAt)
-                    .build());
+            itemMapper.insert(AgvLoadItemDO.builder().taskId(taskId).sequenceNo(i + 1).sourceSlotId(sourceSlotId)
+                    .agvSlotId(required(item, "agvSlotId")).targetSlotId(required(item, "targetSlotId"))
+                    .instanceId(instanceId).status(status).dispatchedAt(dispatchedAt).build());
         }
-        log.info("[AgvLoadPlan] 创建多轮装载计划 taskId={} count={} waveSize={}",
-                taskId, transferItems.size(), waveSize);
+        log.info("[AgvLoadPlan] 创建多轮装载计划 taskId={} count={} waveSize={}", taskId, transferItems.size(),
+                waveSize);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> markSlotReady(WarehouseCallbackReqVO req) {
-        // 纯货架独立出货：无 AGV 任务上下文，只更新库位状态
-        if (!org.springframework.util.StringUtils.hasText(req.getTransferTaskId())) {
-            updateSlotStatus(req);
-            log.info("[SlotReady] 独立出货 slotId={} instanceId={} status={}",
-                    req.getToLocation(), req.getMaterialId(), req.getStatus());
-            return Map.of("standalone", true, "slotId", req.getToLocation(), "status", req.getStatus());
+        // 独立仓储请求：transferTaskId 为空，或 requestId/transferTaskId 对不上任何补料计划，
+        // 不报错，按 from/to 直接解绑/占用库位并回写物料 slot_id。
+        if (!org.springframework.util.StringUtils.hasText(req.getTransferTaskId()) || (
+                planMapper.selectByTaskId(req.getTransferTaskId()) == null
+                        && itemMapper.selectByReadyRequestId(req.getRequestId()) == null)) {
+            return applyStandaloneWarehouseMove(req);
         }
 
         AgvLoadItemDO duplicated = itemMapper.selectByReadyRequestId(req.getRequestId());
         if (duplicated != null) {
-            if (!Objects.equals(duplicated.getTaskId(), req.getTransferTaskId())
-                    || !Objects.equals(duplicated.getSourceSlotId(), req.getToLocation())) {
+            if (!Objects.equals(duplicated.getTaskId(), req.getTransferTaskId()) || !Objects.equals(
+                    duplicated.getSourceSlotId(), req.getToLocation())) {
                 throw exception(SLOT_READY_CONFLICT, "requestId已被其它任务或库位使用");
             }
             AgvLoadPlanDO plan = planMapper.selectByTaskId(req.getTransferTaskId());
-            if (plan == null) throw exception(AGV_LOAD_PLAN_NOT_EXISTS, req.getTransferTaskId());
+            if (plan == null)
+                throw exception(AGV_LOAD_PLAN_NOT_EXISTS, req.getTransferTaskId());
             return result(plan, duplicated, false, true);
         }
 
@@ -321,8 +292,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             plan.setStatus("FAILED");
             planMapper.updateById(plan);
             if (plan.getOrchestrationNodeId() != null) {
-                stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null,
-                        false, Map.of("requestId", req.getRequestId()),
+                stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null, false,
+                        Map.of("requestId", req.getRequestId()),
                         "WAREHOUSE_" + (req.getCode() != null ? req.getCode() : 1099),
                         req.getMessage() != null ? req.getMessage() : "仓储备料失败");
             }
@@ -336,7 +307,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         }
 
         SlotInfoDO slot = slotMapper.selectBySlotId(req.getToLocation());
-        if (slot == null) throw exception(SLOT_INFO_NOT_EXISTS);
+        if (slot == null)
+            throw exception(SLOT_INFO_NOT_EXISTS);
         if (!Boolean.TRUE.equals(slot.getEnabled()) || "DISABLED".equals(slot.getStatus())) {
             throw exception(SLOT_DISABLED);
         }
@@ -348,10 +320,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             if (slotMapper.markReadyIfEmpty(req.getToLocation(), req.getMaterialId()) == 0) {
                 throw exception(SLOT_READY_CONFLICT, "库位状态发生并发变化: " + req.getToLocation());
             }
-        } else if (!"OCCUPIED".equals(slot.getStatus())
-                || !Objects.equals(slot.getOccupiedBy(), req.getMaterialId())) {
-            throw exception(SLOT_READY_CONFLICT,
-                    req.getToLocation() + "当前由" + slot.getOccupiedBy() + "占用");
+        } else if (!"OCCUPIED".equals(slot.getStatus()) || !Objects.equals(slot.getOccupiedBy(), req.getMaterialId())) {
+            throw exception(SLOT_READY_CONFLICT, req.getToLocation() + "当前由" + slot.getOccupiedBy() + "占用");
         }
 
         item.setInstanceId(req.getMaterialId());
@@ -368,8 +338,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                 self.triggerNextStepAsync(planTaskId);
             }
         });
-        log.info("[AgvLoadPlan] 源库位就绪 taskId={} slotId={} instanceId={} 异步触发下一步",
-                req.getTransferTaskId(), req.getToLocation(), req.getMaterialId());
+        log.info("[AgvLoadPlan] 源库位就绪 taskId={} slotId={} instanceId={} 异步触发下一步", req.getTransferTaskId(),
+                req.getToLocation(), req.getMaterialId());
         return result(plan, item, false, false);
     }
 
@@ -379,36 +349,35 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         AgvLoadPlanDO probe = planMapper.selectByCurrentAgvTaskId(taskId);
         // 关键排查点：waitSignal没被门禁分支消费掉、掉进了通用WAIT节点兜底逻辑时，看这一行
         // 就知道是probe没查到计划、还是orchestrationNodeId为空、还是status不是WAIT_AGV_*。
-        log.info("[AgvWarehouse] handle(waitSignal) probe查询结果 taskId={} agvStation={} probe={} orchestrationNodeId={} status={}",
+        log.info(
+                "[AgvWarehouse] handle(waitSignal) probe查询结果 taskId={} agvStation={} probe={} orchestrationNodeId={} status={}",
                 taskId, agvStation, probe == null ? "null" : probe.getTaskId(),
-                probe == null ? null : probe.getOrchestrationNodeId(),
-                probe == null ? null : probe.getStatus());
+                probe == null ? null : probe.getOrchestrationNodeId(), probe == null ? null : probe.getStatus());
         // 兜底重试一次：真实生产遇到过AGV执行startTask后极快回调waitSignal的情况，不排除
         // 跟我们自己"下发指令→写WAIT_AGV_*状态"这个事务提交之间存在极窄的可见性缝隙
         // （具体机制还在排查，靠上面这行日志下次实锤）。这里先加一次短暂重试兜底，
         // 避免真遇到这个窗口时直接判定"不是门禁子任务"、走错兜底分支导致门禁/AGV卡住。
-        if (probe == null || probe.getOrchestrationNodeId() == null
-                || !probe.getStatus().startsWith("WAIT_AGV_")) {
+        if (probe == null || probe.getOrchestrationNodeId() == null || !probe.getStatus().startsWith("WAIT_AGV_")) {
             try {
                 Thread.sleep(200);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
             AgvLoadPlanDO retried = planMapper.selectByCurrentAgvTaskId(taskId);
-            log.info("[AgvWarehouse] handle(waitSignal) probe重试一次 taskId={} probe={} orchestrationNodeId={} status={}",
+            log.info(
+                    "[AgvWarehouse] handle(waitSignal) probe重试一次 taskId={} probe={} orchestrationNodeId={} status={}",
                     taskId, retried == null ? "null" : retried.getTaskId(),
                     retried == null ? null : retried.getOrchestrationNodeId(),
                     retried == null ? null : retried.getStatus());
             probe = retried;
         }
-        if (probe != null && probe.getOrchestrationNodeId() != null
-                && probe.getStatus().startsWith("WAIT_AGV_")) {
+        if (probe != null && probe.getOrchestrationNodeId() != null && probe.getStatus().startsWith("WAIT_AGV_")) {
             AgvLoadPlanDO subtaskPlan = planMapper.selectByCurrentAgvTaskIdForUpdate(taskId);
             subtaskPlan.setStatus("WAIT_SITE_ACTION");
             subtaskPlan.setLastAgvStation(agvStation);
             planMapper.updateById(subtaskPlan);
-            log.info("[AgvWarehouse] AGV进入现场动作等待 taskId={} operation={} station={}",
-                    taskId, subtaskPlan.getCurrentAgvOperation(), agvStation);
+            log.info("[AgvWarehouse] AGV进入现场动作等待 taskId={} operation={} station={}", taskId,
+                    subtaskPlan.getCurrentAgvOperation(), agvStation);
             // 门禁联动（开门+startAgain）挪到事务提交后异步执行，waitSignal 立即返回给AGV，
             // 不在这次HTTP请求里等开门指令、AGV startAgain这两次出站调用的往返。
             String planTaskId = subtaskPlan.getTaskId();
@@ -421,9 +390,10 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             return true;
         }
         AgvLoadPlanDO existing = planMapper.selectByTaskId(taskId);
-        if (existing == null || !"LOADING".equals(existing.getStatus())) return false;
-        if (existing.getLoadStation() != null
-                && !existing.getLoadStation().equals(agvStation)) return false;
+        if (existing == null || !"LOADING".equals(existing.getStatus()))
+            return false;
+        if (existing.getLoadStation() != null && !existing.getLoadStation().equals(agvStation))
+            return false;
 
         AgvLoadPlanDO plan = requireActivePlanForUpdate(taskId);
         completeDispatchedWave(plan);
@@ -433,18 +403,14 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             plan.setStatus("LOAD_COMPLETE");
             plan.setAgvWaiting(false);
             planMapper.updateById(plan);
-            CallbackResult callback = stepCallbackSpi.callback(
-                    taskId, FLOW_WAIT_NODE, null, true,
-                    Map.of("signal", "LOAD_COMPLETE",
-                            "loadedCount", plan.getLoadedCount(),
-                            "agvStation", agvStation),
+            CallbackResult callback = stepCallbackSpi.callback(taskId, FLOW_WAIT_NODE, null, true,
+                    Map.of("signal", "LOAD_COMPLETE", "loadedCount", plan.getLoadedCount(), "agvStation", agvStation),
                     null, null);
             if (!callback.isSuccess()) {
-                throw new ServiceException(AGV_LOAD_PLAN_STATE_INVALID)
-                        .setMessage("装载完成但流程WAIT节点推进失败: " + callback.getErrorMsg());
+                throw new ServiceException(AGV_LOAD_PLAN_STATE_INVALID).setMessage(
+                        "装载完成但流程WAIT节点推进失败: " + callback.getErrorMsg());
             }
-            log.info("[AgvLoadPlan] 当前车次装载完成 taskId={} count={}",
-                    taskId, plan.getLoadedCount());
+            log.info("[AgvLoadPlan] 当前车次装载完成 taskId={} count={}", taskId, plan.getLoadedCount());
             return true;
         }
 
@@ -458,21 +424,24 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     @Transactional(rollbackFor = Exception.class)
     public boolean resume(String agvTaskId) {
         AgvLoadPlanDO existing = planMapper.selectByCurrentAgvTaskId(agvTaskId);
-        if (existing == null || !"WAIT_SITE_ACTION".equals(existing.getStatus())) return false;
+        if (existing == null || !"WAIT_SITE_ACTION".equals(existing.getStatus()))
+            return false;
         AgvLoadPlanDO plan = planMapper.selectByCurrentAgvTaskIdForUpdate(agvTaskId);
         sendResumeCommand(plan);
         return true;
     }
 
-    /** 通知AGV继续执行当前挂起的子任务，并把计划状态切回等待该子任务的终态回调。 */
+    /**
+     * 通知AGV继续执行当前挂起的子任务，并把计划状态切回等待该子任务的终态回调。
+     */
     private void sendResumeCommand(AgvLoadPlanDO plan) {
         deviceCommandSpi.send("AGV", "startAgain",
-                Map.of("taskId", plan.getCurrentAgvTaskId(), "disableSysFieldInjection", true),
-                plan.getTaskId(), "resume_" + plan.getCurrentAgvOperation(), null);
+                Map.of("taskId", plan.getCurrentAgvTaskId(), "disableSysFieldInjection", true), plan.getTaskId(),
+                "resume_" + plan.getCurrentAgvOperation(), null);
         plan.setStatus("WAIT_AGV_" + plan.getCurrentAgvOperation());
         planMapper.updateById(plan);
-        log.info("[AgvWarehouse] 现场动作完成，通知AGV继续 taskId={} agvTaskId={} operation={}",
-                plan.getTaskId(), plan.getCurrentAgvTaskId(), plan.getCurrentAgvOperation());
+        log.info("[AgvWarehouse] 现场动作完成，通知AGV继续 taskId={} agvTaskId={} operation={}", plan.getTaskId(),
+                plan.getCurrentAgvTaskId(), plan.getCurrentAgvOperation());
     }
 
     /**
@@ -494,8 +463,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                 return;
             }
             if (!"WAIT_SITE_ACTION".equals(plan.getStatus())) {
-                log.info("[AgvWarehouse] 异步门禁检查：状态已变化，跳过 taskId={} status={}",
-                        taskId, plan.getStatus());
+                log.info("[AgvWarehouse] 异步门禁检查：状态已变化，跳过 taskId={} status={}", taskId, plan.getStatus());
                 return;
             }
             maybeGateOnDoorOrResume(plan);
@@ -534,10 +502,10 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         if (!"UNLOAD".equals(plan.getCurrentAgvOperation()) || !Boolean.TRUE.equals(plan.getDoorRequired())) {
             return;
         }
-        if (Boolean.TRUE.equals(plan.getDoorPermissionGateRequired())
-                && !Boolean.TRUE.equals(plan.getDoorPermissionReceived())) {
-            log.info("[AgvWarehouse] AGV已到卸货点，等待机台开门许可 taskId={} agvTaskId={}",
-                    plan.getTaskId(), plan.getCurrentAgvTaskId());
+        if (Boolean.TRUE.equals(plan.getDoorPermissionGateRequired()) && !Boolean.TRUE.equals(
+                plan.getDoorPermissionReceived())) {
+            log.info("[AgvWarehouse] AGV已到卸货点，等待机台开门许可 taskId={} agvTaskId={}", plan.getTaskId(),
+                    plan.getCurrentAgvTaskId());
             return;
         }
         resumeUnloadAfterDoorReady(plan);
@@ -553,30 +521,32 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         }
         String deviceType = string(plan.getDoorDeviceId(), "Feeding-Reaction");
         String commandCode = string(plan.getDoorCommandCode(), "OpenCloseDoor");
-        DeviceCommandSpi.Result result = deviceCommandSpi.send(
-                deviceType, commandCode, Map.of("op", "open", "disableSysFieldInjection", true),
-                plan.getTaskId(), "door_open_" + plan.getTaskId(), null);
+        DeviceCommandSpi.Result result = deviceCommandSpi.send(deviceType, commandCode,
+                Map.of("op", "open", "disableSysFieldInjection", true), plan.getTaskId(),
+                "door_open_" + plan.getTaskId(), null);
         if (!result.isSyncCompleted()) {
-            log.warn("[AgvWarehouse] 开门指令未同步完成 taskId={} deviceType={} commandCode={}",
-                    plan.getTaskId(), deviceType, commandCode);
+            log.warn("[AgvWarehouse] 开门指令未同步完成 taskId={} deviceType={} commandCode={}", plan.getTaskId(),
+                    deviceType, commandCode);
             return false;
         }
         plan.setDoorOpened(true);
         planMapper.updateById(plan);
-        log.info("[AgvWarehouse] 开门完成并记录幂等状态 taskId={} agvTaskId={} operation={}",
-                plan.getTaskId(), plan.getCurrentAgvTaskId(), plan.getCurrentAgvOperation());
+        log.info("[AgvWarehouse] 开门完成并记录幂等状态 taskId={} agvTaskId={} operation={}", plan.getTaskId(),
+                plan.getCurrentAgvTaskId(), plan.getCurrentAgvOperation());
         return true;
     }
 
-    /** 确认门已打开后，放行当前正在等待的UNLOAD子任务。 */
+    /**
+     * 确认门已打开后，放行当前正在等待的UNLOAD子任务。
+     */
     private void resumeUnloadAfterDoorReady(AgvLoadPlanDO plan) {
         if (!openDoorIfNeeded(plan)) {
-            log.warn("[AgvWarehouse] 开门未完成，暂不放行AGV taskId={} agvTaskId={}",
-                    plan.getTaskId(), plan.getCurrentAgvTaskId());
+            log.warn("[AgvWarehouse] 开门未完成，暂不放行AGV taskId={} agvTaskId={}", plan.getTaskId(),
+                    plan.getCurrentAgvTaskId());
             return;
         }
-        log.info("[AgvWarehouse] 门已打开，放行AGV继续执行卸货 taskId={} agvTaskId={}",
-                plan.getTaskId(), plan.getCurrentAgvTaskId());
+        log.info("[AgvWarehouse] 门已打开，放行AGV继续执行卸货 taskId={} agvTaskId={}", plan.getTaskId(),
+                plan.getCurrentAgvTaskId());
         sendResumeCommand(plan);
     }
 
@@ -588,15 +558,16 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     @Transactional(rollbackFor = Exception.class)
     public boolean notifyDoorPermission(String taskId) {
         AgvLoadPlanDO plan = planMapper.selectByTaskIdForUpdate(taskId);
-        if (plan == null) return false;
+        if (plan == null)
+            return false;
         plan.setDoorPermissionReceived(true);
         planMapper.updateById(plan);
         if ("WAIT_SITE_ACTION".equals(plan.getStatus()) && "UNLOAD".equals(plan.getCurrentAgvOperation())) {
             resumeUnloadAfterDoorReady(plan);
         } else if (isReadyToOpenSynthesisDoorBeforeUnload(plan)) {
             if (openDoorIfNeeded(plan)) {
-                log.info("[AgvWarehouse] 收到机台开门许可，已在AGV前往合成站途中提前开门 taskId={} status={}",
-                        taskId, plan.getStatus());
+                log.info("[AgvWarehouse] 收到机台开门许可，已在AGV前往合成站途中提前开门 taskId={} status={}", taskId,
+                        plan.getStatus());
             }
         } else {
             log.info("[AgvWarehouse] 收到机台开门许可，记录待用 taskId={} status={}", taskId, plan.getStatus());
@@ -608,8 +579,10 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     @Transactional(rollbackFor = Exception.class)
     public boolean handle(String agvTaskId, String runState, String agvId) {
         AgvLoadPlanDO existing = planMapper.selectByCurrentAgvTaskId(agvTaskId);
-        if (existing == null || existing.getOrchestrationNodeId() == null) return false;
-        if ("1".equals(runState)) return true;
+        if (existing == null || existing.getOrchestrationNodeId() == null)
+            return false;
+        if ("1".equals(runState))
+            return true;
 
         AgvLoadPlanDO plan = planMapper.selectByCurrentAgvTaskIdForUpdate(agvTaskId);
         String planTaskId = plan.getTaskId();
@@ -621,9 +594,9 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             // AGV子任务物理失败：这个计划已经死了，之前占的AGV/目标槽位不会再被任何后续步骤释放，
             // 必须在这里主动清掉，否则永久卡住（之前一直没做，是排队机制发现的一个真实老漏洞）。
             releasePlanSlots(plan);
-            stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null,
-                    false, Map.of("agvTaskId", agvTaskId, "runState", runState),
-                    "AGV_TASK_ERROR", "AGV子任务失败 runState=" + runState);
+            stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null, false,
+                    Map.of("agvTaskId", agvTaskId, "runState", runState), "AGV_TASK_ERROR",
+                    "AGV子任务失败 runState=" + runState);
             // 先给AGV回ACK，事务提交后再异步调度：队列里排队的下一条AGV指令，以及可能因为
             // 上面释放槽位而能重试成功的编排排队请求。避免在ACK之前就同步给同一台AGV发新指令
             // （AGV可能还没退出上报本次runState的状态，会拒绝新指令）。
@@ -692,8 +665,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         planMapper.updateById(plan);
 
         if (plan.getOrchestrationNodeId() != null) {
-            stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null,
-                    false, Map.of("reason", effectiveReason), "MANUAL_CANCEL", effectiveReason);
+            stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null, false,
+                    Map.of("reason", effectiveReason), "MANUAL_CANCEL", effectiveReason);
         }
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -721,7 +694,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                 log.warn("[AgvLoadPlan] 异步推进下一阶段：计划不存在 taskId={}", taskId);
                 return;
             }
-            log.info("[AgvLoadPlan] advanceAfterTaskStateAsync 加锁读取到计划状态 taskId={} status={} currentAgvOperation={} loadedCount={}",
+            log.info(
+                    "[AgvLoadPlan] advanceAfterTaskStateAsync 加锁读取到计划状态 taskId={} status={} currentAgvOperation={} loadedCount={}",
                     taskId, plan.getStatus(), plan.getCurrentAgvOperation(), plan.getLoadedCount());
             switch (plan.getCurrentAgvOperation()) {
                 case "PREPOSITION" -> completePrepositionAndContinue(plan);
@@ -731,8 +705,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                     completeOrchestration(plan);
                     agvQueueService.dispatchNext(plan.getDeviceId());
                 }
-                default -> log.warn("[AgvLoadPlan] 异步推进下一阶段：未知AGV子任务类型 taskId={} op={}",
-                        taskId, plan.getCurrentAgvOperation());
+                default -> log.warn("[AgvLoadPlan] 异步推进下一阶段：未知AGV子任务类型 taskId={} op={}", taskId,
+                        plan.getCurrentAgvOperation());
             }
             log.info("[AgvLoadPlan] 已ACK给AGV后异步推进下一阶段完成 taskId={}", taskId);
         } catch (Exception e) {
@@ -740,7 +714,9 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         }
     }
 
-    /** 事务提交后异步调度AGV队列里排队的下一条任务（当前子任务失败时用），确保先ACK给AGV。 */
+    /**
+     * 事务提交后异步调度AGV队列里排队的下一条任务（当前子任务失败时用），确保先ACK给AGV。
+     */
     @Async
     @Override
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
@@ -752,13 +728,13 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         }
     }
 
-    /** 兜底轮询：见接口文档。逐计划各自独立事务重试，一个计划失败不影响其它计划。 */
+    /**
+     * 兜底轮询：见接口文档。逐计划各自独立事务重试，一个计划失败不影响其它计划。
+     */
     @Override
     public void pokeActiveWarehousePlans() {
-        List<String> taskIds = planMapper.selectActive().stream()
-                .filter(p -> !"DIRECT".equals(p.getSourceReadyMode()))
-                .map(AgvLoadPlanDO::getTaskId)
-                .toList();
+        List<String> taskIds = planMapper.selectActive().stream().filter(p -> !"DIRECT".equals(p.getSourceReadyMode()))
+                .map(AgvLoadPlanDO::getTaskId).toList();
         for (String taskId : taskIds) {
             try {
                 self.pokeOneWarehousePlan(taskId);
@@ -772,7 +748,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
     public void pokeOneWarehousePlan(String taskId) {
         AgvLoadPlanDO plan = planMapper.selectByTaskIdForUpdate(taskId);
-        if (plan == null || "DIRECT".equals(plan.getSourceReadyMode())) return;
+        if (plan == null || "DIRECT".equals(plan.getSourceReadyMode()))
+            return;
         afterWarehouseReady(plan);
     }
 
@@ -792,26 +769,24 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
 
     // ── AGV编排请求排队（lab_agv_orchestrate_queue） ──────────────────────────
 
-    /** 槽位冲突时把原始编排请求存入排队表，幂等（同一executionId不会重复插入）。 */
+    /**
+     * 槽位冲突时把原始编排请求存入排队表，幂等（同一executionId不会重复插入）。
+     */
     private void enqueueOrchestrateRequest(String planType, String deviceId, String executionId, String nodeId,
-                                           List<Map<String, Object>> items, Map<String, Object> inputParams,
-                                           String reason) {
-        if (orchestrateQueueMapper.selectByExecutionId(executionId) != null) return;
-        orchestrateQueueMapper.insert(AgvOrchestrateQueueDO.builder()
-                .deviceId(deviceId)
-                .planType(planType)
-                .executionId(executionId)
-                .nodeId(nodeId)
-                .payload(JSON.toJSONString(Map.of("items", items, "inputParams", inputParams)))
-                .status("PENDING")
-                .errorMessage(reason)
-                .createTime(LocalDateTime.now())
-                .build());
-        log.info("[AgvOrchestrateQueue] 槽位冲突，请求已入队等待重试 planType={} executionId={} reason={}",
-                planType, executionId, reason);
+            List<Map<String, Object>> items, Map<String, Object> inputParams, String reason) {
+        if (orchestrateQueueMapper.selectByExecutionId(executionId) != null)
+            return;
+        orchestrateQueueMapper.insert(
+                AgvOrchestrateQueueDO.builder().deviceId(deviceId).planType(planType).executionId(executionId)
+                        .nodeId(nodeId).payload(JSON.toJSONString(Map.of("items", items, "inputParams", inputParams)))
+                        .status("PENDING").errorMessage(reason).createTime(LocalDateTime.now()).build());
+        log.info("[AgvOrchestrateQueue] 槽位冲突，请求已入队等待重试 planType={} executionId={} reason={}", planType,
+                executionId, reason);
     }
 
-    /** 事务提交后异步触发一次编排排队重试，供释放AGV/目标槽位的地方调用。 */
+    /**
+     * 事务提交后异步触发一次编排排队重试，供释放AGV/目标槽位的地方调用。
+     */
     private void scheduleOrchestrateQueueRetry(String deviceId) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
@@ -827,7 +802,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     @SuppressWarnings("unchecked")
     public void tryDispatchQueuedOrchestrationAsync(String deviceId) {
         AgvOrchestrateQueueDO next = orchestrateQueueMapper.selectOldestPending(deviceId);
-        if (next == null) return;
+        if (next == null)
+            return;
         if (!"LOAD".equals(next.getPlanType())) {
             return; // RETURN计划的排队记录，交给AgvReturnPlanServiceImpl自己的触发处理
         }
@@ -857,8 +833,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                         next.getExecutionId(), e.getMessage());
             } else {
                 orchestrateQueueMapper.updateRetryFailure(next.getId(), e.getMessage());
-                log.info("[AgvOrchestrateQueue] executionId={} 仍然槽位冲突，继续排队: {}",
-                        next.getExecutionId(), e.getMessage());
+                log.info("[AgvOrchestrateQueue] executionId={} 仍然槽位冲突，继续排队: {}", next.getExecutionId(),
+                        e.getMessage());
             }
         } catch (Exception e) {
             log.error("[AgvOrchestrateQueue] 排队重试异常 executionId={}", next.getExecutionId(), e);
@@ -873,7 +849,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     @Override
     public Map<String, Object> getProgress(String taskId) {
         AgvLoadPlanDO plan = planMapper.selectByTaskId(taskId);
-        if (plan == null) throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
+        if (plan == null)
+            throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
         List<Map<String, Object>> items = itemMapper.selectByTaskId(taskId).stream().map(item -> {
             Map<String, Object> value = new LinkedHashMap<>();
             value.put("sequenceNo", item.getSequenceNo());
@@ -900,7 +877,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     @Transactional(rollbackFor = Exception.class)
     public void commitTransfer(String taskId) {
         AgvLoadPlanDO plan = planMapper.selectByTaskIdForUpdate(taskId);
-        if (plan == null) throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
+        if (plan == null)
+            throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
         if (!Set.of("LOAD_COMPLETE", "WAIT_FLOW_COMMIT").contains(plan.getStatus())) {
             throw exception(AGV_LOAD_PLAN_STATE_INVALID, plan.getStatus());
         }
@@ -912,8 +890,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             }
             slotMapper.clearOccupancy(item.getAgvSlotId());
             if (slotMapper.occupyReserved(item.getTargetSlotId(), item.getInstanceId()) == 0) {
-                throw exception(AGV_LOAD_PLAN_STATE_INVALID,
-                        "目标库位预留已丢失: " + item.getTargetSlotId());
+                throw exception(AGV_LOAD_PLAN_STATE_INVALID, "目标库位预留已丢失: " + item.getTargetSlotId());
             }
             item.setStatus("COMPLETED");
             itemMapper.updateById(item);
@@ -924,14 +901,16 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         scheduleOrchestrateQueueRetry(plan.getDeviceId());
     }
 
-    /** DIRECT/整波模式专用：波内按序请求下一件（WAREHOUSE逐件模式改走 {@link #refillWarehouseWindow}）。 */
+    /**
+     * DIRECT/整波模式专用：波内按序请求下一件（WAREHOUSE逐件模式改走 {@link #refillWarehouseWindow}）。
+     */
     private void requestNextWarehouseItemInWave(AgvLoadPlanDO plan) {
         AgvLoadItemDO next = itemMapper.selectByTaskId(plan.getTaskId()).stream()
                 .filter(item -> Objects.equals(item.getWaveNo(), plan.getCurrentWave()))
                 .filter(item -> "WAIT_SOURCE".equals(item.getStatus()))
-                .filter(item -> item.getWarehouseRequestId() == null)
-                .findFirst().orElse(null);
-        if (next == null) return;
+                .filter(item -> item.getWarehouseRequestId() == null).findFirst().orElse(null);
+        if (next == null)
+            return;
         doRequestWarehouseItem(plan, next);
     }
 
@@ -948,23 +927,21 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     private void prefetchNextWaveBatch(AgvLoadPlanDO plan) {
         int nextWave = plan.getCurrentWave() + 1;
         List<AgvLoadItemDO> items = itemMapper.selectByTaskId(plan.getTaskId());
-        boolean alreadyPrefetched = items.stream()
-                .filter(item -> Objects.equals(item.getWaveNo(), nextWave))
+        boolean alreadyPrefetched = items.stream().filter(item -> Objects.equals(item.getWaveNo(), nextWave))
                 .anyMatch(item -> item.getWarehouseRequestId() != null || "READY".equals(item.getStatus()));
-        if (alreadyPrefetched) return;
-        AgvLoadItemDO next = items.stream()
-                .filter(item -> Objects.equals(item.getWaveNo(), nextWave))
+        if (alreadyPrefetched)
+            return;
+        AgvLoadItemDO next = items.stream().filter(item -> Objects.equals(item.getWaveNo(), nextWave))
                 .filter(item -> "WAIT_SOURCE".equals(item.getStatus()))
-                .min(Comparator.comparing(AgvLoadItemDO::getSequenceNo))
-                .orElse(null);
-        if (next == null) return; // 没有下一波了，或者是DIRECT模式（不经过仓储备料这一步）
+                .min(Comparator.comparing(AgvLoadItemDO::getSequenceNo)).orElse(null);
+        if (next == null)
+            return; // 没有下一波了，或者是DIRECT模式（不经过仓储备料这一步）
         doRequestWarehouseItem(plan, next);
     }
 
     private void doRequestWarehouseItem(AgvLoadPlanDO plan, AgvLoadItemDO next) {
         if (slotMapper.reserveIfEmpty(next.getSourceSlotId()) == 0) {
-            throw exception(AGV_LOAD_PLAN_STATE_INVALID,
-                    "仓储中转位不可用: " + next.getSourceSlotId());
+            throw exception(AGV_LOAD_PLAN_STATE_INVALID, "仓储中转位不可用: " + next.getSourceSlotId());
         }
         String subRequestId = plan.getTaskId() + "-W" + next.getWaveNo() + "-I" + next.getSequenceNo();
         next.setWarehouseRequestId(subRequestId);
@@ -1003,8 +980,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
             slotMapper.clearOccupancy(next.getSourceSlotId());
             throw e;
         }
-        log.info("[AgvWarehouse] 请求仓储备料成功 taskId={} subRequestId={} from={} to={}",
-                plan.getTaskId(), subRequestId, next.getWarehouseSourceLocation(), next.getSourceSlotId());
+        log.info("[AgvWarehouse] 请求仓储备料成功 taskId={} subRequestId={} from={} to={}", plan.getTaskId(),
+                subRequestId, next.getWarehouseSourceLocation(), next.getSourceSlotId());
     }
 
     /**
@@ -1014,8 +991,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
      * 物料就绪/被抓走事件，或兜底巡检Job）再试。与 AgvReturnPlanServiceImpl 入库侧
      * 的"非空闲"重试策略一致，只是这里重试次数更多。其余错误立即抛出，不在这里耗锁重试。
      */
-    private void sendWarehousePrepareWithRetry(AgvLoadPlanDO plan, AgvLoadItemDO next,
-            Map<String, Object> params) {
+    private void sendWarehousePrepareWithRetry(AgvLoadPlanDO plan, AgvLoadItemDO next, Map<String, Object> params) {
         final int maxAttempts = 5; // 首次尝试 + 最多5次重试
         int attempt = 0;
         while (true) {
@@ -1034,7 +1010,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                 message = JSON.parseObject(response.getResponseBody()).getString("msg");
             }
             if (attempt < maxAttempts && message != null && message.contains("非空闲")) {
-                log.info("[AgvWarehouse] 仓储移栽模组非空闲，2s后重试 taskId={} subRequestId={} attempt={}/{} message={}",
+                log.info(
+                        "[AgvWarehouse] 仓储移栽模组非空闲，2s后重试 taskId={} subRequestId={} attempt={}/{} message={}",
                         plan.getTaskId(), next.getWarehouseRequestId(), attempt, maxAttempts, message);
                 try {
                     Thread.sleep(2000);
@@ -1079,8 +1056,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
      * 首件 prepareMaterials 已被仓储接受且 AGV 空闲时，启动独立预定位任务。
      */
     private boolean shouldStartPreposition(AgvLoadPlanDO plan) {
-        if (plan.getLoadedCount() != 0 || plan.getCurrentAgvOperation() != null
-                || !"WAIT_WAREHOUSE".equals(plan.getStatus())) {
+        if (plan.getLoadedCount() != 0 || plan.getCurrentAgvOperation() != null || !"WAIT_WAREHOUSE".equals(
+                plan.getStatus())) {
             return false;
         }
         return itemMapper.selectByTaskId(plan.getTaskId()).stream()
@@ -1092,31 +1069,28 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         Map<String, Object> command = new LinkedHashMap<>();
         command.put("taskType", plan.getTaskType());
         command.put("plateType", plan.getPlateType());
-        command.put("step2", Map.of(
-                "taskName", "AgvMove",
-                "agvStationName", plan.getLoadStation()));
+        command.put("step2", Map.of("taskName", "AgvMove", "agvStationName", plan.getLoadStation()));
         sendAndEnqueue(plan, agvTaskId, "PREPOSITION",
-                Map.of("taskId", agvTaskId, "agvCmdList", List.of(command),
-                        "disableSysFieldInjection", true));
+                Map.of("taskId", agvTaskId, "agvCmdList", List.of(command), "disableSysFieldInjection", true));
     }
 
-    /** AGV空闲时，把序号最小的一件已备好(READY)物料单独发给AGV抓取。 */
+    /**
+     * AGV空闲时，把序号最小的一件已备好(READY)物料单独发给AGV抓取。
+     */
     private boolean tryDispatchReadyItem(AgvLoadPlanDO plan) {
         if (plan.getCurrentAgvOperation() != null) {
-            log.info("[AgvLoadPlan] tryDispatchReadyItem: AGV有子任务在途，跳过 taskId={} currentAgvOperation={} currentAgvTaskId={}",
+            log.info(
+                    "[AgvLoadPlan] tryDispatchReadyItem: AGV有子任务在途，跳过 taskId={} currentAgvOperation={} currentAgvTaskId={}",
                     plan.getTaskId(), plan.getCurrentAgvOperation(), plan.getCurrentAgvTaskId());
             return false; // 有子任务在途，不打断，等它taskState=2
         }
         List<AgvLoadItemDO> items = itemMapper.selectByTaskId(plan.getTaskId());
-        AgvLoadItemDO readyItem = items.stream()
-                .filter(item -> "READY".equals(item.getStatus()))
-                .min(Comparator.comparing(AgvLoadItemDO::getSequenceNo))
-                .orElse(null);
+        AgvLoadItemDO readyItem = items.stream().filter(item -> "READY".equals(item.getStatus()))
+                .min(Comparator.comparing(AgvLoadItemDO::getSequenceNo)).orElse(null);
         if (readyItem == null) {
             log.info("[AgvLoadPlan] tryDispatchReadyItem: 没有READY物料可派发 taskId={} 当前各物料状态={}",
-                    plan.getTaskId(), items.stream()
-                            .map(i -> i.getSequenceNo() + ":" + i.getStatus())
-                            .collect(Collectors.joining(",")));
+                    plan.getTaskId(),
+                    items.stream().map(i -> i.getSequenceNo() + ":" + i.getStatus()).collect(Collectors.joining(",")));
             return false;
         }
         log.info("[AgvLoadPlan] tryDispatchReadyItem: 派发物料给AGV taskId={} sequenceNo={} sourceSlotId={}",
@@ -1139,7 +1113,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         // 我们自己定义了一个"并发窗口"就假装仓储那边能并发处理多个备料请求。
         boolean warehouseBusy = items.stream()
                 .anyMatch(item -> "WAIT_SOURCE".equals(item.getStatus()) && item.getWarehouseRequestId() != null);
-        if (warehouseBusy) return false;
+        if (warehouseBusy)
+            return false;
 
         // sourceWindowCapacity（复用 waveSize 字段）控制的是另一件事：已经备好、占着物理
         // 中转位、等AGV来抓的物料最多能有几件同时存在（对应真实的中转位数量，比如2个）。
@@ -1149,27 +1124,29 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         // 但在下一件的请求被仓储确认完成之前，不会再发第三件的请求）。
         int capacity = plan.getWaveSize();
         long occupyingSlot = items.stream()
-                .filter(item -> "READY".equals(item.getStatus()) || "DISPATCHED".equals(item.getStatus()))
-                .count();
-        if (occupyingSlot >= capacity) return false;
+                .filter(item -> "READY".equals(item.getStatus()) || "DISPATCHED".equals(item.getStatus())).count();
+        if (occupyingSlot >= capacity)
+            return false;
 
-        AgvLoadItemDO next = items.stream()
-                .filter(item -> "WAIT_SOURCE".equals(item.getStatus()))
+        AgvLoadItemDO next = items.stream().filter(item -> "WAIT_SOURCE".equals(item.getStatus()))
                 .filter(item -> item.getWarehouseRequestId() == null)
-                .min(Comparator.comparing(AgvLoadItemDO::getSequenceNo))
-                .orElse(null);
-        if (next == null) return false;
+                .min(Comparator.comparing(AgvLoadItemDO::getSequenceNo)).orElse(null);
+        if (next == null)
+            return false;
         try {
             doRequestWarehouseItem(plan, next);
             return true;
         } catch (Exception e) {
-            log.warn("[AgvWarehouse] 请求仓储备料失败，等下一次触发（比如这一件的READY回调，或AGV抓完当前件）再重试 taskId={} slotId={}",
+            log.warn(
+                    "[AgvWarehouse] 请求仓储备料失败，等下一次触发（比如这一件的READY回调，或AGV抓完当前件）再重试 taskId={} slotId={}",
                     plan.getTaskId(), next.getSourceSlotId(), e);
             return false;
         }
     }
 
-    /** WAREHOUSE 模式下单件抓取：一条 agvCmdList 永远只包含这一件的 step1。 */
+    /**
+     * WAREHOUSE 模式下单件抓取：一条 agvCmdList 永远只包含这一件的 step1。
+     */
     @SuppressWarnings("unchecked")
     private void sendLoadTaskForItem(AgvLoadPlanDO plan, AgvLoadItemDO item) {
         String agvTaskId = plan.getTaskId() + "-LOAD-" + item.getSequenceNo();
@@ -1184,11 +1161,12 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                 Map.of("taskId", agvTaskId, "agvCmdList", List.of(command), "disableSysFieldInjection", true));
     }
 
-    /** DIRECT 模式专用：维持原有"整波所有物料一起打包进一条agvCmdList"的行为。 */
+    /**
+     * DIRECT 模式专用：维持原有"整波所有物料一起打包进一条agvCmdList"的行为。
+     */
     private boolean afterWarehouseReadyBatch(AgvLoadPlanDO plan) {
         List<AgvLoadItemDO> waveItems = itemMapper.selectByTaskId(plan.getTaskId()).stream()
-                .filter(item -> Objects.equals(item.getWaveNo(), plan.getCurrentWave()))
-                .toList();
+                .filter(item -> Objects.equals(item.getWaveNo(), plan.getCurrentWave())).toList();
         long ready = waveItems.stream().filter(item -> "READY".equals(item.getStatus())).count();
         if (ready < waveItems.size()) {
             requestNextWarehouseItemInWave(plan); // 单机械臂：收到一个回调后才请求下一个
@@ -1201,7 +1179,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         try {
             prefetchNextWaveBatch(plan);
         } catch (Exception e) {
-            log.warn("[AgvWarehouse] 预取下一波备料失败(整波模式)，不影响当前波AGV抓取，AGV抓完当前波后按原逻辑重试 taskId={}",
+            log.warn(
+                    "[AgvWarehouse] 预取下一波备料失败(整波模式)，不影响当前波AGV抓取，AGV抓完当前波后按原逻辑重试 taskId={}",
                     plan.getTaskId(), e);
         }
         return true;
@@ -1225,7 +1204,9 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                 Map.of("taskId", agvTaskId, "agvCmdList", commands, "disableSysFieldInjection", true));
     }
 
-    /** 磁子(MSB8_T)容器类型需要用磁子专用抓取方式(plateType=1)，其它类型用整趟默认值。 */
+    /**
+     * 磁子(MSB8_T)容器类型需要用磁子专用抓取方式(plateType=1)，其它类型用整趟默认值。
+     */
     private static final String MAGNETIC_CONTAINER_TYPE = "MSB8_T";
     private static final String MAGNETIC_PLATE_TYPE = "1";
 
@@ -1261,7 +1242,9 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         afterWarehouseReady(plan);
     }
 
-    /** taskState=2 确认一次LOAD子任务完成后的推进入口，按模式分派。 */
+    /**
+     * taskState=2 确认一次LOAD子任务完成后的推进入口，按模式分派。
+     */
     private void completeLoadAndContinue(AgvLoadPlanDO plan) {
         if ("DIRECT".equals(plan.getSourceReadyMode())) {
             completeLoadAndContinueBatch(plan);
@@ -1278,8 +1261,7 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
      */
     private void completeLoadAndContinueItem(AgvLoadPlanDO plan) {
         AgvLoadItemDO item = itemMapper.selectByTaskId(plan.getTaskId()).stream()
-                .filter(i -> "DISPATCHED".equals(i.getStatus()))
-                .findFirst()
+                .filter(i -> "DISPATCHED".equals(i.getStatus())).findFirst()
                 .orElseThrow(() -> exception(AGV_LOAD_PLAN_STATE_INVALID, "找不到正在抓取的物料"));
         slotMapper.clearOccupancy(item.getSourceSlotId());
         if (slotMapper.occupyReserved(item.getAgvSlotId(), item.getInstanceId()) == 0) {
@@ -1292,7 +1274,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         plan.setLoadedCount(plan.getLoadedCount() + 1);
         plan.setCurrentAgvTaskId(null);
         plan.setCurrentAgvOperation(null);
-        log.info("[AgvLoadPlan] completeLoadAndContinueItem: 物料{}已确认抓取完成，清空currentAgvOperation taskId={} loadedCount={}/{}",
+        log.info(
+                "[AgvLoadPlan] completeLoadAndContinueItem: 物料{}已确认抓取完成，清空currentAgvOperation taskId={} loadedCount={}/{}",
                 item.getSequenceNo(), plan.getTaskId(), plan.getLoadedCount(), plan.getExpectedCount());
         if (plan.getLoadedCount() < plan.getExpectedCount()) {
             plan.setStatus("WAIT_WAREHOUSE");
@@ -1305,17 +1288,17 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         }
     }
 
-    /** DIRECT 模式：维持原有"整波所有物料一起确认完成"的行为。 */
+    /**
+     * DIRECT 模式：维持原有"整波所有物料一起确认完成"的行为。
+     */
     private void completeLoadAndContinueBatch(AgvLoadPlanDO plan) {
         List<AgvLoadItemDO> waveItems = itemMapper.selectByTaskId(plan.getTaskId()).stream()
                 .filter(item -> Objects.equals(item.getWaveNo(), plan.getCurrentWave()))
-                .filter(item -> "DISPATCHED".equals(item.getStatus()))
-                .toList();
+                .filter(item -> "DISPATCHED".equals(item.getStatus())).toList();
         for (AgvLoadItemDO item : waveItems) {
             slotMapper.clearOccupancy(item.getSourceSlotId());
             if (slotMapper.occupyReserved(item.getAgvSlotId(), item.getInstanceId()) == 0) {
-                throw exception(AGV_LOAD_PLAN_STATE_INVALID,
-                        "AGV库位预留已丢失: " + item.getAgvSlotId());
+                throw exception(AGV_LOAD_PLAN_STATE_INVALID, "AGV库位预留已丢失: " + item.getAgvSlotId());
             }
             item.setStatus("LOADED");
             item.setLoadedAt(LocalDateTime.now());
@@ -1337,7 +1320,9 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         }
     }
 
-    /** 当前推进事务提交后再异步提前开门，避免占用线程空等行锁，也不挡住 MOVE。 */
+    /**
+     * 当前推进事务提交后再异步提前开门，避免占用线程空等行锁，也不挡住 MOVE。
+     */
     private void scheduleOpenSynthesisDoorAfterCommit(String taskId) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
@@ -1361,25 +1346,25 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         }
     }
 
-    /** 当前车次是否已经装载完毕，且目标是需要开门的合成站并满足机台许可条件。 */
+    /**
+     * 当前车次是否已经装载完毕，且目标是需要开门的合成站并满足机台许可条件。
+     */
     private boolean isReadyToOpenSynthesisDoorBeforeUnload(AgvLoadPlanDO plan) {
-        if (!Boolean.TRUE.equals(plan.getDoorRequired())
-                || plan.getLoadedCount() == null
-                || plan.getExpectedCount() == null
-                || plan.getLoadedCount() < plan.getExpectedCount()
+        if (!Boolean.TRUE.equals(plan.getDoorRequired()) || plan.getLoadedCount() == null
+                || plan.getExpectedCount() == null || plan.getLoadedCount() < plan.getExpectedCount()
                 || !isSynthesisStationDestination(plan)) {
             return false;
         }
-        return !Boolean.TRUE.equals(plan.getDoorPermissionGateRequired())
-                || Boolean.TRUE.equals(plan.getDoorPermissionReceived());
+        return !Boolean.TRUE.equals(plan.getDoorPermissionGateRequired()) || Boolean.TRUE.equals(
+                plan.getDoorPermissionReceived());
     }
 
-    /** step3工作流编码 AGV_STX 表示本车次最终卸货到手套箱合成站。 */
+    /**
+     * step3工作流编码 AGV_STX 表示本车次最终卸货到手套箱合成站。
+     */
     private boolean isSynthesisStationDestination(AgvLoadPlanDO plan) {
-        return itemMapper.selectByTaskId(plan.getTaskId()).stream()
-                .map(AgvLoadItemDO::getStep3Json)
-                .filter(Objects::nonNull)
-                .map(JSON::parseObject)
+        return itemMapper.selectByTaskId(plan.getTaskId()).stream().map(AgvLoadItemDO::getStep3Json)
+                .filter(Objects::nonNull).map(JSON::parseObject)
                 .anyMatch(step3 -> "AGV_STX".equals(step3.getString("taskName")));
     }
 
@@ -1402,14 +1387,16 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         String agvTaskId = plan.getTaskId() + "-UNLOAD";
         List<Map<String, Object>> commands = new ArrayList<>();
         for (AgvLoadItemDO item : itemMapper.selectByTaskId(plan.getTaskId())) {
-            if (item.getStep3Json() == null) continue;
+            if (item.getStep3Json() == null)
+                continue;
             Map<String, Object> command = new LinkedHashMap<>();
             command.put("taskType", plan.getTaskType());
             command.put("plateType", resolvePlateType(plan, item));
             command.put("step3", JSON.parseObject(item.getStep3Json(), Map.class));
             commands.add(command);
         }
-        if (commands.isEmpty()) throw exception(AGV_LOAD_PLAN_INVALID, "step3不能为空");
+        if (commands.isEmpty())
+            throw exception(AGV_LOAD_PLAN_INVALID, "step3不能为空");
         sendAndEnqueue(plan, agvTaskId, "UNLOAD",
                 Map.of("taskId", agvTaskId, "agvCmdList", commands, "disableSysFieldInjection", true));
     }
@@ -1417,25 +1404,21 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     private void completeOrchestration(AgvLoadPlanDO plan) {
         plan.setStatus("WAIT_FLOW_COMMIT");
         planMapper.updateById(plan);
-        CallbackResult callback = stepCallbackSpi.callback(
-                plan.getTaskId(), plan.getOrchestrationNodeId(), null, true,
-                Map.of("loadedCount", plan.getLoadedCount(), "warehouseOrchestration", true),
-                null, null);
+        CallbackResult callback = stepCallbackSpi.callback(plan.getTaskId(), plan.getOrchestrationNodeId(), null, true,
+                Map.of("loadedCount", plan.getLoadedCount(), "warehouseOrchestration", true), null, null);
         if (!callback.isSuccess()) {
-            throw exception(AGV_LOAD_PLAN_STATE_INVALID,
-                    "流程编排节点推进失败: " + callback.getErrorMsg());
+            throw exception(AGV_LOAD_PLAN_STATE_INVALID, "流程编排节点推进失败: " + callback.getErrorMsg());
         }
     }
 
     private void completeDispatchedWave(AgvLoadPlanDO plan) {
-        List<AgvLoadItemDO> dispatched = itemMapper
-                .selectByTaskIdAndStatus(plan.getTaskId(), "DISPATCHED");
-        if (dispatched.isEmpty()) return;
+        List<AgvLoadItemDO> dispatched = itemMapper.selectByTaskIdAndStatus(plan.getTaskId(), "DISPATCHED");
+        if (dispatched.isEmpty())
+            return;
         for (AgvLoadItemDO item : dispatched) {
             slotMapper.clearOccupancy(item.getSourceSlotId());
             if (slotMapper.occupyReserved(item.getAgvSlotId(), item.getInstanceId()) == 0) {
-                throw exception(AGV_LOAD_PLAN_STATE_INVALID,
-                        "AGV库位预留已丢失: " + item.getAgvSlotId());
+                throw exception(AGV_LOAD_PLAN_STATE_INVALID, "AGV库位预留已丢失: " + item.getAgvSlotId());
             }
             item.setStatus("LOADED");
             item.setLoadedAt(LocalDateTime.now());
@@ -1446,15 +1429,19 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     }
 
     private boolean dispatchNextWaveIfReady(AgvLoadPlanDO plan) {
-        if (!Boolean.TRUE.equals(plan.getAgvWaiting())) return false;
+        if (!Boolean.TRUE.equals(plan.getAgvWaiting()))
+            return false;
         int remaining = plan.getExpectedCount() - plan.getLoadedCount();
         int expected = Math.min(plan.getWaveSize(), remaining);
         List<AgvLoadItemDO> ready = itemMapper.selectByTaskIdAndStatus(plan.getTaskId(), "READY");
-        if (ready.isEmpty()) return false;
-        if (!Boolean.TRUE.equals(plan.getAllowPartialLoad()) && ready.size() < expected) return false;
+        if (ready.isEmpty())
+            return false;
+        if (!Boolean.TRUE.equals(plan.getAllowPartialLoad()) && ready.size() < expected)
+            return false;
 
-        int dispatchCount = Boolean.TRUE.equals(plan.getAllowPartialLoad())
-                ? Math.min(expected, ready.size()) : expected;
+        int dispatchCount = Boolean.TRUE.equals(plan.getAllowPartialLoad()) ?
+                Math.min(expected, ready.size()) :
+                expected;
         List<AgvLoadItemDO> wave = ready.subList(0, dispatchCount);
         int nextWave = plan.getCurrentWave() + 1;
         LocalDateTime now = LocalDateTime.now();
@@ -1467,11 +1454,9 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
         plan.setAgvWaiting(false);
         planMapper.updateById(plan);
 
-        deviceCommandSpi.send("AGV", "startAgain",
-                Map.of("taskId", plan.getTaskId(), "disableSysFieldInjection", true),
+        deviceCommandSpi.send("AGV", "startAgain", Map.of("taskId", plan.getTaskId(), "disableSysFieldInjection", true),
                 plan.getTaskId(), "agv_load_wave_" + nextWave, null);
-        log.info("[AgvLoadPlan] 第{}波就绪，通知AGV继续 taskId={} count={}",
-                nextWave, plan.getTaskId(), dispatchCount);
+        log.info("[AgvLoadPlan] 第{}波就绪，通知AGV继续 taskId={} count={}", nextWave, plan.getTaskId(), dispatchCount);
         return true;
     }
 
@@ -1497,10 +1482,12 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
                 return;
             }
             // 关键排查点：这里读到的plan状态就是本次唤醒决策的全部依据，出问题时直接看这一行。
-            log.info("[AgvLoadPlan] triggerNextStepAsync 加锁读取到计划状态 taskId={} status={} currentAgvOperation={} currentAgvTaskId={} loadedCount={}",
-                    taskId, plan.getStatus(), plan.getCurrentAgvOperation(), plan.getCurrentAgvTaskId(), plan.getLoadedCount());
-            boolean triggered = plan.getOrchestrationNodeId() != null
-                    ? afterWarehouseReady(plan) : dispatchNextWaveIfReady(plan);
+            log.info(
+                    "[AgvLoadPlan] triggerNextStepAsync 加锁读取到计划状态 taskId={} status={} currentAgvOperation={} currentAgvTaskId={} loadedCount={}",
+                    taskId, plan.getStatus(), plan.getCurrentAgvOperation(), plan.getCurrentAgvTaskId(),
+                    plan.getLoadedCount());
+            boolean triggered =
+                    plan.getOrchestrationNodeId() != null ? afterWarehouseReady(plan) : dispatchNextWaveIfReady(plan);
             log.info("[AgvLoadPlan] 异步触发下一步完成 taskId={} triggered={}", taskId, triggered);
         } catch (Exception e) {
             log.error("[AgvLoadPlan] 异步触发下一步失败 taskId={}", taskId, e);
@@ -1509,7 +1496,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
 
     private AgvLoadPlanDO requireActivePlanForUpdate(String taskId) {
         AgvLoadPlanDO plan = planMapper.selectByTaskIdForUpdate(taskId);
-        if (plan == null) throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
+        if (plan == null)
+            throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
         if (!Set.of("LOADING", "WAIT_WAREHOUSE").contains(plan.getStatus())) {
             throw exception(AGV_LOAD_PLAN_STATE_INVALID, plan.getStatus());
         }
@@ -1536,16 +1524,16 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
      */
     private AgvLoadPlanDO requireActivePlanForWarehouseReady(String taskId) {
         AgvLoadPlanDO plan = planMapper.selectByTaskIdForUpdate(taskId);
-        if (plan == null) throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
-        if (!Set.of("LOADING", "WAIT_WAREHOUSE", "WAIT_WAREHOUSE_PREPOSITIONED",
-                "QUEUED", "WAIT_AGV_PREPOSITION", "WAIT_AGV_LOAD").contains(plan.getStatus())) {
+        if (plan == null)
+            throw exception(AGV_LOAD_PLAN_NOT_EXISTS, taskId);
+        if (!Set.of("LOADING", "WAIT_WAREHOUSE", "WAIT_WAREHOUSE_PREPOSITIONED", "QUEUED", "WAIT_AGV_PREPOSITION",
+                "WAIT_AGV_LOAD").contains(plan.getStatus())) {
             throw exception(AGV_LOAD_PLAN_STATE_INVALID, plan.getStatus());
         }
         return plan;
     }
 
-    private Map<String, Object> result(AgvLoadPlanDO plan, AgvLoadItemDO item,
-                                       boolean triggered, boolean duplicated) {
+    private Map<String, Object> result(AgvLoadPlanDO plan, AgvLoadItemDO item, boolean triggered, boolean duplicated) {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("taskId", plan.getTaskId());
         result.put("slotId", item.getSourceSlotId());
@@ -1560,9 +1548,11 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     }
 
     private int positiveInt(Object value, int defaultValue) {
-        if (value == null) return defaultValue;
+        if (value == null)
+            return defaultValue;
         int parsed = Integer.parseInt(String.valueOf(value));
-        if (parsed <= 0) throw exception(AGV_LOAD_PLAN_INVALID, "数值必须大于0: " + value);
+        if (parsed <= 0)
+            throw exception(AGV_LOAD_PLAN_INVALID, "数值必须大于0: " + value);
         return parsed;
     }
 
@@ -1572,7 +1562,8 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
 
     private String required(Map<String, Object> map, String key) {
         String value = string(map.get(key), null);
-        if (value == null) throw exception(AGV_LOAD_PLAN_INVALID, key + "不能为空");
+        if (value == null)
+            throw exception(AGV_LOAD_PLAN_INVALID, key + "不能为空");
         return value;
     }
 
@@ -1586,31 +1577,93 @@ public class AgvLoadPlanServiceImpl implements AgvLoadPlanService, AgvWaitSignal
     }
 
     private String string(Object value, String defaultValue) {
-        if (value == null || value.toString().isBlank()) return defaultValue;
+        if (value == null || value.toString().isBlank())
+            return defaultValue;
         return value.toString();
     }
 
-    /** 入队或立即调度 AGV startTask，并持久化计划状态。 */
-    private void sendAndEnqueue(AgvLoadPlanDO plan, String agvTaskId,
-                                String operation, Map<String, Object> params) {
+    /**
+     * 入队或立即调度 AGV startTask，并持久化计划状态。
+     */
+    private void sendAndEnqueue(AgvLoadPlanDO plan, String agvTaskId, String operation, Map<String, Object> params) {
         plan.setCurrentAgvTaskId(agvTaskId);
         plan.setCurrentAgvOperation(operation);
         plan.setStatus(agvQueueService.enqueueOrDispatch(plan, agvTaskId, operation, params));
         planMapper.updateById(plan);
     }
 
-    /** 纯货架独立出货时只更新库位占用状态，不涉及 AGV 计划。 */
-    private void updateSlotStatus(WarehouseCallbackReqVO req) {
-        SlotInfoDO slot = slotMapper.selectBySlotId(req.getToLocation());
-        if (slot == null) throw exception(SLOT_INFO_NOT_EXISTS);
-        if (!Boolean.TRUE.equals(slot.getEnabled()) || "DISABLED".equals(slot.getStatus())) {
-            throw exception(SLOT_DISABLED);
+    /**
+     * 独立仓储搬运：查不到补料/下料计划时，按 from/to 维护库位占用与物料当前位置。
+     *
+     * <ul>
+     *   <li>{@code fromLocation} — 解绑，库位置 EMPTY</li>
+     *   <li>{@code toLocation} — 占用，库位置 OCCUPIED，物料 slot_id 指向此处</li>
+     *   <li>库位或物料在本系统不存在时跳过该项，不抛错</li>
+     * </ul>
+     */
+    private Map<String, Object> applyStandaloneWarehouseMove(WarehouseCallbackReqVO req) {
+        String fromLocation = req.getFromLocation();
+        String toLocation = req.getToLocation();
+        String materialId = req.getMaterialId();
+        boolean fromReleased = false;
+        boolean toOccupied = false;
+        boolean materialUpdated = false;
+
+        if (req.isSuccess()) {
+            if (org.springframework.util.StringUtils.hasText(fromLocation) && !fromLocation.equals(toLocation)) {
+                SlotInfoDO fromSlot = slotMapper.selectBySlotId(fromLocation);
+                if (fromSlot == null) {
+                    log.info("[SlotReady] 独立搬运：from 库位不在本系统，跳过解绑 from={}", fromLocation);
+                } else {
+                    slotMapper.clearOccupancy(fromLocation);
+                    fromReleased = true;
+                }
+            }
+
+            String zoneCode = null;
+            if (org.springframework.util.StringUtils.hasText(toLocation)) {
+                SlotInfoDO toSlot = slotMapper.selectBySlotId(toLocation);
+                if (toSlot == null) {
+                    log.info("[SlotReady] 独立搬运：to 库位不在本系统，跳过占用 to={}", toLocation);
+                } else if (!Boolean.TRUE.equals(toSlot.getEnabled()) || "DISABLED".equals(toSlot.getStatus())) {
+                    log.warn("[SlotReady] 独立搬运：to 库位不可用，跳过占用 to={} status={}", toLocation,
+                            toSlot.getStatus());
+                } else {
+                    slotMapper.occupyDirect(toLocation, materialId);
+                    zoneCode = toSlot.getZoneCode();
+                    toOccupied = true;
+                }
+            }
+
+            if (org.springframework.util.StringUtils.hasText(materialId)) {
+                String previousSlotId = materialLocationSpi.getCurrentSlotId(materialId);
+                if (org.springframework.util.StringUtils.hasText(previousSlotId) && !previousSlotId.equals(fromLocation)
+                        && !previousSlotId.equals(toLocation) && slotMapper.selectBySlotId(previousSlotId) != null) {
+                    slotMapper.clearOccupancy(previousSlotId);
+                    log.info("[SlotReady] 独立搬运：释放物料原库位 materialId={} previousSlot={}", materialId,
+                            previousSlotId);
+                }
+                String targetSlotId = org.springframework.util.StringUtils.hasText(toLocation) ? toLocation : null;
+                materialUpdated = materialLocationSpi.updateCurrentSlot(materialId, targetSlotId, zoneCode);
+            }
         }
-        if (!req.isSuccess()) return; // FAILED 时不更新库位
-        if ("RESERVED".equals(slot.getStatus())) {
-            slotMapper.markReadyIfReserved(req.getToLocation(), req.getMaterialId());
-        } else if ("EMPTY".equals(slot.getStatus())) {
-            slotMapper.markReadyIfEmpty(req.getToLocation(), req.getMaterialId());
-        }
+
+        log.info(
+                "[SlotReady] 独立仓储搬运 requestId={} transferTaskId={} materialId={} from={} to={} status={} fromReleased={} toOccupied={} materialUpdated={}",
+                req.getRequestId(), req.getTransferTaskId(), materialId, fromLocation, toLocation, req.getStatus(),
+                fromReleased, toOccupied, materialUpdated);
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("standalone", true);
+        result.put("requestId", req.getRequestId());
+        result.put("transferTaskId", req.getTransferTaskId());
+        result.put("materialId", materialId);
+        result.put("fromLocation", fromLocation);
+        result.put("toLocation", toLocation);
+        result.put("status", req.getStatus());
+        result.put("fromReleased", fromReleased);
+        result.put("toOccupied", toOccupied);
+        result.put("materialUpdated", materialUpdated);
+        return result;
     }
 }

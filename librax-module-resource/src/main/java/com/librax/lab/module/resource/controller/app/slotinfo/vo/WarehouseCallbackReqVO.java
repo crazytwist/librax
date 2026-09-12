@@ -47,7 +47,8 @@ public class WarehouseCallbackReqVO {
     /**
      * 【联动流程时必填】流程ID，对应 prepareMaterials 请求中的 {@code transferTaskId}，原样回传。
      * librax 据此找到对应的补料或下料计划并推进下一步。
-     * 纯独立仓储操作（不经由 librax 流程）可不传。
+     * 纯独立仓储操作（不经由 librax 流程）可不传；传了但查不到对应补料/下料计划时
+     * 也不报错，按 fromLocation/toLocation 直接维护库位占用与物料 slot_id。
      */
     @Schema(description = "【联动流程必填】流程ID，与 prepareMaterials 请求中的 transferTaskId 对应，原样回传；独立操作可不传",
             example = "a1b2c3d4e5f6...")
