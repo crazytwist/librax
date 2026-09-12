@@ -15,12 +15,12 @@
 
     <distributionManagement>
         <repository>
-            <id>repo-rvnwk</id>
-            <url>https://packages.aliyun.com/68e7bfe3f3eec50950f5589b/maven/repo-rvnwk</url>
+            <id>nexus-releases</id>
+            <url>https://nexus.labillion.cn/repository/maven-releases</url>
         </repository>
         <snapshotRepository>
-            <id>repo-rvnwk</id>
-            <url>https://packages.aliyun.com/68e7bfe3f3eec50950f5589b/maven/repo-rvnwk</url>
+            <id>nexus-snapshots</id>
+            <url>https://nexus.labillion.cn/repository/maven-snapshots</url>
         </snapshotRepository>
     </distributionManagement>
 

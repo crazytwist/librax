@@ -22,10 +22,12 @@ import com.librax.lab.module.ai.dal.dataobject.model.AiModelDO;
 import com.librax.lab.module.ai.dal.dataobject.model.AiToolDO;
 import com.librax.lab.module.ai.dal.mysql.chat.AiChatMessageMapper;
 import com.librax.lab.module.ai.enums.ErrorCodeConstants;
+import com.librax.lab.module.ai.enums.chat.AiChatIntentEnum;
 import com.librax.lab.module.ai.enums.model.AiPlatformEnum;
 import com.librax.lab.module.ai.framework.ai.core.webserch.AiWebSearchClient;
 import com.librax.lab.module.ai.framework.ai.core.webserch.AiWebSearchRequest;
 import com.librax.lab.module.ai.framework.ai.core.webserch.AiWebSearchResponse;
+import com.librax.lab.module.ai.service.chat.bo.AiChatIntentRecognizeResult;
 import com.librax.lab.module.ai.service.knowledge.AiKnowledgeDocumentService;
 import com.librax.lab.module.ai.service.knowledge.AiKnowledgeSegmentService;
 import com.librax.lab.module.ai.service.knowledge.bo.AiKnowledgeSegmentSearchReqBO;
@@ -45,7 +47,6 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
-import org.springframework.ai.chat.model.StreamingChatModel;
 import org.springframework.ai.chat.prompt.ChatOptions;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
@@ -119,6 +120,8 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
     private AiKnowledgeDocumentService knowledgeDocumentService;
     @Resource
     private AiToolService toolService;
+    @Resource
+    private AiChatIntentRecognizeService chatIntentRecognizeService;
 
     @SuppressWarnings("SpringJavaAutowiredFieldsWarningInspection")
     @Autowired(required = false) // 由于 librax.ai.web-search.enable 配置项，可以关闭 AiWebSearchClient 的功能，所以这里只能不强制注入
@@ -147,6 +150,10 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
         // 1.2 校验模型
         AiModelDO model = modalService.validateModel(conversation.getModelId());
         ChatModel chatModel = modalService.getChatModel(model.getId());
+
+        // 1.3 首轮意图识别（设备 / 资源 / 流程 / 其他）
+        AiChatIntentRecognizeResult intentResult = recognizeAndBindIntentIfNeeded(
+                conversation, historyMessages, chatModel, model, sendReqVO.getContent());
 
         // 2.1 知识库召回
         List<AiKnowledgeSegmentSearchRespBO> knowledgeSegments = recallKnowledgeSegment(
@@ -184,11 +191,12 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
                     AiKnowledgeDocumentDO document = documentMap.get(segment.getDocumentId());
                     segment.setDocumentName(document != null ? document.getName() : null);
                 });
-        return new AiChatMessageSendRespVO()
+        return fillIntent(new AiChatMessageSendRespVO()
                 .setSend(BeanUtils.toBean(userMessage, AiChatMessageSendRespVO.Message.class))
                 .setReceive(BeanUtils.toBean(assistantMessage, AiChatMessageSendRespVO.Message.class)
                         .setContent(newContent).setSegments(segments)
-                        .setWebSearchPages(webSearchResponse != null ? webSearchResponse.getLists() : null));
+                        .setWebSearchPages(webSearchResponse != null ? webSearchResponse.getLists() : null)),
+                conversation, intentResult);
     }
 
     @Override
@@ -203,7 +211,11 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
         List<AiChatMessageDO> historyMessages = chatMessageMapper.selectListByConversationId(conversation.getId());
         // 1.2 校验模型
         AiModelDO model = modalService.validateModel(conversation.getModelId());
-        StreamingChatModel chatModel = modalService.getChatModel(model.getId());
+        ChatModel chatModel = modalService.getChatModel(model.getId());
+
+        // 1.3 首轮意图识别（设备 / 资源 / 流程 / 其他）
+        AiChatIntentRecognizeResult intentResult = recognizeAndBindIntentIfNeeded(
+                conversation, historyMessages, chatModel, model, sendReqVO.getContent());
 
         // 2.1 知识库找回
         List<AiKnowledgeSegmentSearchRespBO> knowledgeSegments = recallKnowledgeSegment(
@@ -232,7 +244,7 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
         StringBuffer contentBuffer = new StringBuffer();
         StringBuffer reasoningContentBuffer = new StringBuffer();
         return streamResponse.map(chunk -> {
-            // 仅首次：返回知识库、联网搜索
+            // 仅首次：返回知识库、联网搜索、意图
             List<AiChatMessageRespVO.KnowledgeSegment> segments = null;
             List<AiWebSearchResponse.WebPage> webSearchPages = null;
             if (StrUtil.isEmpty(contentBuffer)) {
@@ -256,12 +268,13 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
             if (StrUtil.isNotEmpty(newReasoningContent)) {
                 reasoningContentBuffer.append(newReasoningContent);
             }
-            return success(new AiChatMessageSendRespVO()
+            return success(fillIntent(new AiChatMessageSendRespVO()
                     .setSend(BeanUtils.toBean(userMessage, AiChatMessageSendRespVO.Message.class))
                     .setReceive(BeanUtils.toBean(assistantMessage, AiChatMessageSendRespVO.Message.class)
                             .setContent(StrUtil.nullToDefault(newContent, "")) // 避免 null 的 情况
                             .setReasoningContent(StrUtil.nullToDefault(newReasoningContent, "")) // 避免 null 的 情况
-                            .setSegments(segments).setWebSearchPages(webSearchPages))); // 知识库 + 联网搜索
+                            .setSegments(segments).setWebSearchPages(webSearchPages)), // 知识库 + 联网搜索
+                    conversation, intentResult));
         }).doOnComplete(() -> {
             // 忽略租户，因为 Flux 异步无法透传租户
             TenantUtils.executeIgnore(() -> chatMessageMapper.updateById(
@@ -321,9 +334,10 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
                                AiWebSearchResponse webSearchResponse,
                                AiModelDO model, AiChatMessageSendReqVO sendReqVO) {
         List<Message> chatMessages = new ArrayList<>();
-        // 1.1 System Context 角色设定
-        if (StrUtil.isNotBlank(conversation.getSystemMessage())) {
-            chatMessages.add(new SystemMessage(conversation.getSystemMessage()));
+        // 1.1 System Context 角色设定 + 意图领域引导
+        String systemMessage = buildSystemMessageWithIntent(conversation);
+        if (StrUtil.isNotBlank(systemMessage)) {
+            chatMessages.add(new SystemMessage(systemMessage));
         }
 
         // 1.2 历史 history message 历史消息
@@ -379,6 +393,59 @@ public class AiChatMessageServiceImpl implements AiChatMessageService {
                 conversation.getTemperature(), conversation.getMaxTokens(),
                 toolCallbacks, toolContext);
         return new Prompt(chatMessages, chatOptions);
+    }
+
+    /**
+     * 首轮对话进行意图识别并落库；后续回合直接复用已绑定意图。
+     */
+    private AiChatIntentRecognizeResult recognizeAndBindIntentIfNeeded(AiChatConversationDO conversation,
+                                                                        List<AiChatMessageDO> historyMessages,
+                                                                        ChatModel chatModel,
+                                                                        AiModelDO model,
+                                                                        String content) {
+        // 已有意图：直接复用
+        if (StrUtil.isNotBlank(conversation.getIntent())) {
+            AiChatIntentEnum intent = AiChatIntentEnum.ofCodeOrDefault(conversation.getIntent());
+            return AiChatIntentRecognizeResult.of(intent, "复用会话已绑定意图", 1D);
+        }
+        // 非首轮（历史已有消息）但尚未绑定：仍识别一次，避免旧会话缺失 intent
+        AiChatIntentRecognizeResult result = chatIntentRecognizeService.recognize(chatModel, model, content);
+        AiChatIntentEnum intent = result.getIntent() != null ? result.getIntent() : AiChatIntentEnum.OTHER;
+        conversation.setIntent(intent.getCode());
+        chatConversationService.updateConversationIntent(conversation.getId(), intent.getCode());
+        log.info("[recognizeAndBindIntentIfNeeded][conversationId({}) historySize({}) intent({}) reason({})]",
+                conversation.getId(), CollUtil.size(historyMessages), intent.getCode(), result.getReason());
+        return result;
+    }
+
+    private String buildSystemMessageWithIntent(AiChatConversationDO conversation) {
+        StringBuilder builder = new StringBuilder();
+        if (StrUtil.isNotBlank(conversation.getSystemMessage())) {
+            builder.append(conversation.getSystemMessage().trim());
+        }
+        AiChatIntentEnum intent = AiChatIntentEnum.valueOfCode(conversation.getIntent());
+        if (intent != null) {
+            if (!builder.isEmpty()) {
+                builder.append("\n\n");
+            }
+            builder.append("【当前对话意图：").append(intent.getName()).append("】\n")
+                    .append(intent.getSystemGuidance().trim());
+        }
+        return builder.toString();
+    }
+
+    private AiChatMessageSendRespVO fillIntent(AiChatMessageSendRespVO respVO,
+                                               AiChatConversationDO conversation,
+                                               AiChatIntentRecognizeResult intentResult) {
+        AiChatIntentEnum intent = intentResult != null && intentResult.getIntent() != null
+                ? intentResult.getIntent()
+                : AiChatIntentEnum.ofCodeOrDefault(conversation.getIntent());
+        respVO.setIntent(intent.getCode());
+        respVO.setIntentName(intent.getName());
+        if (intentResult != null) {
+            respVO.setIntentReason(intentResult.getReason());
+        }
+        return respVO;
     }
 
     private List<ToolCallback> getToolCallbackListByRoleId(Long roleId) {

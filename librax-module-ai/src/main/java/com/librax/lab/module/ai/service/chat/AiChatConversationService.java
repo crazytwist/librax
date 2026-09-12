@@ -87,4 +87,12 @@ public interface AiChatConversationService {
      */
     PageResult<AiChatConversationDO> getChatConversationPage(AiChatConversationPageReqVO pageReqVO);
 
+    /**
+     * 更新对话意图（首轮意图识别后写入）
+     *
+     * @param id     对话编号
+     * @param intent 意图编码，参见 {@link com.librax.lab.module.ai.enums.chat.AiChatIntentEnum}
+     */
+    void updateConversationIntent(Long id, String intent);
+
 }

@@ -79,6 +79,14 @@ public class AiChatConversationDO extends BaseDO {
     // ========== 对话配置 ==========
 
     /**
+     * 对话意图
+     * <p>
+     * 首轮消息识别后写入，后续回合复用。
+     * 枚举 {@link com.librax.lab.module.ai.enums.chat.AiChatIntentEnum}
+     */
+    private String intent;
+
+    /**
      * 角色设定
      */
     private String systemMessage;

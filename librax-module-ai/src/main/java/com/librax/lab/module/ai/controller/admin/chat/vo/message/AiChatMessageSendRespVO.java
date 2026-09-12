@@ -17,6 +17,15 @@ public class AiChatMessageSendRespVO {
     @Schema(description = "接收消息", requiredMode = Schema.RequiredMode.REQUIRED)
     private Message receive;
 
+    @Schema(description = "对话意图（首轮识别后返回）", example = "DEVICE")
+    private String intent; // 参见 AiChatIntentEnum 枚举类
+
+    @Schema(description = "意图名称", example = "设备")
+    private String intentName;
+
+    @Schema(description = "意图识别理由", example = "用户在询问仪器指令下发")
+    private String intentReason;
+
     @Schema(description = "消息")
     @Data
     public static class Message {

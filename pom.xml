@@ -161,15 +161,15 @@
         </plugins>
     </build>
 
-    <!-- 发布到云效制品仓库 -->
+    <!-- 发布到 Nexus（make deploy）：SNAPSHOT 进 maven-snapshots，正式版 REV 覆盖进 maven-releases -->
     <distributionManagement>
         <repository>
-            <id>repo-rvnwk</id>
-            <url>https://packages.aliyun.com/68e7bfe3f3eec50950f5589b/maven/repo-rvnwk</url>
+            <id>nexus-releases</id>
+            <url>https://nexus.labillion.cn/repository/maven-releases</url>
         </repository>
         <snapshotRepository>
-            <id>repo-rvnwk</id>
-            <url>https://packages.aliyun.com/68e7bfe3f3eec50950f5589b/maven/repo-rvnwk</url>
+            <id>nexus-snapshots</id>
+            <url>https://nexus.labillion.cn/repository/maven-snapshots</url>
         </snapshotRepository>
     </distributionManagement>
 
