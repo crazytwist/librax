@@ -151,8 +151,12 @@ public class RoleServiceImpl implements RoleService {
             throw exception(ROLE_ADMIN_CODE_ERROR, code);
         }
         // 1. 该 name 名字被其它角色所使用
-        RoleDO role = roleMapper.selectByName(name);
-        if (role != null && !role.getId().equals(id)) {
+//        RoleDO role = roleMapper.selectByName(name);
+//        if (role != null && !role.getId().equals(id)) {
+//            throw exception(ROLE_NAME_DUPLICATE, name);
+//        }
+        List<RoleDO> roles = roleMapper.listByName(name);
+        if (CollUtil.isNotEmpty(roles)) {
             throw exception(ROLE_NAME_DUPLICATE, name);
         }
         // 2. 是否存在相同编码的角色
@@ -160,7 +164,7 @@ public class RoleServiceImpl implements RoleService {
             return;
         }
         // 该 code 编码被其它角色所使用
-        role = roleMapper.selectByCode(code);
+        RoleDO role = roleMapper.selectByCode(code);
         if (role != null && !role.getId().equals(id)) {
             throw exception(ROLE_CODE_DUPLICATE, code);
         }

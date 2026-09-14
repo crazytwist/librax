@@ -29,6 +29,10 @@ public interface RoleMapper extends BaseMapperX<RoleDO> {
         return selectOne(RoleDO::getName, name);
     }
 
+    default List<RoleDO> listByName(String name) {
+        return selectList(RoleDO::getName, name);
+    }
+
     default RoleDO selectByCode(String code) {
         return selectOne(RoleDO::getCode, code);
     }
