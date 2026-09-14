@@ -32,6 +32,10 @@ public class PipelineStepRespVO {
     @ExcelProperty("关联 pd_step_definition.step_key")
     private String stepKey;
 
+    @Schema(description = "关联 pd_step_definition.step_key", requiredMode = Schema.RequiredMode.REQUIRED)
+    @ExcelProperty("关联 pd_step_definition.step_key")
+    private String stepType;
+
     @Schema(description = "指定步骤版本，NULL 表示始终用最新 ACTIVE 版本")
     @ExcelProperty("指定步骤版本，NULL 表示始终用最新 ACTIVE 版本")
     private Integer stepVersion;
