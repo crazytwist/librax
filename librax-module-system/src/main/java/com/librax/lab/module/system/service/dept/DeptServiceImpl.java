@@ -180,7 +180,8 @@ public class DeptServiceImpl implements DeptService {
     @Override
     public List<DeptDO> getDeptList(DeptListReqVO reqVO) {
         List<DeptDO> list = deptMapper.selectList(reqVO);
-        list.sort(Comparator.comparing(DeptDO::getSort));
+//        list.sort(Comparator.comparing(DeptDO::getSort));
+        list.sort(Comparator.comparing(DeptDO::getUpdateTime).reversed());
         return list;
     }
 

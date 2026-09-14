@@ -1,6 +1,7 @@
 package com.librax.lab.module.system.controller.admin.user.vo.user;
 
 import cn.hutool.core.util.ObjectUtil;
+import com.librax.lab.framework.common.enums.CommonStatusEnum;
 import com.librax.lab.framework.common.validation.Mobile;
 import com.librax.lab.module.system.framework.operatelog.core.DeptParseFunction;
 import com.librax.lab.module.system.framework.operatelog.core.PostParseFunction;
@@ -64,7 +65,8 @@ public class UserSaveReqVO {
     @DiffLogField(name = "用户头像")
     private String avatar;
 
-    // ========== 仅【创建】时，需要传递的字段 ==========
+    @Schema(description = "账户状态 0-开启 1-关闭")
+    private Integer status;
 
     @Schema(description = "密码", requiredMode = Schema.RequiredMode.REQUIRED, example = "123456")
     @Length(min = 4, max = 16, message = "密码长度为 4-16 位")
