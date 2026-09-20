@@ -36,9 +36,12 @@ import com.librax.lab.module.lab.dal.dataobject.materialdef.MaterialDefDO;
 import com.librax.lab.module.lab.service.materialinstance.MaterialInstanceService;
 import com.librax.lab.module.lab.service.containertype.ContainerTypeService;
 import com.librax.lab.module.lab.service.materialdef.MaterialDefService;
+import com.mzt.logapi.starter.annotation.LogRecord;
 
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static com.librax.lab.module.lab.enums.LogRecordConstants.*;
 
 @Tag(name = "管理后台 - 物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理")
 @RestController
@@ -71,6 +74,8 @@ public class MaterialInstanceController {
     @PostMapping("/create")
     @Operation(summary = "创建物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理")
     @PreAuthorize("@ss.hasPermission('lab:material-instance:create')")
+    @LogRecord(type = MATERIAL_INSTANCE_TYPE, subType = MATERIAL_INSTANCE_CREATE_SUB_TYPE,
+            bizNo = "{{#instance.id}}", success = MATERIAL_INSTANCE_CREATE_SUCCESS)
     public CommonResult<Long> createMaterialInstance(@Valid @RequestBody MaterialInstanceSaveReqVO createReqVO) {
         return success(materialInstanceService.createMaterialInstance(createReqVO));
     }
@@ -78,6 +83,8 @@ public class MaterialInstanceController {
     @PutMapping("/update")
     @Operation(summary = "更新物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理")
     @PreAuthorize("@ss.hasPermission('lab:material-instance:update')")
+    @LogRecord(type = MATERIAL_INSTANCE_TYPE, subType = MATERIAL_INSTANCE_UPDATE_SUB_TYPE,
+            bizNo = "{{#updateReqVO.id}}", success = MATERIAL_INSTANCE_UPDATE_SUCCESS)
     public CommonResult<Boolean> updateMaterialInstance(@Valid @RequestBody MaterialInstanceSaveReqVO updateReqVO) {
         materialInstanceService.updateMaterialInstance(updateReqVO);
         return success(true);
@@ -87,6 +94,8 @@ public class MaterialInstanceController {
     @Operation(summary = "删除物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理")
     @Parameter(name = "id", description = "编号", required = true)
     @PreAuthorize("@ss.hasPermission('lab:material-instance:delete')")
+    @LogRecord(type = MATERIAL_INSTANCE_TYPE, subType = MATERIAL_INSTANCE_DELETE_SUB_TYPE,
+            bizNo = "{{#instance.id}}", success = MATERIAL_INSTANCE_DELETE_SUCCESS)
     public CommonResult<Boolean> deleteMaterialInstance(@RequestParam("id") Long id) {
         materialInstanceService.deleteMaterialInstance(id);
         return success(true);
@@ -96,6 +105,8 @@ public class MaterialInstanceController {
     @Parameter(name = "ids", description = "编号", required = true)
     @Operation(summary = "批量删除物料实例，库存中每一个具体的容器实例，含层级关系和位置追踪，归 lab 模块管理")
     @PreAuthorize("@ss.hasPermission('lab:material-instance:delete')")
+    @LogRecord(type = MATERIAL_INSTANCE_TYPE, subType = MATERIAL_INSTANCE_DELETE_LIST_SUB_TYPE,
+            bizNo = "{{#ids[0]}}", success = MATERIAL_INSTANCE_DELETE_LIST_SUCCESS)
     public CommonResult<Boolean> deleteMaterialInstanceList(@RequestParam("ids") List<Long> ids) {
         materialInstanceService.deleteMaterialInstanceListByIds(ids);
         return success(true);

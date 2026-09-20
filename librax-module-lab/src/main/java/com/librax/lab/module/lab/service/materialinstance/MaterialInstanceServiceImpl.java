@@ -27,6 +27,7 @@ import com.librax.lab.framework.common.util.object.BeanUtils;
 import com.librax.lab.module.lab.dal.mysql.materialinstance.MaterialInstanceMapper;
 import com.librax.lab.module.resource.dal.dataobject.slotinfo.SlotInfoDO;
 import com.librax.lab.module.resource.service.slotinfo.SlotInfoService;
+import com.mzt.logapi.context.LogRecordContext;
 
 import static com.librax.lab.framework.common.exception.util.ServiceExceptionUtil.exception;
 import static com.librax.lab.framework.common.util.collection.CollectionUtils.convertList;
@@ -60,6 +61,7 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         // 插入
         MaterialInstanceDO materialInstance = BeanUtils.toBean(createReqVO, MaterialInstanceDO.class);
         materialInstanceMapper.insert(materialInstance);
+        LogRecordContext.putVariable("instance", materialInstance);
 
         // 返回
         return materialInstance.getId();
@@ -100,9 +102,11 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
 
     @Override
     public void deleteMaterialInstance(Long id) {
-        // 校验存在
-        validateMaterialInstanceExists(id);
-        // 删除
+        MaterialInstanceDO existing = materialInstanceMapper.selectById(id);
+        if (existing == null) {
+            throw exception(MATERIAL_INSTANCE_NOT_EXISTS);
+        }
+        LogRecordContext.putVariable("instance", existing);
         materialInstanceMapper.deleteById(id);
     }
 

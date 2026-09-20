@@ -89,16 +89,16 @@ public class StepExecutionController {
     }
 
     @GetMapping("/export-excel")
-    @Operation(summary = "导出步骤执行记录，每次重试独立一行，支持单独运行与补偿追踪 Excel")
+    @Operation(summary = "导出步骤执行记录 Excel")
     @PreAuthorize("@ss.hasPermission('flow:step-execution:export')")
     @ApiAccessLog(operateType = EXPORT)
     public void exportStepExecutionExcel(@Valid StepExecutionPageReqVO pageReqVO,
-              HttpServletResponse response) throws IOException {
+                                         HttpServletResponse response) throws IOException {
+        // 与分页接口共用筛选条件，pageSize=-1 表示导出全部匹配记录
         pageReqVO.setPageSize(PageParam.PAGE_SIZE_NONE);
         List<StepExecutionDO> list = stepExecutionService.getStepExecutionPage(pageReqVO).getList();
-        // 导出 Excel
-        ExcelUtils.write(response, "步骤执行记录，每次重试独立一行，支持单独运行与补偿追踪.xls", "数据", StepExecutionRespVO.class,
-                        BeanUtils.toBean(list, StepExecutionRespVO.class));
+        ExcelUtils.write(response, "步骤执行记录.xls", "数据", StepExecutionRespVO.class,
+                BeanUtils.toBean(list, StepExecutionRespVO.class));
     }
 
 }
