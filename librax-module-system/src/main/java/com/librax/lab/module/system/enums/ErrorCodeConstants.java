@@ -35,7 +35,7 @@ public interface ErrorCodeConstants {
     ErrorCode ROLE_ADMIN_CODE_ERROR = new ErrorCode(1_002_002_005, "标识【{}】不能使用");
 
     // ========== 用户模块 1-002-003-000 ==========
-    ErrorCode USER_USERNAME_EXISTS = new ErrorCode(1_002_003_000, "用户名称已经存在");
+    ErrorCode USER_USERNAME_EXISTS = new ErrorCode(1_002_003_000, "用户账号已经存在");
     ErrorCode USER_MOBILE_EXISTS = new ErrorCode(1_002_003_001, "手机号已经存在");
     ErrorCode USER_EMAIL_EXISTS = new ErrorCode(1_002_003_002, "邮箱已经存在");
     ErrorCode USER_NOT_EXISTS = new ErrorCode(1_002_003_003, "用户不存在");
