@@ -1,6 +1,9 @@
 package com.librax.lab.module.lab.service.materialdef;
 
 import cn.hutool.core.collection.CollUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
+import com.librax.lab.module.lab.dal.mysql.materialinstance.MaterialInstanceMapper;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -32,6 +35,9 @@ public class MaterialDefServiceImpl implements MaterialDefService {
     @Resource
     private MaterialDefMapper materialDefMapper;
 
+    @Resource
+    private MaterialInstanceMapper materialInstanceMapper;
+
     @Override
     public Long createMaterialDef(MaterialDefSaveReqVO createReqVO) {
         // 插入
@@ -46,6 +52,16 @@ public class MaterialDefServiceImpl implements MaterialDefService {
     public void updateMaterialDef(MaterialDefSaveReqVO updateReqVO) {
         // 校验存在
         validateMaterialDefExists(updateReqVO.getId());
+        //检查物料编码重复
+        checkMaterialCodeExist(updateReqVO.getMaterialCode());
+        //如果开启禁用，检查是否绑定物料
+        if( !updateReqVO.getEnabled()){
+            MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
+                    .eq(MaterialInstanceDO::getMaterialCode,updateReqVO.getMaterialCode()));
+            if(instanceDO!=null){
+                throw  exception(MATERIAL_DEF_HAS_CONNECT);
+            }
+        }
         // 更新
         MaterialDefDO updateObj = BeanUtils.toBean(updateReqVO, MaterialDefDO.class);
         materialDefMapper.updateById(updateObj);
@@ -69,6 +85,13 @@ public class MaterialDefServiceImpl implements MaterialDefService {
     private void validateMaterialDefExists(Long id) {
         if (materialDefMapper.selectById(id) == null) {
             throw exception(MATERIAL_DEF_NOT_EXISTS);
+        }
+    }
+
+    private void checkMaterialCodeExist(String materialCode){
+        if(materialDefMapper.exists(new LambdaQueryWrapper<MaterialDefDO>()
+                .eq(MaterialDefDO::getMaterialCode,materialCode))){
+            throw  exception(MATERIAL_DEF_CODE_EXISTS);
         }
     }
 

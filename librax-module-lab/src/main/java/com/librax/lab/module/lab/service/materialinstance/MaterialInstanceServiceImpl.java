@@ -10,6 +10,7 @@ import com.librax.lab.framework.common.exception.ServiceException;
 import com.librax.lab.framework.common.exception.enums.GlobalErrorCodeConstants;
 import com.librax.lab.module.lab.dal.dataobject.materialdef.MaterialDefDO;
 import com.librax.lab.module.lab.dal.mysql.materialdef.MaterialDefMapper;
+import com.librax.lab.module.resource.dal.mysql.slotinfo.SlotInfoMapper;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -53,6 +54,9 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
     @Resource
     private MaterialDefMapper materialDefMapper;
 
+    @Resource
+    private SlotInfoMapper slotInfoMapper;
+
     @Override
     public Long createMaterialInstance(MaterialInstanceSaveReqVO createReqVO) {
         // 实例保存数据校验，如果有物料，根据对应的内容类型，必须有对应的当前量值
@@ -60,11 +64,21 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
 
         // 插入
         MaterialInstanceDO materialInstance = BeanUtils.toBean(createReqVO, MaterialInstanceDO.class);
+        //检查条形码重复
+        checkQrcodeRepeat(createReqVO.getBarcode());
         materialInstanceMapper.insert(materialInstance);
         LogRecordContext.putVariable("instance", materialInstance);
 
         // 返回
         return materialInstance.getId();
+    }
+
+    private void checkQrcodeRepeat(String Barcode){
+        MaterialInstanceDO materialInstanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getBarcode,Barcode));
+        if(! Objects.isNull(materialInstanceDO)){
+            throw exception(MATERIAL_INSTANCE_BARCODE_EXISTS);
+        }
     }
 
     private void checkRequestParam(MaterialInstanceSaveReqVO createReqVO) {
@@ -97,6 +111,25 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         validateMaterialInstanceExists(updateReqVO.getId());
         // 更新
         MaterialInstanceDO updateObj = BeanUtils.toBean(updateReqVO, MaterialInstanceDO.class);
+
+        MaterialDefDO defDO = materialDefMapper.selectOne(new LambdaQueryWrapper<MaterialDefDO>()
+                .eq(MaterialDefDO::getMaterialCode,updateReqVO.getMaterialCode()));
+        if(Objects.isNull(defDO)){
+            throw exception(MATERIAL_DEF_NOT_EXISTS);
+        }
+        updateObj.setContentType(defDO.getContentType());
+        //库位检查
+        int capacity;
+        if(updateReqVO.getSlotId() != null){
+            List<MaterialInstanceDO> materialInstanceDOList = materialInstanceMapper.selectList(new LambdaQueryWrapper<MaterialInstanceDO>()
+                    .eq(MaterialInstanceDO::getSlotId,updateReqVO.getSlotId()));
+
+            SlotInfoDO slotInfoDO = slotInfoMapper.selectBySlotId(updateReqVO.getSlotId());
+            capacity = slotInfoDO.getCapacity();
+            if(materialInstanceDOList.size() > capacity){
+                throw exception(MATERIAL_CHECK_CAPACITY_EXCEED);
+            }
+        }
         materialInstanceMapper.updateById(updateObj);
     }
 
