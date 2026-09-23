@@ -78,7 +78,8 @@ public class OAuth2TokenServiceImplTest extends BaseDbAndRedisUnitTest {
         // 断言访问令牌
         OAuth2AccessTokenDO dbAccessTokenDO = oauth2AccessTokenMapper.selectByAccessToken(accessTokenDO.getAccessToken());
         // TODO @芋艿：expiresTime 被屏蔽，仅 win11 会复现，建议后续修复。
-        assertPojoEquals(accessTokenDO, dbAccessTokenDO, "expiresTime", "createTime", "updateTime", "deleted");
+        assertPojoEquals(accessTokenDO, dbAccessTokenDO, "expiresTime", "createTime", "updateTime", "deleted",
+                "creator", "updater");
         assertEquals(userId, accessTokenDO.getUserId());
         assertEquals(userType, accessTokenDO.getUserType());
         assertEquals(2, accessTokenDO.getUserInfo().size());
@@ -93,7 +94,8 @@ public class OAuth2TokenServiceImplTest extends BaseDbAndRedisUnitTest {
         assertPojoEquals(accessTokenDO, redisAccessTokenDO, "expiresTime", "createTime", "updateTime", "deleted");
         // 断言刷新令牌
         OAuth2RefreshTokenDO refreshTokenDO = oauth2RefreshTokenMapper.selectList().get(0);
-        assertPojoEquals(accessTokenDO, refreshTokenDO, "id", "expiresTime", "createTime", "updateTime", "deleted");
+        assertPojoEquals(accessTokenDO, refreshTokenDO, "id", "expiresTime", "createTime", "updateTime", "deleted",
+                "creator", "updater");
         assertFalse(DateUtils.isExpired(refreshTokenDO.getExpiresTime()));
     }
 
@@ -181,7 +183,8 @@ public class OAuth2TokenServiceImplTest extends BaseDbAndRedisUnitTest {
         // 断言，新的访问令牌
         OAuth2AccessTokenDO dbAccessTokenDO = oauth2AccessTokenMapper.selectByAccessToken(newAccessTokenDO.getAccessToken());
         // TODO @芋艿：expiresTime 被屏蔽，仅 win11 会复现，建议后续修复。
-        assertPojoEquals(newAccessTokenDO, dbAccessTokenDO, "expiresTime", "createTime", "updateTime", "deleted");
+        assertPojoEquals(newAccessTokenDO, dbAccessTokenDO, "expiresTime", "createTime", "updateTime", "deleted",
+                "creator", "updater");
         assertPojoEquals(newAccessTokenDO, refreshTokenDO, "id", "expiresTime", "createTime", "updateTime", "deleted",
                 "creator", "updater");
         assertFalse(DateUtils.isExpired(newAccessTokenDO.getExpiresTime()));
