@@ -46,9 +46,9 @@ public class ExcelUtils {
                 .sheet(sheetName).doWrite(data);
         // 生成成功后再设置响应头。失败时 contentType 仍是 JSON，全局异常处理可以正常返回。
         filename = ensureXlsxFilename(filename);
+        // 只用 filename= 百分号编码。filename*=UTF-8'' 会被 Knife4j 原样拼进文件名，变成 utf-8''用户数据.xlsx
         String encodedFilename = HttpUtils.encodeUtf8(filename).replace("+", "%20");
-        response.setHeader("Content-Disposition",
-                "attachment;filename=\"" + encodedFilename + "\";filename*=UTF-8''" + encodedFilename);
+        response.setHeader("Content-Disposition", "attachment;filename=" + encodedFilename);
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         // 全局 force encoding 会给 Content-Type 追加 charset，客户端会把 xlsx 当文本解析
         response.setCharacterEncoding(null);
