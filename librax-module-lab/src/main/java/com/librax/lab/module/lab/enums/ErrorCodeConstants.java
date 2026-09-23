@@ -34,7 +34,7 @@ public interface ErrorCodeConstants {
             new ErrorCode(1_050_001_006, "物料实例不存在");
 
     ErrorCode MATERIAL_INSTANCE_BARCODE_EXISTS =
-            new ErrorCode(1_050_002_007, "该物料实例二维码已存在");
+            new ErrorCode(1_050_002_007, "该物料实例条形码已存在");
 
     ErrorCode MATERIAL_DEF_NOT_EXISTS =
             new ErrorCode(1_050_001_007, "内容物定义不存在");

@@ -112,6 +112,7 @@ public class LibraxWebAutoConfiguration {
         config.addAllowedOriginPattern("*"); // 设置访问源地址
         config.addAllowedHeader("*"); // 设置访问源请求头
         config.addAllowedMethod("*"); // 设置访问源请求方法
+        config.addExposedHeader("Content-Disposition"); // 跨域时前端才能读到下载文件名
         // 创建 UrlBasedCorsConfigurationSource 对象
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config); // 对接口配置跨域设置
