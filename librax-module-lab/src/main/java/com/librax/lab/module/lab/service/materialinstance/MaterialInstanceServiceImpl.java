@@ -109,6 +109,8 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         checkRequestParam(updateReqVO);
         // 校验存在
         validateMaterialInstanceExists(updateReqVO.getId());
+        //条形码检验
+        checkQrcodeRepeat(updateReqVO.getBarcode());
         // 更新
         MaterialInstanceDO updateObj = BeanUtils.toBean(updateReqVO, MaterialInstanceDO.class);
 

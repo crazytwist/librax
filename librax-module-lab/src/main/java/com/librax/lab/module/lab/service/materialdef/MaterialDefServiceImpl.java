@@ -42,6 +42,7 @@ public class MaterialDefServiceImpl implements MaterialDefService {
     public Long createMaterialDef(MaterialDefSaveReqVO createReqVO) {
         // 插入
         MaterialDefDO materialDef = BeanUtils.toBean(createReqVO, MaterialDefDO.class);
+        checkMaterialCodeExist(null,createReqVO.getMaterialCode());
         materialDefMapper.insert(materialDef);
 
         // 返回
@@ -53,7 +54,7 @@ public class MaterialDefServiceImpl implements MaterialDefService {
         // 校验存在
         validateMaterialDefExists(updateReqVO.getId());
         //检查物料编码重复
-        checkMaterialCodeExist(updateReqVO.getMaterialCode());
+        checkMaterialCodeExist(updateReqVO.getId(),updateReqVO.getMaterialCode());
         //如果开启禁用，检查是否绑定物料
         if( !updateReqVO.getEnabled()){
             MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
@@ -88,9 +89,14 @@ public class MaterialDefServiceImpl implements MaterialDefService {
         }
     }
 
-    private void checkMaterialCodeExist(String materialCode){
-        if(materialDefMapper.exists(new LambdaQueryWrapper<MaterialDefDO>()
-                .eq(MaterialDefDO::getMaterialCode,materialCode))){
+    private void checkMaterialCodeExist(Long id,String materialCode){
+        LambdaQueryWrapper<MaterialDefDO> wrapper = new LambdaQueryWrapper<MaterialDefDO>()
+                .eq(MaterialDefDO::getMaterialCode,materialCode);
+        // 更新操作：排除当前id自身记录
+        if (id != null) {
+            wrapper.ne(MaterialDefDO::getId, id);
+        }
+        if(materialDefMapper.exists(wrapper)){
             throw  exception(MATERIAL_DEF_CODE_EXISTS);
         }
     }
