@@ -70,7 +70,9 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
         containerTypeMapper.updateById(updateObj);
         //更新绑定
         MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
-                .eq(MaterialInstanceDO::getTypeCode,containerTypeDO.getTypeCode()));
+                .eq(MaterialInstanceDO::getTypeCode,containerTypeDO.getTypeCode())
+                .eq(MaterialInstanceDO::getDeleted,false)
+                .apply("limit 1"));
         instanceDO.setTypeCode(updateReqVO.getTypeCode());
         materialInstanceMapper.updateById(instanceDO);
     }

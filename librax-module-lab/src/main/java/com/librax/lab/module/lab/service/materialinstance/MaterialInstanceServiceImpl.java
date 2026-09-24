@@ -118,7 +118,8 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         int capacity;
         if(updateReqVO.getSlotId() != null){
             List<MaterialInstanceDO> materialInstanceDOList = materialInstanceMapper.selectList(new LambdaQueryWrapper<MaterialInstanceDO>()
-                    .eq(MaterialInstanceDO::getSlotId,updateReqVO.getSlotId()));
+                    .eq(MaterialInstanceDO::getSlotId,updateReqVO.getSlotId())
+                    .eq(MaterialInstanceDO::getDeleted,false));
 
             SlotInfoDO slotInfoDO = slotInfoMapper.selectBySlotId(updateReqVO.getSlotId());
             if(slotInfoDO!=null) {
