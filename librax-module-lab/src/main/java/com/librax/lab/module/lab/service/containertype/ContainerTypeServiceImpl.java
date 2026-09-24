@@ -53,10 +53,13 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
     public void updateContainerType(ContainerTypeSaveReqVO updateReqVO) {
         // 校验存在
         validateContainerTypeExists(updateReqVO.getId());
+
+        ContainerTypeDO containerTypeDO = containerTypeMapper.selectById(updateReqVO.getId());
         //禁用时检查是否有绑定
         if( !updateReqVO.getEnabled()){
             MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
-                    .eq(MaterialInstanceDO::getTypeCode,updateReqVO.getTypeCode()));
+                    .eq(MaterialInstanceDO::getTypeCode,containerTypeDO.getTypeCode())
+                    .eq(MaterialInstanceDO::getDeleted,0));
             if(instanceDO!=null){
                 throw  exception(CONTAIN_DEF_HAS_CONNECT);
             }
@@ -64,6 +67,11 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
         // 更新
         ContainerTypeDO updateObj = BeanUtils.toBean(updateReqVO, ContainerTypeDO.class);
         containerTypeMapper.updateById(updateObj);
+        //更新绑定
+        MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getTypeCode,containerTypeDO.getTypeCode()));
+        instanceDO.setTypeCode(updateReqVO.getTypeCode());
+        materialInstanceMapper.updateById(instanceDO);
     }
 
     @Override
