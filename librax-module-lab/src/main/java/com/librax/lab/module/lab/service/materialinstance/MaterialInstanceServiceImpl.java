@@ -65,7 +65,7 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         // 插入
         MaterialInstanceDO materialInstance = BeanUtils.toBean(createReqVO, MaterialInstanceDO.class);
         //检查条形码重复
-        checkQrcodeRepeat(createReqVO.getBarcode());
+        checkQrcodeRepeat(null,createReqVO.getBarcode());
         materialInstanceMapper.insert(materialInstance);
         LogRecordContext.putVariable("instance", materialInstance);
 
@@ -73,9 +73,10 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         return materialInstance.getId();
     }
 
-    private void checkQrcodeRepeat(String Barcode){
+    private void checkQrcodeRepeat(Long id,String Barcode){
         MaterialInstanceDO materialInstanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
-                .eq(MaterialInstanceDO::getBarcode,Barcode));
+                .eq(MaterialInstanceDO::getBarcode,Barcode)
+                .ne(MaterialInstanceDO::getId,id));
         if(! Objects.isNull(materialInstanceDO)){
             throw exception(MATERIAL_INSTANCE_BARCODE_EXISTS);
         }
@@ -110,7 +111,7 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         // 校验存在
         validateMaterialInstanceExists(updateReqVO.getId());
         //条形码检验
-        checkQrcodeRepeat(updateReqVO.getBarcode());
+        checkQrcodeRepeat(updateReqVO.getId(),updateReqVO.getBarcode());
         // 更新
         MaterialInstanceDO updateObj = BeanUtils.toBean(updateReqVO, MaterialInstanceDO.class);
 
