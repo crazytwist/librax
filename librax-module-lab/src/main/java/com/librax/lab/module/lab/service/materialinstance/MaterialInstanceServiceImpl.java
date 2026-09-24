@@ -114,13 +114,6 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         checkQrcodeRepeat(updateReqVO.getId(),updateReqVO.getBarcode());
         // 更新
         MaterialInstanceDO updateObj = BeanUtils.toBean(updateReqVO, MaterialInstanceDO.class);
-
-        MaterialDefDO defDO = materialDefMapper.selectOne(new LambdaQueryWrapper<MaterialDefDO>()
-                .eq(MaterialDefDO::getMaterialCode,updateReqVO.getMaterialCode()));
-        if(Objects.isNull(defDO)){
-            throw exception(MATERIAL_DEF_NOT_EXISTS);
-        }
-        updateObj.setContentType(defDO.getContentType());
         //库位检查
         int capacity;
         if(updateReqVO.getSlotId() != null){
@@ -128,9 +121,11 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
                     .eq(MaterialInstanceDO::getSlotId,updateReqVO.getSlotId()));
 
             SlotInfoDO slotInfoDO = slotInfoMapper.selectBySlotId(updateReqVO.getSlotId());
-            capacity = slotInfoDO.getCapacity();
-            if(materialInstanceDOList.size() > capacity){
-                throw exception(MATERIAL_CHECK_CAPACITY_EXCEED);
+            if(slotInfoDO!=null) {
+                capacity = slotInfoDO.getCapacity();
+                if (materialInstanceDOList.size() > capacity) {
+                    throw exception(MATERIAL_CHECK_CAPACITY_EXCEED);
+                }
             }
         }
         materialInstanceMapper.updateById(updateObj);
