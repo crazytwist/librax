@@ -53,12 +53,13 @@ public class MaterialDefServiceImpl implements MaterialDefService {
     public void updateMaterialDef(MaterialDefSaveReqVO updateReqVO) {
         // 校验存在
         validateMaterialDefExists(updateReqVO.getId());
+        MaterialDefDO materialDefDO = materialDefMapper.selectById(updateReqVO.getId());
         //检查物料编码重复
         checkMaterialCodeExist(updateReqVO.getId(),updateReqVO.getMaterialCode());
         //如果开启禁用，检查是否绑定物料
         if( !updateReqVO.getEnabled()){
             MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
-                    .eq(MaterialInstanceDO::getMaterialCode,updateReqVO.getMaterialCode())
+                    .eq(MaterialInstanceDO::getMaterialCode,materialDefDO.getMaterialCode())
                     .eq(MaterialInstanceDO::getDeleted,false)
                     .last("limit 1"));
             if(instanceDO!=null){
@@ -68,6 +69,18 @@ public class MaterialDefServiceImpl implements MaterialDefService {
         // 更新
         MaterialDefDO updateObj = BeanUtils.toBean(updateReqVO, MaterialDefDO.class);
         materialDefMapper.updateById(updateObj);
+        //更新绑定
+        List<MaterialInstanceDO> instanceDOList = materialInstanceMapper.selectList(new LambdaQueryWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getMaterialCode,materialDefDO.getMaterialCode())
+                .eq(MaterialInstanceDO::getDeleted,false));
+        if(!instanceDOList.isEmpty()){
+            for(MaterialInstanceDO instanceDO: instanceDOList){
+                instanceDO.setMaterialCode(updateReqVO.getMaterialCode());
+                instanceDO.setContentType(updateReqVO.getContentType());
+            }
+            materialInstanceMapper.updateBatch(instanceDOList);
+        }
+
     }
 
     @Override

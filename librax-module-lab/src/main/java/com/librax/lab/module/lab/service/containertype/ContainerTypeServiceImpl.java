@@ -68,14 +68,15 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
         // 更新
         ContainerTypeDO updateObj = BeanUtils.toBean(updateReqVO, ContainerTypeDO.class);
         containerTypeMapper.updateById(updateObj);
-        //更新绑定
-        MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
+        //批次更新绑定
+        List<MaterialInstanceDO> instanceDOList = materialInstanceMapper.selectList(new LambdaQueryWrapper<MaterialInstanceDO>()
                 .eq(MaterialInstanceDO::getTypeCode,containerTypeDO.getTypeCode())
-                .eq(MaterialInstanceDO::getDeleted,false)
-                .last("limit 1"));
-        if(instanceDO!=null){
-            instanceDO.setTypeCode(updateReqVO.getTypeCode());
-            materialInstanceMapper.updateById(instanceDO);
+                .eq(MaterialInstanceDO::getDeleted,false));
+        if(!instanceDOList.isEmpty()){
+            for(MaterialInstanceDO instanceDO: instanceDOList){
+                instanceDO.setTypeCode(updateReqVO.getTypeCode());
+            }
+            materialInstanceMapper.updateBatch(instanceDOList);
         }
     }
 
