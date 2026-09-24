@@ -60,7 +60,7 @@ public class MaterialDefServiceImpl implements MaterialDefService {
             MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
                     .eq(MaterialInstanceDO::getMaterialCode,updateReqVO.getMaterialCode())
                     .eq(MaterialInstanceDO::getDeleted,false)
-                    .apply("limit 1"));
+                    .last("limit 1"));
             if(instanceDO!=null){
                 throw  exception(MATERIAL_DEF_HAS_CONNECT);
             }

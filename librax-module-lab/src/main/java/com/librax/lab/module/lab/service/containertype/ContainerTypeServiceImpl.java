@@ -60,7 +60,7 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
             MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
                     .eq(MaterialInstanceDO::getTypeCode,containerTypeDO.getTypeCode())
                     .eq(MaterialInstanceDO::getDeleted,false)
-                    .apply("limit 1"));
+                    .last("limit 1"));
             if(instanceDO!=null){
                 throw  exception(CONTAIN_DEF_HAS_CONNECT);
             }
@@ -72,9 +72,11 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
         MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
                 .eq(MaterialInstanceDO::getTypeCode,containerTypeDO.getTypeCode())
                 .eq(MaterialInstanceDO::getDeleted,false)
-                .apply("limit 1"));
-        instanceDO.setTypeCode(updateReqVO.getTypeCode());
-        materialInstanceMapper.updateById(instanceDO);
+                .last("limit 1"));
+        if(instanceDO!=null){
+            instanceDO.setTypeCode(updateReqVO.getTypeCode());
+            materialInstanceMapper.updateById(instanceDO);
+        }
     }
 
     @Override
