@@ -58,7 +58,9 @@ public class MaterialDefServiceImpl implements MaterialDefService {
         //如果开启禁用，检查是否绑定物料
         if( !updateReqVO.getEnabled()){
             MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
-                    .eq(MaterialInstanceDO::getMaterialCode,updateReqVO.getMaterialCode()));
+                    .eq(MaterialInstanceDO::getMaterialCode,updateReqVO.getMaterialCode())
+                    .eq(MaterialInstanceDO::getDeleted,false)
+                    .apply("limit 1"));
             if(instanceDO!=null){
                 throw  exception(MATERIAL_DEF_HAS_CONNECT);
             }

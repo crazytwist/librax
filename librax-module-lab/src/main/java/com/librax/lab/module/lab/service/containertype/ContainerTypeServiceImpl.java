@@ -59,7 +59,7 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
         if( !updateReqVO.getEnabled()){
             MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
                     .eq(MaterialInstanceDO::getTypeCode,containerTypeDO.getTypeCode())
-                    .eq(MaterialInstanceDO::getDeleted,0)
+                    .eq(MaterialInstanceDO::getDeleted,false)
                     .apply("limit 1"));
             if(instanceDO!=null){
                 throw  exception(CONTAIN_DEF_HAS_CONNECT);
