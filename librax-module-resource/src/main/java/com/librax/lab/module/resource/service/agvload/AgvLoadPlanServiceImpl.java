@@ -514,6 +514,10 @@ public class AgvLoadPlanServiceImpl
     /**
      * 同步调用开门指令；同一车次成功一次后持久化标记，后续提前开门、permission回调和
      * UNLOAD waitSignal 并发或重试时不再重复调用设备。
+     *
+     * <p>同步完成只说明 HTTP 已返回。工站拒绝时响应体仍带非 0 业务码，例如运行中
+     * {@code {"code":1134,"msg":"","prompt_msg":{"cur_state":"运行中","sup_state":"空闲、已暂停"}}}，
+     * 此时门实际未打开。code 不是 0 时不能记 doorOpened，调用方不得放行上料。
      */
     private boolean openDoorIfNeeded(AgvLoadPlanDO plan) {
         if (Boolean.TRUE.equals(plan.getDoorOpened())) {
@@ -529,6 +533,11 @@ public class AgvLoadPlanServiceImpl
                     deviceType, commandCode);
             return false;
         }
+        if (!isDoorOpenAccepted(result)) {
+            log.warn("[AgvWarehouse] 开门被拒绝，门未打开，不允许上料 taskId={} deviceType={} commandCode={} responseBody={}",
+                    plan.getTaskId(), deviceType, commandCode, result.getResponseBody());
+            return false;
+        }
         plan.setDoorOpened(true);
         planMapper.updateById(plan);
         log.info("[AgvWarehouse] 开门完成并记录幂等状态 taskId={} agvTaskId={} operation={}", plan.getTaskId(),
@@ -537,11 +546,28 @@ public class AgvLoadPlanServiceImpl
     }
 
     /**
+     * 开门是否真正成功。只认响应体 {@code code == 0}；非 0（如 1134 工站运行中）、
+     * 缺 code、空响应或非 JSON 都视为门未打开。
+     */
+    private boolean isDoorOpenAccepted(DeviceCommandSpi.Result result) {
+        if (result == null || result.getResponseBody() == null || result.getResponseBody().isBlank()) {
+            return false;
+        }
+        try {
+            Integer code = JSON.parseObject(result.getResponseBody()).getInteger("code");
+            return code != null && code == 0;
+        } catch (Exception e) {
+            log.warn("[AgvWarehouse] 开门响应体解析失败，按门未打开处理 responseBody={}", result.getResponseBody(), e);
+            return false;
+        }
+    }
+
+    /**
      * 确认门已打开后，放行当前正在等待的UNLOAD子任务。
      */
     private void resumeUnloadAfterDoorReady(AgvLoadPlanDO plan) {
         if (!openDoorIfNeeded(plan)) {
-            log.warn("[AgvWarehouse] 开门未完成，暂不放行AGV taskId={} agvTaskId={}", plan.getTaskId(),
+            log.warn("[AgvWarehouse] 开门未完成或门未打开，暂不放行AGV上料 taskId={} agvTaskId={}", plan.getTaskId(),
                     plan.getCurrentAgvTaskId());
             return;
         }
