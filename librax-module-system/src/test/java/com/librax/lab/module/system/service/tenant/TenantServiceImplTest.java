@@ -307,7 +307,7 @@ public class TenantServiceImplTest extends BaseDbUnitTest {
         tenantMapper.insert(cloneIgnoreId(dbTenant, o -> o.setCreateTime(buildTime(2021, 12, 12))));
         // 准备参数
         TenantPageReqVO reqVO = new TenantPageReqVO();
-        reqVO.setName("芋道");
+        reqVO.setName("一南");
         reqVO.setContactName("艿");
         reqVO.setContactMobile("1560");
         reqVO.setStatus(CommonStatusEnum.ENABLE.getStatus());

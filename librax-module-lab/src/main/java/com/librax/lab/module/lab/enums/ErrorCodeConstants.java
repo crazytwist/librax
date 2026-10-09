@@ -33,11 +33,26 @@ public interface ErrorCodeConstants {
     ErrorCode MATERIAL_INSTANCE_NOT_EXISTS =
             new ErrorCode(1_050_001_006, "物料实例不存在");
 
+    ErrorCode MATERIAL_INSTANCE_BARCODE_EXISTS =
+            new ErrorCode(1_050_002_007, "该物料实例条形码已存在");
+
     ErrorCode MATERIAL_DEF_NOT_EXISTS =
             new ErrorCode(1_050_001_007, "内容物定义不存在");
 
+    ErrorCode MATERIAL_DEF_CODE_EXISTS =
+            new ErrorCode(1_050_002_007, "该内容物物料编码已存在");
+
+    ErrorCode MATERIAL_DEF_HAS_CONNECT =
+            new ErrorCode(1_050_003_007, "该内容物已被关联，禁用失败");
+
+    ErrorCode CONTAIN_DEF_HAS_CONNECT =
+            new ErrorCode(1_050_004_007, "该容器已被关联，禁用失败");
+
     ErrorCode MATERIAL_CHECK_RULE_NOT_EXISTS =
             new ErrorCode(1_050_001_008, "步骤物料前置检查规则不存在");
+
+    ErrorCode MATERIAL_CHECK_CAPACITY_EXCEED =
+            new ErrorCode(1_050_001_008, "该物料所需槽位已超最大容量");
 
     ErrorCode MATERIAL_CONSUMPTION_NOT_EXISTS =
             new ErrorCode(1_050_001_009, "步骤物料消耗记录不存在");

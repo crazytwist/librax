@@ -1,6 +1,9 @@
 package com.librax.lab.module.lab.service.containertype;
 
 import cn.hutool.core.collection.CollUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.librax.lab.module.lab.dal.dataobject.materialinstance.MaterialInstanceDO;
+import com.librax.lab.module.lab.dal.mysql.materialinstance.MaterialInstanceMapper;
 import org.springframework.stereotype.Service;
 import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
@@ -33,6 +36,9 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
     @Resource
     private ContainerTypeMapper containerTypeMapper;
 
+    @Resource
+    private MaterialInstanceMapper materialInstanceMapper;
+
     @Override
     public Long createContainerType(ContainerTypeSaveReqVO createReqVO) {
         // 插入
@@ -47,9 +53,31 @@ public class ContainerTypeServiceImpl implements ContainerTypeService {
     public void updateContainerType(ContainerTypeSaveReqVO updateReqVO) {
         // 校验存在
         validateContainerTypeExists(updateReqVO.getId());
+
+        ContainerTypeDO containerTypeDO = containerTypeMapper.selectById(updateReqVO.getId());
+        //禁用时检查是否有绑定
+        if( !updateReqVO.getEnabled()){
+            MaterialInstanceDO instanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
+                    .eq(MaterialInstanceDO::getTypeCode,containerTypeDO.getTypeCode())
+                    .eq(MaterialInstanceDO::getDeleted,false)
+                    .last("limit 1"));
+            if(instanceDO!=null){
+                throw  exception(CONTAIN_DEF_HAS_CONNECT);
+            }
+        }
         // 更新
         ContainerTypeDO updateObj = BeanUtils.toBean(updateReqVO, ContainerTypeDO.class);
         containerTypeMapper.updateById(updateObj);
+        //批次更新绑定
+        List<MaterialInstanceDO> instanceDOList = materialInstanceMapper.selectList(new LambdaQueryWrapper<MaterialInstanceDO>()
+                .eq(MaterialInstanceDO::getTypeCode,containerTypeDO.getTypeCode())
+                .eq(MaterialInstanceDO::getDeleted,false));
+        if(!instanceDOList.isEmpty()){
+            for(MaterialInstanceDO instanceDO: instanceDOList){
+                instanceDO.setTypeCode(updateReqVO.getTypeCode());
+            }
+            materialInstanceMapper.updateBatch(instanceDOList);
+        }
     }
 
     @Override

@@ -8,9 +8,11 @@ import com.librax.lab.framework.excel.core.handler.SelectSheetWriteHandler;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Excel 工具类
@@ -32,16 +34,43 @@ public class ExcelUtils {
      */
     public static <T> void write(HttpServletResponse response, String filename, String sheetName,
                                  Class<T> head, List<T> data) throws IOException {
-        // 输出 Excel
-        FastExcelFactory.write(response.getOutputStream(), head)
+        // 先写入内存：FastExcel 默认生成 xlsx（zip），写出时会 flush。
+        // 若直接写 response 再设置 header，响应已提交，Content-Type / Content-Disposition 会被丢弃，
+        // 浏览器只能按 URL（export-excel）把二进制当成 xml 打开。
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        FastExcelFactory.write(outputStream, head)
                 .autoCloseStream(false) // 不要自动关闭，交给 Servlet 自己处理
                 .registerWriteHandler(new ColumnWidthMatchStyleStrategy()) // 基于 column 长度，自动适配。最大 255 宽度
                 .registerWriteHandler(new SelectSheetWriteHandler(head)) // 基于固定 sheet 实现下拉框
                 .registerConverter(new LongStringConverter()) // 避免 Long 类型丢失精度
                 .sheet(sheetName).doWrite(data);
-        // 设置 header 和 contentType。写在最后的原因是，避免报错时，响应 contentType 已经被修改了
-        response.addHeader("Content-Disposition", "attachment;filename=" + HttpUtils.encodeUtf8(filename));
-        response.setContentType("application/vnd.ms-excel;charset=UTF-8");
+        // 生成成功后再设置响应头。失败时 contentType 仍是 JSON，全局异常处理可以正常返回。
+        filename = ensureXlsxFilename(filename);
+        // 只用 filename= 百分号编码。filename*=UTF-8'' 会被 Knife4j 原样拼进文件名，变成 utf-8''用户数据.xlsx
+        String encodedFilename = HttpUtils.encodeUtf8(filename).replace("+", "%20");
+        response.setHeader("Content-Disposition", "attachment;filename=" + encodedFilename);
+        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        // 全局 force encoding 会给 Content-Type 追加 charset，客户端会把 xlsx 当文本解析
+        response.setCharacterEncoding(null);
+        response.setContentLength(outputStream.size());
+        outputStream.writeTo(response.getOutputStream());
+    }
+
+    /**
+     * FastExcel 写出的是 xlsx。调用方仍传 .xls 时改成 .xlsx，避免扩展名和内容不一致。
+     */
+    private static String ensureXlsxFilename(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return "export.xlsx";
+        }
+        String lower = filename.toLowerCase(Locale.ROOT);
+        if (lower.endsWith(".xlsx")) {
+            return filename;
+        }
+        if (lower.endsWith(".xls")) {
+            return filename.substring(0, filename.length() - 4) + ".xlsx";
+        }
+        return filename + ".xlsx";
     }
 
     public static <T> List<T> read(MultipartFile file, Class<T> head) throws IOException {

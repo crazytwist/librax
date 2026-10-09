@@ -58,7 +58,8 @@ public class DictConvert implements Converter<Object> {
         String value = String.valueOf(object);
         String label = DictFrameworkUtils.parseDictDataLabel(type, value);
         if (label == null) {
-            log.error("[convertToExcelData][type({}) 转换不了 label({})]", type, value);
+            // 性别 0 表示未知，字典里通常只有 1=男、2=女。这是合法空值，导出空单元格即可。
+            log.debug("[convertToExcelData][type({}) 未配置字典值({})]", type, value);
             return new WriteCellData<>("");
         }
         // 生成 Excel 小表格

@@ -128,7 +128,8 @@ public class AdminUserServiceImplTest extends BaseDbUnitTest {
         AdminUserDO user = userMapper.selectById(userId);
         assertPojoEquals(reqVO, user, "password", "id");
         assertEquals("libraxyuanma", user.getPassword());
-        assertEquals(CommonStatusEnum.ENABLE.getStatus(), user.getStatus());
+        assertEquals(reqVO.getStatus() != null ? reqVO.getStatus() : CommonStatusEnum.ENABLE.getStatus(),
+                user.getStatus());
         // 断言关联岗位
         List<UserPostDO> userPosts = userPostMapper.selectListByUserId(user.getId());
         assertEquals(1L, userPosts.get(0).getPostId());
