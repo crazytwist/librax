@@ -534,7 +534,8 @@ public class AgvLoadPlanServiceImpl
             return false;
         }
         if (!isDoorOpenAccepted(result)) {
-            log.warn("[AgvWarehouse] 开门被拒绝，门未打开，不允许上料 taskId={} deviceType={} commandCode={} responseBody={}",
+            log.warn(
+                    "[AgvWarehouse] 开门被拒绝，门未打开，不允许上料 taskId={} deviceType={} commandCode={} responseBody={}",
                     plan.getTaskId(), deviceType, commandCode, result.getResponseBody());
             return false;
         }
@@ -555,7 +556,7 @@ public class AgvLoadPlanServiceImpl
         }
         try {
             Integer code = JSON.parseObject(result.getResponseBody()).getInteger("code");
-            return code != null && code == 0;
+            return code != null && (code == 0 || code == 200);
         } catch (Exception e) {
             log.warn("[AgvWarehouse] 开门响应体解析失败，按门未打开处理 responseBody={}", result.getResponseBody(), e);
             return false;
