@@ -74,10 +74,13 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
     }
 
     private void checkQrcodeRepeat(Long id,String Barcode){
-        MaterialInstanceDO materialInstanceDO = materialInstanceMapper.selectOne(new LambdaQueryWrapper<MaterialInstanceDO>()
-                .eq(MaterialInstanceDO::getBarcode,Barcode)
-                .ne(MaterialInstanceDO::getId,id));
-        if(! Objects.isNull(materialInstanceDO)){
+
+        LambdaQueryWrapper<MaterialInstanceDO> queryWrapper = new LambdaQueryWrapper<>();
+        queryWrapper.eq(MaterialInstanceDO::getBarcode, Barcode);
+        if(id !=null){
+            queryWrapper.ne(MaterialInstanceDO::getId, id);
+        }
+        if(materialInstanceMapper.exists(queryWrapper)){
             throw exception(MATERIAL_INSTANCE_BARCODE_EXISTS);
         }
     }
