@@ -21,6 +21,7 @@ import com.librax.lab.module.resource.dal.mysql.agvload.AgvLoadPlanMapper;
 import com.librax.lab.module.resource.dal.mysql.agvload.AgvOrchestrateQueueMapper;
 import com.librax.lab.module.resource.dal.mysql.agvload.AgvTaskQueueMapper;
 import com.librax.lab.module.resource.dal.mysql.slotinfo.SlotInfoMapper;
+import com.librax.lab.module.resource.util.RetryUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -61,6 +62,15 @@ public class AgvLoadPlanServiceImpl
     private AgvLoadPlanService self;
 
     private static final String FLOW_WAIT_NODE = "s_agv_wait_signal";
+
+    /**
+     * 开门未同步完成或工站拒绝时的最大尝试次数（含首次）。
+     * 失败后按 {@link #DOOR_OPEN_INITIAL_INTERVAL_MS} 起、{@link #DOOR_OPEN_INTERVAL_MULTIPLIER} 倍递增等待：
+     * 第一次 2s，第二次 6s。
+     */
+    private static final int DOOR_OPEN_MAX_ATTEMPTS = 6;
+    private static final long DOOR_OPEN_INITIAL_INTERVAL_MS = 2_000L;
+    private static final int DOOR_OPEN_INTERVAL_MULTIPLIER = 3;
 
     private final AgvLoadPlanMapper planMapper;
     private final AgvLoadItemMapper itemMapper;
@@ -518,6 +528,7 @@ public class AgvLoadPlanServiceImpl
      * <p>同步完成只说明 HTTP 已返回。工站拒绝时响应体仍带非 0 业务码，例如运行中
      * {@code {"code":1134,"msg":"","prompt_msg":{"cur_state":"运行中","sup_state":"空闲、已暂停"}}}，
      * 此时门实际未打开。code 不是 0 时不能记 doorOpened，调用方不得放行上料。
+     * 未同步完成或业务码未接受时按递增间隔重试，次数用尽后仍失败则返回 false。
      */
     private boolean openDoorIfNeeded(AgvLoadPlanDO plan) {
         if (Boolean.TRUE.equals(plan.getDoorOpened())) {
@@ -525,10 +536,13 @@ public class AgvLoadPlanServiceImpl
         }
         String deviceType = string(plan.getDoorDeviceId(), "Feeding-Reaction");
         String commandCode = string(plan.getDoorCommandCode(), "OpenCloseDoor");
-        DeviceCommandSpi.Result result = deviceCommandSpi.send(deviceType, commandCode,
-                Map.of("op", "open", "disableSysFieldInjection", true), plan.getTaskId(),
-                "door_open_" + plan.getTaskId(), null);
-        if (!result.isSyncCompleted()) {
+        DeviceCommandSpi.Result result = RetryUtils.execute("开门 taskId=" + plan.getTaskId(),
+                () -> deviceCommandSpi.send(deviceType, commandCode,
+                        Map.of("op", "open", "disableSysFieldInjection", true), plan.getTaskId(),
+                        "door_open_" + plan.getTaskId(), null),
+                this::isDoorCommandAccepted, DOOR_OPEN_MAX_ATTEMPTS, DOOR_OPEN_INITIAL_INTERVAL_MS,
+                DOOR_OPEN_INTERVAL_MULTIPLIER);
+        if (result == null || !result.isSyncCompleted()) {
             log.warn("[AgvWarehouse] 开门指令未同步完成 taskId={} deviceType={} commandCode={}", plan.getTaskId(),
                     deviceType, commandCode);
             return false;
@@ -544,6 +558,13 @@ public class AgvLoadPlanServiceImpl
         log.info("[AgvWarehouse] 开门完成并记录幂等状态 taskId={} agvTaskId={} operation={}", plan.getTaskId(),
                 plan.getCurrentAgvTaskId(), plan.getCurrentAgvOperation());
         return true;
+    }
+
+    /**
+     * 同步完成且业务码接受。两处任一不通过都视为本次开门失败，由重试工具再次发送。
+     */
+    private boolean isDoorCommandAccepted(DeviceCommandSpi.Result result) {
+        return result != null && result.isSyncCompleted() && isDoorOpenAccepted(result);
     }
 
     /**
