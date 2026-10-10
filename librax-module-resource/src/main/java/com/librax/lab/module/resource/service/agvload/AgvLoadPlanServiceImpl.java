@@ -125,13 +125,26 @@ public class AgvLoadPlanServiceImpl
 
         List<String> reserved = new ArrayList<>();
         boolean targetPreReserved = bool(inputParams.get("targetPreReserved"));
+        // skipLoad：托盘已在 AGV 上，本计划只做 MOVE + UNLOAD。
+        // loadOnly：只做合成站一次装载，不预留、不卸到另一个目标位。
+        boolean skipLoad = bool(inputParams.get("skipLoad"));
+        boolean loadOnly = bool(inputParams.get("loadOnly"));
         for (Map<String, Object> item : transferItems) {
             String agvSlot = required(item, "agvSlotId");
             String target = required(item, "targetSlotId");
-            if (slotMapper.reserveIfEmpty(agvSlot) == 0) {
+            if (skipLoad) {
+                SlotInfoDO loaded = slotMapper.selectBySlotId(agvSlot);
+                if (loaded == null || !"OCCUPIED".equals(loaded.getStatus())) {
+                    throw exception(AGV_SLOT_UNAVAILABLE, "AGV位置未装载: " + agvSlot);
+                }
+            } else if (slotMapper.reserveIfEmpty(agvSlot) == 0) {
                 throw exception(AGV_SLOT_UNAVAILABLE, "AGV位置不可用: " + agvSlot);
+            } else {
+                reserved.add(agvSlot);
             }
-            reserved.add(agvSlot);
+            if (loadOnly) {
+                continue;
+            }
             if (targetPreReserved) {
                 SlotInfoDO targetSlot = slotMapper.selectBySlotId(target);
                 if (targetSlot == null || !"RESERVED".equals(targetSlot.getStatus())) {
@@ -177,7 +190,9 @@ public class AgvLoadPlanServiceImpl
                     .status("WAIT_SOURCE").build());
         }
 
-        if ("DIRECT".equals(sourceReadyMode)) {
+        if (skipLoad) {
+            markLoadedAndMove(plan);
+        } else if ("DIRECT".equals(sourceReadyMode)) {
             markCurrentWaveReadyDirect(plan);
             afterWarehouseReadyBatch(plan);
         } else {
@@ -931,6 +946,20 @@ public class AgvLoadPlanServiceImpl
             throw exception(AGV_LOAD_PLAN_STATE_INVALID, plan.getStatus());
         }
         List<AgvLoadItemDO> items = itemMapper.selectByTaskId(taskId);
+        // 一次装载没有 step2：托盘留在 AGV 上，交给后续去向计划从 AGV 卸下。
+        if (items.stream().allMatch(item -> item.getStep2Json() == null)) {
+            for (AgvLoadItemDO item : items) {
+                if (!"LOADED".equals(item.getStatus())) {
+                    throw exception(AGV_LOAD_PLAN_STATE_INVALID,
+                            "物料" + item.getSequenceNo() + "状态=" + item.getStatus());
+                }
+                item.setStatus("COMPLETED");
+                itemMapper.updateById(item);
+            }
+            plan.setStatus("COMPLETED");
+            planMapper.updateById(plan);
+            return;
+        }
         for (AgvLoadItemDO item : items) {
             if (!"LOADED".equals(item.getStatus())) {
                 throw exception(AGV_LOAD_PLAN_STATE_INVALID,
@@ -1363,9 +1392,34 @@ public class AgvLoadPlanServiceImpl
             afterWarehouseReadyBatch(plan);
         } else {
             planMapper.updateById(plan);
-            sendMoveTask(plan);
-            scheduleOpenSynthesisDoorAfterCommit(plan.getTaskId());
+            if (hasStep2(plan)) {
+                sendMoveTask(plan);
+                scheduleOpenSynthesisDoorAfterCommit(plan.getTaskId());
+            } else {
+                completeOrchestration(plan);
+            }
         }
+    }
+
+    /**
+     * 托盘已经在 AGV 上：不再下发 step1，直接进入移动。
+     */
+    private void markLoadedAndMove(AgvLoadPlanDO plan) {
+        List<AgvLoadItemDO> items = itemMapper.selectByTaskId(plan.getTaskId());
+        LocalDateTime now = LocalDateTime.now();
+        for (AgvLoadItemDO item : items) {
+            item.setStatus("LOADED");
+            item.setLoadedAt(now);
+            itemMapper.updateById(item);
+        }
+        plan.setLoadedCount(items.size());
+        planMapper.updateById(plan);
+        sendMoveTask(plan);
+    }
+
+    private boolean hasStep2(AgvLoadPlanDO plan) {
+        return itemMapper.selectByTaskId(plan.getTaskId()).stream()
+                .anyMatch(item -> item.getStep2Json() != null);
     }
 
     /**

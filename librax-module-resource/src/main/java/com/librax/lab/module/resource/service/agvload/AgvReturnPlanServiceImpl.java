@@ -108,13 +108,19 @@ public class AgvReturnPlanServiceImpl
         }
         int totalWaves = (returnItems.size() + waveSize - 1) / waveSize;
 
-        // 预留 AGV 槽位和中转位
+        // 预留 AGV 槽位和中转位。skipLoad 时托盘已在 AGV 上，只校验占用、不再预留。
         // 同一中转位可能被多个波次复用，只需预留一次
+        boolean skipLoad = bool(inputParams.get("skipLoad"));
         Set<String> reservedTransitSlots = new java.util.HashSet<>();
         for (Map<String, Object> item : returnItems) {
             String agvSlot = required(item, "agvSlotId");
             String transit = required(item, "transitSlotId");
-            if (slotMapper.reserveIfEmpty(agvSlot) == 0) {
+            if (skipLoad) {
+                SlotInfoDO loaded = slotMapper.selectBySlotId(agvSlot);
+                if (loaded == null || !"OCCUPIED".equals(loaded.getStatus())) {
+                    throw exception(AGV_SLOT_UNAVAILABLE, "AGV槽位未装载: " + agvSlot);
+                }
+            } else if (slotMapper.reserveIfEmpty(agvSlot) == 0) {
                 throw exception(AGV_SLOT_UNAVAILABLE, "AGV槽位不可用: " + agvSlot);
             }
             if (!reservedTransitSlots.contains(transit)) {
@@ -151,9 +157,19 @@ public class AgvReturnPlanServiceImpl
             items.add(entity);
         }
 
-        sendLoadTask(plan, items);
-        log.info("[AgvReturn] 启动下料编排 taskId={} count={} waveSize={} totalWaves={}", taskId, returnItems.size(),
-                waveSize, totalWaves);
+        if (skipLoad) {
+            LocalDateTime now = LocalDateTime.now();
+            for (AgvReturnItemDO item : items) {
+                item.setStatus("ON_AGV");
+                item.setLoadedAt(now);
+                itemMapper.updateById(item);
+            }
+            sendMoveTask(plan);
+        } else {
+            sendLoadTask(plan, items);
+        }
+        log.info("[AgvReturn] 启动下料编排 taskId={} count={} waveSize={} totalWaves={} skipLoad={}", taskId,
+                returnItems.size(), waveSize, totalWaves, skipLoad);
     }
 
     @Override
