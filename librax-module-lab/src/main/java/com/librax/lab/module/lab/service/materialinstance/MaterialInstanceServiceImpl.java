@@ -240,12 +240,12 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
                 errors.add(item.getInstanceId() + "：物料实例不存在");
                 continue;
             }
-            if (!isCurrentVolUlInRange(item.getCurrentVolUl())) {
+            if (Objects.nonNull(item.getCurrentVolUl()) && !isCurrentVolUlInRange(item.getCurrentVolUl())) {
                 errors.add(String.format("%s：当前体积 %s,超出范围（最大 99999999.99）", item.getInstanceId(),
                         item.getCurrentVolUl()));
                 continue;
             }
-            if (!isCurrentCountInRange(item.getCurrentCount())) {
+            if (Objects.nonNull(item.getCurrentCount()) && !isCurrentCountInRange(item.getCurrentCount())) {
                 errors.add(String.format("%s：当前数量%s, 超出范围（-2147483648 ~ 2147483647）", item.getInstanceId(),
                         item.getCurrentCount()));
                 continue;
