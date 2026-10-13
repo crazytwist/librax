@@ -204,25 +204,29 @@ public class AgvReturnPlanServiceImpl
 
         int wave = item.getWaveNo();
 
-        // 当前波次还有物料等待仓储处理（只检查，不在事务内发起外部调用）
+        // 本波还有已到中转位、尚未发仓储请求的物料（只检查，不在事务内发起外部调用）。
+        // 事务提交后的 triggerNextStepAsync 会按整个计划里最早的未请求项发，不限于本波。
         if (itemMapper.selectNextPendingReturn(plan.getTaskId(), wave) != null) {
             log.info("[AgvReturn] 波次{}继续入库 taskId={} slotId={} 异步触发下一条仓储请求", wave,
                     req.getTransferTaskId(), req.getFromLocation());
-            String planTaskId = plan.getTaskId();
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    self.triggerNextStepAsync(planTaskId);
-                }
-            });
+            scheduleTriggerNextStep(plan.getTaskId());
             return result(plan, item);
         }
 
-        // 波次全部 RETURNED，检查是否还有下一波
+        // 本波没有 requestId 为空的待请求项。未完成只说明本波还有请求已在途，
+        // 不能据此丢掉其它波次被在途入库挡住、仍是 IN_TRANSIT 且 requestId 为空的行。
         boolean waveComplete = itemMapper.selectByTaskIdAndWave(req.getTransferTaskId(), wave).stream()
                 .allMatch(i -> "RETURNED".equals(i.getStatus()) || "COMPLETED".equals(i.getStatus()));
         if (!waveComplete) {
-            return result(plan, item); // 有其他 IN_TRANSIT 项的仓储请求已在途
+            AgvReturnItemDO pendingElsewhere = itemMapper.selectEarliestPendingReturn(plan.getTaskId());
+            if (pendingElsewhere != null) {
+                log.info(
+                        "[AgvReturn] 波次{}仍有入库在途，波次{}物料{}尚未请求仓储，异步补发 taskId={}",
+                        wave, pendingElsewhere.getWaveNo(), pendingElsewhere.getSequenceNo(),
+                        req.getTransferTaskId());
+                scheduleTriggerNextStep(plan.getTaskId());
+            }
+            return result(plan, item);
         }
 
         plan.setReturnedCount(
@@ -235,12 +239,19 @@ public class AgvReturnPlanServiceImpl
         // 判断"是否还有下一波"/"是否要重新推进"，会错误地把提前卸完的后续波次也算进"当前波"，
         // 导致流程过早完成回调，或者对已经提前卸过的波次重复下发一次卸料指令。
         boolean triggerNext;
+        AgvReturnItemDO pendingReturn = itemMapper.selectEarliestPendingReturn(plan.getTaskId());
         if (wave < plan.getTotalWaves()) {
             if (plan.getCurrentWave() <= wave) {
                 // 下一波还没被提前卸过（比如中转位复用、没条件提前卸）：按原逻辑推进+触发
                 plan.setCurrentWave(wave + 1);
                 triggerNext = true;
                 log.info("[AgvReturn] 波次{}完成，异步触发下一波卸料 taskId={}", wave, req.getTransferTaskId());
+            } else if (pendingReturn != null) {
+                // currentWave 已领先，不再重复卸料；但被 busy 跳过的物料还没发过 prepareMaterials。
+                triggerNext = true;
+                log.info(
+                        "[AgvReturn] 波次{}完成，下一波已提前卸料，波次{}物料{}尚未请求仓储，异步补发 taskId={}",
+                        wave, pendingReturn.getWaveNo(), pendingReturn.getSequenceNo(), req.getTransferTaskId());
             } else {
                 // plan.currentWave 已经领先于 wave，说明下一波早被 tryPrefetchNextUnloadWave
                 // 提前卸过了，这里只需要落盘 returnedCount，不用再重复推进或触发
@@ -248,6 +259,13 @@ public class AgvReturnPlanServiceImpl
                 log.info("[AgvReturn] 波次{}完成，下一波已提前卸料，无需重复触发 taskId={}", wave,
                         req.getTransferTaskId());
             }
+        } else if (hasInTransitItems(plan.getTaskId())) {
+            // 回调落在最后一波，但更早波次还有 IN_TRANSIT（在途，或被 busy 跳过且 requestId 为空）。
+            // 不能标 WAIT_FLOW_COMMIT，否则异步步骤会直接回调流程，这些物料再也不会被请求。
+            triggerNext = pendingReturn != null;
+            log.info("[AgvReturn] 波次{}回调到达，仍有未入库物料，暂不回调流程 taskId={} pendingSequence={}",
+                    wave, req.getTransferTaskId(),
+                    pendingReturn == null ? null : pendingReturn.getSequenceNo());
         } else {
             // 全部完成：先持久化 WAIT_FLOW_COMMIT，事务提交后再回调流程
             plan.setStatus("WAIT_FLOW_COMMIT");
@@ -257,13 +275,7 @@ public class AgvReturnPlanServiceImpl
         planMapper.updateById(plan);
 
         if (triggerNext) {
-            String planTaskId = plan.getTaskId();
-            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-                @Override
-                public void afterCommit() {
-                    self.triggerNextStepAsync(planTaskId);
-                }
-            });
+            scheduleTriggerNextStep(plan.getTaskId());
         }
         return result(plan, item);
     }
@@ -414,11 +426,9 @@ public class AgvReturnPlanServiceImpl
         AgvReturnPlanDO plan = planMapper.selectByTaskIdForUpdate(taskId);
         if (plan == null)
             return;
-        // requestNextWarehouseReturn 内部靠 selectNextPendingReturn（要求 warehouseRequestId
-        // IS NULL）挑要重试的物料：正常情况下（没有卡住的物料，或者当前确实有请求在途）
-        // 会安全地找不到东西可做、什么也不发生；只有真的卡住（比如波次第一件请求被拒绝、
-        // warehouseRequestId 已经在失败处理里重置为 null）时才会真正重新发一次请求，
-        // 不会对正常运行中的计划产生任何副作用。
+        // 不看 plan.currentWave：提前卸下一波会把 currentWave 拨走，被在途入库挡住的更早波次
+        // 仍是 IN_TRANSIT 且 warehouseRequestId 为空。这里选最早的那一条。
+        // 仓储正忙（已有请求在途）时 request 会直接返回，不会抢跑。
         //
         // 这里必须本地catch：如果这次巡检重试又失败了（比如仓储还是拒绝），
         // requestNextWarehouseReturn 内部会先把 warehouseRequestId 重置为 null 再往外抛异常；
@@ -426,9 +436,10 @@ public class AgvReturnPlanServiceImpl
         // 事务连同刚才那个重置写入一起回滚，等于这次巡检不但没修好、还把状态清理的效果也
         // 撤销了——那就真的"帮倒忙"了。捕获后只记录日志，交给下一轮巡检或事件驱动重试。
         try {
-            requestNextWarehouseReturn(plan, plan.getCurrentWave());
+            requestEarliestPendingWarehouseReturn(plan);
         } catch (Exception e) {
-            log.warn("[AgvReturn] 兜底巡检重试仓储入库请求仍失败 taskId={} wave={}", taskId, plan.getCurrentWave(), e);
+            log.warn("[AgvReturn] 兜底巡检重试仓储入库请求仍失败 taskId={} currentWave={}", taskId,
+                    plan.getCurrentWave(), e);
         }
     }
 
@@ -813,11 +824,20 @@ public class AgvReturnPlanServiceImpl
      * 如果巡检节拍恰好落在"上一件请求已发出、仓储回调还没回来"的窗口内，会把这个正常的排队等待状态
      * 误判成"待处理"，在没等到上一件回调之前就把下一件的 prepareMaterials 提前发出去。
      *
-     * @return true 表示有物料已发出请求（仓储在处理中）；false 表示当前波次无待请求项，或仓储正忙（上一件还没回调）
+     * @return true 表示有物料已发出请求（仓储在处理中）；false 表示该波次无待请求项，或仓储正忙（上一件还没回调）
      */
     private boolean requestNextWarehouseReturn(AgvReturnPlanDO plan, int waveNo) {
-        if (warehouseReturnBusy(plan.getTaskId()))
+        AgvReturnItemDO inFlight = inFlightWarehouseReturn(plan.getTaskId());
+        if (inFlight != null) {
+            AgvReturnItemDO skipped = itemMapper.selectNextPendingReturn(plan.getTaskId(), waveNo);
+            log.info(
+                    "[AgvReturn] 仓储入库仍在途，本次不发 prepareMaterials taskId={} inFlightSequence={} inFlightWave={} inFlightRequestId={} skippedSequence={} skippedWave={}",
+                    plan.getTaskId(), inFlight.getSequenceNo(), inFlight.getWaveNo(),
+                    inFlight.getWarehouseRequestId(),
+                    skipped == null ? null : skipped.getSequenceNo(),
+                    skipped == null ? null : skipped.getWaveNo());
             return false;
+        }
 
         AgvReturnItemDO next = itemMapper.selectNextPendingReturn(plan.getTaskId(), waveNo);
         if (next == null)
@@ -897,13 +917,42 @@ public class AgvReturnPlanServiceImpl
     }
 
     /**
-     * 本计划内是否还有物料的仓储入库请求已经发出、但还没等到 {@link #markSlotReturned} 回调
-     * （status=IN_TRANSIT 且 warehouseRequestId 非空）。跟补料侧 refillWarehouseWindow 的
-     * warehouseBusy 判断对称，用于在 {@link #requestNextWarehouseReturn} 里挡住兜底巡检的抢跑。
+     * 已经发出仓储请求、还没等到 {@link #markSlotReturned} 回调的那一条
+     * （status=IN_TRANSIT 且 warehouseRequestId 非空）。非空即仓储正忙，
+     * {@link #requestNextWarehouseReturn} 据此挡住下一件 prepareMaterials，避免兜底巡检抢跑。
+     * 同一计划同时只应有一件在途。
      */
-    private boolean warehouseReturnBusy(String taskId) {
+    private AgvReturnItemDO inFlightWarehouseReturn(String taskId) {
         return itemMapper.selectByTaskId(taskId).stream()
-                .anyMatch(item -> "IN_TRANSIT".equals(item.getStatus()) && item.getWarehouseRequestId() != null);
+                .filter(item -> "IN_TRANSIT".equals(item.getStatus()) && item.getWarehouseRequestId() != null)
+                .min(Comparator.comparing(AgvReturnItemDO::getWaveNo, Comparator.nullsLast(Integer::compareTo))
+                        .thenComparing(AgvReturnItemDO::getSequenceNo, Comparator.nullsLast(Integer::compareTo)))
+                .orElse(null);
+    }
+
+    private boolean hasInTransitItems(String taskId) {
+        return !itemMapper.selectByTaskIdAndStatus(taskId, "IN_TRANSIT").isEmpty();
+    }
+
+    /**
+     * 仓储空闲时，请求计划内最早一条 IN_TRANSIT 且尚未发请求的物料，不看 {@code plan.currentWave}。
+     * 忙时仍由 {@link #requestNextWarehouseReturn} 直接返回，不会并发发出第二件。
+     */
+    private boolean requestEarliestPendingWarehouseReturn(AgvReturnPlanDO plan) {
+        AgvReturnItemDO earliest = itemMapper.selectEarliestPendingReturn(plan.getTaskId());
+        if (earliest == null) {
+            return false;
+        }
+        return requestNextWarehouseReturn(plan, earliest.getWaveNo());
+    }
+
+    private void scheduleTriggerNextStep(String taskId) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                self.triggerNextStepAsync(taskId);
+            }
+        });
     }
 
     /**
@@ -948,17 +997,21 @@ public class AgvReturnPlanServiceImpl
                 doFlowCallback(plan);
                 log.info("[AgvReturn] 异步流程回调完成 taskId={}", taskId);
             } else {
-                // 当前波次还有待请求的仓储入库 → 发下一条仓储请求；否则在AGV空闲时触发下一波卸料。
-                // 单件UNLOAD模式下，仓储回调可能发生在同波下一件UNLOAD执行期间，不能重复下发。
-                int wave = plan.getCurrentWave();
-                if (requestNextWarehouseReturn(plan, wave)) {
-                    return;
-                }
+                // 先补发最早一条被 busy 跳过、或失败后 requestId 已清空的入库请求，不看 currentWave。
+                // 仓储仍在途时这里返回 false，不会并发发第二件。
+                // 单件 UNLOAD 模式下，AGV 子任务还在执行就不能再派卸料。
+                boolean requested = requestEarliestPendingWarehouseReturn(plan);
                 if (plan.getCurrentAgvTaskId() != null) {
-                    log.info("[AgvReturn] 当前AGV子任务仍在执行，等待其回调 taskId={} agvTaskId={}", taskId,
-                            plan.getCurrentAgvTaskId());
+                    if (!requested) {
+                        log.info("[AgvReturn] 当前AGV子任务仍在执行，等待其回调 taskId={} agvTaskId={}", taskId,
+                                plan.getCurrentAgvTaskId());
+                    }
                     return;
                 }
+                if (requested) {
+                    return;
+                }
+                int wave = plan.getCurrentWave();
                 boolean hasPendingUnload = itemMapper.selectByTaskIdAndWave(taskId, wave).stream()
                         .anyMatch(item -> "ON_AGV".equals(item.getStatus()));
                 if (hasPendingUnload) {
