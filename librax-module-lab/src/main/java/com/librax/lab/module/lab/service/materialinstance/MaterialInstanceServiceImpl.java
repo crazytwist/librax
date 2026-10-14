@@ -66,6 +66,21 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         MaterialInstanceDO materialInstance = BeanUtils.toBean(createReqVO, MaterialInstanceDO.class);
         //检查条形码重复
         checkQrcodeRepeat(null,createReqVO.getBarcode());
+        //库位检查
+        int capacity;
+        if(createReqVO.getSlotId() != null){
+            List<MaterialInstanceDO> materialInstanceDOList = materialInstanceMapper.selectList(new LambdaQueryWrapper<MaterialInstanceDO>()
+                    .eq(MaterialInstanceDO::getSlotId,createReqVO.getSlotId())
+                    .eq(MaterialInstanceDO::getDeleted,false));
+
+            SlotInfoDO slotInfoDO = slotInfoMapper.selectBySlotId(createReqVO.getSlotId());
+            if(slotInfoDO!=null) {
+                capacity = slotInfoDO.getCapacity();
+                if (materialInstanceDOList.size() > capacity) {
+                    throw exception(MATERIAL_CHECK_CAPACITY_EXCEED);
+                }
+            }
+        }
         materialInstanceMapper.insert(materialInstance);
         LogRecordContext.putVariable("instance", materialInstance);
 
