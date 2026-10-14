@@ -16,6 +16,8 @@ import jakarta.annotation.Resource;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 
 import com.librax.lab.module.lab.controller.admin.materialinstance.vo.*;
@@ -45,6 +47,18 @@ import static com.librax.lab.module.lab.enums.ErrorCodeConstants.*;
 @Validated
 public class MaterialInstanceServiceImpl implements MaterialInstanceService {
 
+    /**
+     * lab_material_instance.current_vol_ul 为 decimal(10,2)。
+     * 单条 CASE 更新里只要有一条超出该范围，整批 SQL 都会失败。
+     */
+    private static final BigDecimal MAX_CURRENT_VOL_UL = new BigDecimal("99999999.99");
+    private static final int CURRENT_VOL_UL_SCALE = 2;
+    /**
+     * lab_material_instance.current_count 为有符号 INT。
+     */
+    private static final long MIN_CURRENT_COUNT = Integer.MIN_VALUE;
+    private static final long MAX_CURRENT_COUNT = Integer.MAX_VALUE;
+
     @Resource
     private MaterialInstanceMapper materialInstanceMapper;
 
@@ -65,16 +79,15 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         // 插入
         MaterialInstanceDO materialInstance = BeanUtils.toBean(createReqVO, MaterialInstanceDO.class);
         //检查条形码重复
-        checkQrcodeRepeat(null,createReqVO.getBarcode());
-        //库位检查
+        checkQrcodeRepeat(null, createReqVO.getBarcode());
         int capacity;
-        if(createReqVO.getSlotId() != null){
-            List<MaterialInstanceDO> materialInstanceDOList = materialInstanceMapper.selectList(new LambdaQueryWrapper<MaterialInstanceDO>()
-                    .eq(MaterialInstanceDO::getSlotId,createReqVO.getSlotId())
-                    .eq(MaterialInstanceDO::getDeleted,false));
+        if (createReqVO.getSlotId() != null) {
+            List<MaterialInstanceDO> materialInstanceDOList = materialInstanceMapper.selectList(
+                    new LambdaQueryWrapper<MaterialInstanceDO>().eq(MaterialInstanceDO::getSlotId,
+                            createReqVO.getSlotId()).eq(MaterialInstanceDO::getDeleted, false));
 
             SlotInfoDO slotInfoDO = slotInfoMapper.selectBySlotId(createReqVO.getSlotId());
-            if(slotInfoDO!=null) {
+            if (slotInfoDO != null) {
                 capacity = slotInfoDO.getCapacity();
                 if (materialInstanceDOList.size() > capacity) {
                     throw exception(MATERIAL_CHECK_CAPACITY_EXCEED);
@@ -88,14 +101,14 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         return materialInstance.getId();
     }
 
-    private void checkQrcodeRepeat(Long id,String Barcode){
+    private void checkQrcodeRepeat(Long id, String Barcode) {
 
         LambdaQueryWrapper<MaterialInstanceDO> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(MaterialInstanceDO::getBarcode, Barcode);
-        if(id !=null){
+        if (id != null) {
             queryWrapper.ne(MaterialInstanceDO::getId, id);
         }
-        if(materialInstanceMapper.exists(queryWrapper)){
+        if (materialInstanceMapper.exists(queryWrapper)) {
             throw exception(MATERIAL_INSTANCE_BARCODE_EXISTS);
         }
     }
@@ -129,18 +142,18 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         // 校验存在
         validateMaterialInstanceExists(updateReqVO.getId());
         //条形码检验
-        checkQrcodeRepeat(updateReqVO.getId(),updateReqVO.getBarcode());
+        checkQrcodeRepeat(updateReqVO.getId(), updateReqVO.getBarcode());
         // 更新
         MaterialInstanceDO updateObj = BeanUtils.toBean(updateReqVO, MaterialInstanceDO.class);
         //库位检查
         int capacity;
-        if(updateReqVO.getSlotId() != null){
-            List<MaterialInstanceDO> materialInstanceDOList = materialInstanceMapper.selectList(new LambdaQueryWrapper<MaterialInstanceDO>()
-                    .eq(MaterialInstanceDO::getSlotId,updateReqVO.getSlotId())
-                    .eq(MaterialInstanceDO::getDeleted,false));
+        if (updateReqVO.getSlotId() != null) {
+            List<MaterialInstanceDO> materialInstanceDOList = materialInstanceMapper.selectList(
+                    new LambdaQueryWrapper<MaterialInstanceDO>().eq(MaterialInstanceDO::getSlotId,
+                            updateReqVO.getSlotId()).eq(MaterialInstanceDO::getDeleted, false));
 
             SlotInfoDO slotInfoDO = slotInfoMapper.selectBySlotId(updateReqVO.getSlotId());
-            if(slotInfoDO!=null) {
+            if (slotInfoDO != null) {
                 capacity = slotInfoDO.getCapacity();
                 if (materialInstanceDOList.size() > capacity) {
                     throw exception(MATERIAL_CHECK_CAPACITY_EXCEED);
@@ -233,15 +246,25 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
         Set<String> existInstanceIds = convertSet(materialInstanceMapper.selectByInstanceIds(
                         convertSet(items, AppMaterialInstanceBatchUpdateRemainReqVO.Item::getInstanceId)),
                 MaterialInstanceDO::getInstanceId);
-        // 2. 过滤出存在的明细，收集不存在条目的错误信息
+        // 2. 过滤出可更新的明细：实例不存在、体积或数量超出字段范围的直接剔除
         List<AppMaterialInstanceBatchUpdateRemainReqVO.Item> validItems = new ArrayList<>();
         List<String> errors = new ArrayList<>();
         for (AppMaterialInstanceBatchUpdateRemainReqVO.Item item : items) {
-            if (existInstanceIds.contains(item.getInstanceId())) {
-                validItems.add(item);
-            } else {
+            if (!existInstanceIds.contains(item.getInstanceId())) {
                 errors.add(item.getInstanceId() + "：物料实例不存在");
+                continue;
             }
+            if (Objects.nonNull(item.getCurrentVolUl()) && !isCurrentVolUlInRange(item.getCurrentVolUl())) {
+                errors.add(String.format("%s：当前体积 %s,超出范围（最大 99999999.99）", item.getInstanceId(),
+                        item.getCurrentVolUl()));
+                continue;
+            }
+            if (Objects.nonNull(item.getCurrentCount()) && !isCurrentCountInRange(item.getCurrentCount())) {
+                errors.add(String.format("%s：当前数量%s, 超出范围（-2147483648 ~ 2147483647）", item.getInstanceId(),
+                        item.getCurrentCount()));
+                continue;
+            }
+            validItems.add(item);
         }
         // 3. 单条 SQL 批量更新剩余量
         if (CollUtil.isNotEmpty(validItems)) {
@@ -350,6 +373,28 @@ public class MaterialInstanceServiceImpl implements MaterialInstanceService {
             throw new IllegalStateException("目标库位不存在: " + slotId);
         }
         return materialInstanceMapper.completeTransfer(instanceId, slotId, slot.getZoneCode(), targetStatus);
+    }
+
+    /**
+     * 按数据库 decimal(10,2) 判断体积能否写入。null 表示清空，允许。
+     * 先按 MySQL 规则四舍五入到 2 位，再比较绝对值，避免 99999999.995 四舍五入后越界。
+     */
+    private static boolean isCurrentVolUlInRange(BigDecimal vol) {
+        if (vol == null) {
+            return true;
+        }
+        BigDecimal scaled = vol.setScale(CURRENT_VOL_UL_SCALE, RoundingMode.HALF_UP);
+        return scaled.abs().compareTo(MAX_CURRENT_VOL_UL) <= 0;
+    }
+
+    /**
+     * 按数据库有符号 INT 判断数量能否写入。null 表示清空，允许。
+     */
+    private static boolean isCurrentCountInRange(Long count) {
+        if (count == null) {
+            return true;
+        }
+        return count >= MIN_CURRENT_COUNT && count <= MAX_CURRENT_COUNT;
     }
 
 }

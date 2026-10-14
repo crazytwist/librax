@@ -41,6 +41,19 @@ public interface AgvReturnItemMapper extends BaseMapperX<AgvReturnItemDO> {
                 .last("LIMIT 1"));
     }
 
+    /**
+     * 取计划内最早一条已到中转位、尚未向仓储发请求的物料。
+     * 先按波次再按序号，避免 currentWave 被提前卸料拨走后，更早波次的 IN_TRANSIT 再也选不中。
+     */
+    default AgvReturnItemDO selectEarliestPendingReturn(String taskId) {
+        return selectOne(new LambdaQueryWrapperX<AgvReturnItemDO>()
+                .eq(AgvReturnItemDO::getTaskId, taskId)
+                .eq(AgvReturnItemDO::getStatus, "IN_TRANSIT")
+                .isNull(AgvReturnItemDO::getWarehouseRequestId)
+                .orderByAsc(AgvReturnItemDO::getWaveNo, AgvReturnItemDO::getSequenceNo)
+                .last("LIMIT 1"));
+    }
+
     default AgvReturnItemDO selectByTransitSlot(String taskId, String transitSlotId) {
         return selectOne(new LambdaQueryWrapperX<AgvReturnItemDO>()
                 .eq(AgvReturnItemDO::getTaskId, taskId)

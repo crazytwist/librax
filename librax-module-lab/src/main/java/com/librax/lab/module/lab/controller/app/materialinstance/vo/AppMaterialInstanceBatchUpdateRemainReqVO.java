@@ -23,8 +23,8 @@ public class AppMaterialInstanceBatchUpdateRemainReqVO {
         @NotBlank(message = "物料实例ID不能为空")
         private String instanceId;
 
-        @Schema(description = "当前数量（个），固体/耗材类填写", example = "10")
-        private Integer currentCount;
+        @Schema(description = "当前数量（个），固体/耗材类填写，范围 -2147483648 ~ 2147483647", example = "10")
+        private Long currentCount;
 
         @Schema(description = "当前体积（微升），液体类填写", example = "500.00")
         private BigDecimal currentVolUl;

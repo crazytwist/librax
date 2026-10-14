@@ -15,11 +15,10 @@ import org.springframework.stereotype.Component;
  * 的回调事件链自然重新触发。如果失败的恰好是这一波唯一/最后一个待请求的物料，
  * 之后不会再有任何回调触发重试，会永久卡在 WAIT_WAREHOUSE，靠这个Job定期兜底。
  *
- * <p>安全性：巡检对每个未终态下料计划都会尝试重新请求"当前波次下一个待处理物料"，
- * 但底层 {@code selectNextPendingReturn} 只会选中"状态IN_TRANSIT且warehouseRequestId为空"
- * 的物料——正常运行中的计划要么没有IN_TRANSIT物料（还在AGV上或已完成），要么请求正在途中
- * （warehouseRequestId非空），两种情况巡检都会安全地找不到东西可做、什么也不发生，
- * 不会对正常流程产生任何副作用；只有真的卡住的物料才会被重新请求一次。
+ * <p>安全性：巡检对每个未终态下料计划都会尝试重新请求最早一条待处理物料（不限 currentWave），
+ * 但底层只会选中"状态IN_TRANSIT且warehouseRequestId为空"的物料——正常运行中的计划要么没有
+ * 这种物料（还在AGV上、已完成，或请求正在途中），巡检什么也不发生；仓储仍有在途请求时也不会
+ * 抢跑。只有真的卡住的物料才会被重新请求一次。
  *
  * <p>接入系统现成的 {@code infra_job} + {@link JobHandler} 定时任务框架，机制同
  * {@link AgvWarehouseWindowWatchdog} / {@link AgvOrchestrateQueueWatchdog}。
