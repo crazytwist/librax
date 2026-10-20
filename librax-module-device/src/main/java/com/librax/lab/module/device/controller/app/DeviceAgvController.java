@@ -3,6 +3,7 @@ package com.librax.lab.module.device.controller.app;
 import cn.hutool.json.JSONUtil;
 import com.librax.lab.framework.common.pojo.CommonResult;
 import com.librax.lab.framework.tenant.core.aop.TenantIgnore;
+import com.librax.lab.module.device.api.AgvOrchestrationSubtaskIds;
 import com.librax.lab.module.device.api.AgvWaitSignalHandler;
 import com.librax.lab.module.device.api.AgvTaskStateHandler;
 import com.librax.lab.module.device.api.AgvResumeHandler;
@@ -70,6 +71,12 @@ public class DeviceAgvController {
                         req.getTaskId(), req.getAgvStation());
                 return success(true);
             }
+        }
+
+        if (AgvOrchestrationSubtaskIds.isOrchestrationSubtaskAgvTaskId(req.getTaskId())) {
+            log.warn("[AGV] waitSignal 编排子任务未被协调器处理，请AGV稍后重试 taskId={} agvStation={}",
+                    req.getTaskId(), req.getAgvStation());
+            return CommonResult.error(503, "编排子任务 waitSignal 尚未就绪，请稍后重试");
         }
 
         Map<String, Object> outputs = new LinkedHashMap<>();

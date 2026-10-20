@@ -3,6 +3,7 @@ package com.librax.lab.module.resource.service.agvload;
 import com.alibaba.fastjson.JSON;
 import com.librax.lab.framework.common.exception.ServiceException;
 import com.librax.lab.module.device.api.AgvDoorPermissionHandler;
+import com.librax.lab.module.device.api.AgvOrchestrationSubtaskIds;
 import com.librax.lab.module.device.api.AgvTaskStateHandler;
 import com.librax.lab.module.device.api.AgvWaitSignalHandler;
 import com.librax.lab.module.device.api.AgvResumeHandler;
@@ -71,6 +72,10 @@ public class AgvLoadPlanServiceImpl
     private static final int DOOR_OPEN_MAX_ATTEMPTS = 6;
     private static final long DOOR_OPEN_INITIAL_INTERVAL_MS = 2_000L;
     private static final int DOOR_OPEN_INTERVAL_MULTIPLIER = 3;
+
+    /** waitSignal 与 advance 写库之间的可见性窗口：有限次短间隔重试。 */
+    private static final int WAIT_SIGNAL_RESOLVE_ATTEMPTS = 5;
+    private static final long WAIT_SIGNAL_RESOLVE_DELAY_MS = 100L;
 
     private final AgvLoadPlanMapper planMapper;
     private final AgvLoadItemMapper itemMapper;
@@ -371,40 +376,24 @@ public class AgvLoadPlanServiceImpl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean handle(String taskId, String agvStation) {
-        AgvLoadPlanDO probe = planMapper.selectByCurrentAgvTaskId(taskId);
-        // 关键排查点：waitSignal没被门禁分支消费掉、掉进了通用WAIT节点兜底逻辑时，看这一行
-        // 就知道是probe没查到计划、还是orchestrationNodeId为空、还是status不是WAIT_AGV_*。
-        log.info(
-                "[AgvWarehouse] handle(waitSignal) probe查询结果 taskId={} agvStation={} probe={} orchestrationNodeId={} status={}",
-                taskId, agvStation, probe == null ? "null" : probe.getTaskId(),
-                probe == null ? null : probe.getOrchestrationNodeId(), probe == null ? null : probe.getStatus());
-        // 兜底重试一次：真实生产遇到过AGV执行startTask后极快回调waitSignal的情况，不排除
-        // 跟我们自己"下发指令→写WAIT_AGV_*状态"这个事务提交之间存在极窄的可见性缝隙
-        // （具体机制还在排查，靠上面这行日志下次实锤）。这里先加一次短暂重试兜底，
-        // 避免真遇到这个窗口时直接判定"不是门禁子任务"、走错兜底分支导致门禁/AGV卡住。
-        if (probe == null || probe.getOrchestrationNodeId() == null || !probe.getStatus().startsWith("WAIT_AGV_")) {
-            try {
-                Thread.sleep(200);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            AgvLoadPlanDO retried = planMapper.selectByCurrentAgvTaskId(taskId);
-            log.info(
-                    "[AgvWarehouse] handle(waitSignal) probe重试一次 taskId={} probe={} orchestrationNodeId={} status={}",
-                    taskId, retried == null ? "null" : retried.getTaskId(),
-                    retried == null ? null : retried.getOrchestrationNodeId(),
-                    retried == null ? null : retried.getStatus());
-            probe = retried;
-        }
-        if (probe != null && probe.getOrchestrationNodeId() != null && probe.getStatus().startsWith("WAIT_AGV_")) {
+        AgvLoadPlanDO gatePlan = resolveLoadPlanForOrchestrationWaitSignal(taskId, agvStation);
+        if (gatePlan != null) {
             AgvLoadPlanDO subtaskPlan = planMapper.selectByCurrentAgvTaskIdForUpdate(taskId);
+            if (subtaskPlan == null) {
+                subtaskPlan = planMapper.selectByTaskIdForUpdate(gatePlan.getTaskId());
+            }
+            if (subtaskPlan == null || !taskId.equals(subtaskPlan.getCurrentAgvTaskId())) {
+                log.warn(
+                        "[AgvWarehouse] handle(waitSignal) 编排计划已解析但无法加锁一致 taskId={} planTaskId={} currentAgvTaskId={}",
+                        taskId, gatePlan.getTaskId(),
+                        subtaskPlan == null ? null : subtaskPlan.getCurrentAgvTaskId());
+                return false;
+            }
             subtaskPlan.setStatus("WAIT_SITE_ACTION");
             subtaskPlan.setLastAgvStation(agvStation);
             planMapper.updateById(subtaskPlan);
             log.info("[AgvWarehouse] AGV进入现场动作等待 taskId={} operation={} station={}", taskId,
                     subtaskPlan.getCurrentAgvOperation(), agvStation);
-            // 门禁联动（开门+startAgain）挪到事务提交后异步执行，waitSignal 立即返回给AGV，
-            // 不在这次HTTP请求里等开门指令、AGV startAgain这两次出站调用的往返。
             String planTaskId = subtaskPlan.getTaskId();
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
                 @Override
@@ -443,6 +432,56 @@ public class AgvLoadPlanServiceImpl
         planMapper.updateById(plan);
         dispatchNextWaveIfReady(plan);
         return true;
+    }
+
+    /**
+     * 解析仓储编排 waitSignal 对应的补料计划：先按 current_agv_task_id，再按 planTaskId 回查，短间隔有限重试。
+     */
+    private AgvLoadPlanDO resolveLoadPlanForOrchestrationWaitSignal(String agvTaskId, String agvStation) {
+        String planTaskIdHint = AgvOrchestrationSubtaskIds.stripToPlanTaskId(agvTaskId);
+        if (planTaskIdHint == null) {
+            AgvLoadPlanDO byCurrent = planMapper.selectByCurrentAgvTaskId(agvTaskId);
+            return isLoadOrchestrationGateReady(byCurrent, agvTaskId) ? byCurrent : null;
+        }
+        for (int attempt = 1; attempt <= WAIT_SIGNAL_RESOLVE_ATTEMPTS; attempt++) {
+            AgvLoadPlanDO byCurrent = planMapper.selectByCurrentAgvTaskId(agvTaskId);
+            if (isLoadOrchestrationGateReady(byCurrent, agvTaskId)) {
+                return byCurrent;
+            }
+            if (planTaskIdHint != null) {
+                AgvLoadPlanDO byPlanId = planMapper.selectByTaskId(planTaskIdHint);
+                if (isLoadOrchestrationGateReady(byPlanId, agvTaskId)) {
+                    return byPlanId;
+                }
+                if (attempt == 1 || attempt == WAIT_SIGNAL_RESOLVE_ATTEMPTS) {
+                    log.info(
+                            "[AgvWarehouse] handle(waitSignal) 解析尝试 {}/{} taskId={} agvStation={} byCurrent={} byPlanId={} orchestrationNodeId={} status={} currentAgvTaskId={}",
+                            attempt, WAIT_SIGNAL_RESOLVE_ATTEMPTS, agvTaskId, agvStation,
+                            byCurrent == null ? "null" : byCurrent.getTaskId(),
+                            byPlanId == null ? "null" : byPlanId.getTaskId(),
+                            byPlanId == null ? null : byPlanId.getOrchestrationNodeId(),
+                            byPlanId == null ? null : byPlanId.getStatus(),
+                            byPlanId == null ? null : byPlanId.getCurrentAgvTaskId());
+                }
+            }
+            if (attempt < WAIT_SIGNAL_RESOLVE_ATTEMPTS) {
+                sleepWaitSignalResolveDelay();
+            }
+        }
+        return null;
+    }
+
+    private static boolean isLoadOrchestrationGateReady(AgvLoadPlanDO plan, String agvTaskId) {
+        return plan != null && plan.getOrchestrationNodeId() != null && plan.getStatus() != null
+                && plan.getStatus().startsWith("WAIT_AGV_") && agvTaskId.equals(plan.getCurrentAgvTaskId());
+    }
+
+    private static void sleepWaitSignalResolveDelay() {
+        try {
+            Thread.sleep(WAIT_SIGNAL_RESOLVE_DELAY_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @Override
@@ -524,7 +563,13 @@ public class AgvLoadPlanServiceImpl
      * 停在 WAIT_SITE_ACTION，需要外部显式调用 resume()。
      */
     private void maybeGateOnDoorOrResume(AgvLoadPlanDO plan) {
-        if (!"UNLOAD".equals(plan.getCurrentAgvOperation()) || !Boolean.TRUE.equals(plan.getDoorRequired())) {
+        if (!"UNLOAD".equals(plan.getCurrentAgvOperation())) {
+            return;
+        }
+        if (!Boolean.TRUE.equals(plan.getDoorRequired())) {
+            log.info("[AgvWarehouse] 卸货点无需门禁，直接放行AGV taskId={} agvTaskId={}", plan.getTaskId(),
+                    plan.getCurrentAgvTaskId());
+            sendResumeCommand(plan);
             return;
         }
         if (Boolean.TRUE.equals(plan.getDoorPermissionGateRequired()) && !Boolean.TRUE.equals(
