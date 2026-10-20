@@ -5,6 +5,7 @@ import com.librax.lab.framework.common.exception.ServiceException;
 import com.librax.lab.module.device.api.AgvReturnLoadCompleteHandler;
 import com.librax.lab.module.device.api.AgvResumeHandler;
 import com.librax.lab.module.device.api.AgvTaskStateHandler;
+import com.librax.lab.module.device.api.AgvOrchestrationSubtaskIds;
 import com.librax.lab.module.device.api.AgvWaitSignalHandler;
 import com.librax.lab.module.flow.api.callback.CallbackResult;
 import com.librax.lab.module.flow.api.callback.StepCallbackSpi;
@@ -58,6 +59,9 @@ public class AgvReturnPlanServiceImpl
     @Lazy
     @Autowired
     private AgvReturnPlanService self;
+
+    private static final int WAIT_SIGNAL_RESOLVE_ATTEMPTS = 5;
+    private static final long WAIT_SIGNAL_RESOLVE_DELAY_MS = 100L;
 
     private final AgvReturnPlanMapper planMapper;
     private final AgvReturnItemMapper itemMapper;
@@ -543,17 +547,71 @@ public class AgvReturnPlanServiceImpl
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean handle(String taskId, String agvStation) {
-        AgvReturnPlanDO existing = planMapper.selectByCurrentAgvTaskId(taskId);
-        if (existing == null || existing.getOrchestrationNodeId() == null || !existing.getStatus()
-                .startsWith("WAIT_AGV_"))
+        AgvReturnPlanDO gatePlan = resolveReturnPlanForOrchestrationWaitSignal(taskId, agvStation);
+        if (gatePlan == null) {
             return false;
+        }
         AgvReturnPlanDO plan = planMapper.selectByCurrentAgvTaskIdForUpdate(taskId);
+        if (plan == null) {
+            plan = planMapper.selectByTaskIdForUpdate(gatePlan.getTaskId());
+        }
+        if (plan == null || !taskId.equals(plan.getCurrentAgvTaskId())) {
+            log.warn(
+                    "[AgvReturn] handle(waitSignal) 编排计划已解析但无法加锁一致 taskId={} planTaskId={} currentAgvTaskId={}",
+                    taskId, gatePlan.getTaskId(), plan == null ? null : plan.getCurrentAgvTaskId());
+            return false;
+        }
         plan.setStatus("WAIT_SITE_ACTION");
         plan.setLastAgvStation(agvStation);
         planMapper.updateById(plan);
         log.info("[AgvReturn] AGV进入现场动作等待 taskId={} operation={} station={}", taskId,
                 plan.getCurrentAgvOperation(), agvStation);
         return true;
+    }
+
+    private AgvReturnPlanDO resolveReturnPlanForOrchestrationWaitSignal(String agvTaskId, String agvStation) {
+        String planTaskIdHint = AgvOrchestrationSubtaskIds.stripToPlanTaskId(agvTaskId);
+        if (planTaskIdHint == null) {
+            AgvReturnPlanDO byCurrent = planMapper.selectByCurrentAgvTaskId(agvTaskId);
+            return isReturnOrchestrationGateReady(byCurrent, agvTaskId) ? byCurrent : null;
+        }
+        for (int attempt = 1; attempt <= WAIT_SIGNAL_RESOLVE_ATTEMPTS; attempt++) {
+            AgvReturnPlanDO byCurrent = planMapper.selectByCurrentAgvTaskId(agvTaskId);
+            if (isReturnOrchestrationGateReady(byCurrent, agvTaskId)) {
+                return byCurrent;
+            }
+            if (planTaskIdHint != null) {
+                AgvReturnPlanDO byPlanId = planMapper.selectByTaskId(planTaskIdHint);
+                if (isReturnOrchestrationGateReady(byPlanId, agvTaskId)) {
+                    return byPlanId;
+                }
+                if (attempt == 1 || attempt == WAIT_SIGNAL_RESOLVE_ATTEMPTS) {
+                    log.info(
+                            "[AgvReturn] handle(waitSignal) 解析尝试 {}/{} taskId={} agvStation={} byPlanId={} status={} currentAgvTaskId={}",
+                            attempt, WAIT_SIGNAL_RESOLVE_ATTEMPTS, agvTaskId, agvStation,
+                            byPlanId == null ? "null" : byPlanId.getTaskId(),
+                            byPlanId == null ? null : byPlanId.getStatus(),
+                            byPlanId == null ? null : byPlanId.getCurrentAgvTaskId());
+                }
+            }
+            if (attempt < WAIT_SIGNAL_RESOLVE_ATTEMPTS) {
+                sleepWaitSignalResolveDelay();
+            }
+        }
+        return null;
+    }
+
+    private static boolean isReturnOrchestrationGateReady(AgvReturnPlanDO plan, String agvTaskId) {
+        return plan != null && plan.getOrchestrationNodeId() != null && plan.getStatus() != null
+                && plan.getStatus().startsWith("WAIT_AGV_") && agvTaskId.equals(plan.getCurrentAgvTaskId());
+    }
+
+    private static void sleepWaitSignalResolveDelay() {
+        try {
+            Thread.sleep(WAIT_SIGNAL_RESOLVE_DELAY_MS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     // ── AgvResumeHandler ─────────────────────────────────────────────────────
